@@ -26,6 +26,11 @@ trap '"${compose[@]}" stop app db >/dev/null 2>&1 || true' EXIT
 "${compose[@]}" exec -T db psql -U postgres -d prompt_off -At -v ON_ERROR_STOP=1 \
   -c "SELECT access_code FROM participants WHERE participant_code = 'P001';" > secrets/e2e_access_code
 test -s secrets/e2e_access_code
+# Clone the fresh fixture before app connections exist; concurrency tests clear this clone only.
+"${compose[@]}" exec -T db createdb -U postgres -T prompt_off gpo_test
+"${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
+  -e PGDATABASE=gpo_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \
+  migrate npm run test:database
 "${compose[@]}" up -d --wait app
 curl --fail --silent http://localhost:3000/api/health/ready
 export ADMIN_SECRET_FILE="$PWD/secrets/admin_secret"
@@ -33,6 +38,16 @@ export E2E_ACCESS_CODE_FILE="$PWD/secrets/e2e_access_code"
 export E2E_ALLOW_MUTATIONS=true
 export E2E_BASE_URL=http://localhost:3000
 npm run test:e2e
+"${compose[@]}" stop app
 bash deploy/backup.sh
 backup_file=$(ls -t backups/*.dump | head -1)
 bash deploy/restore-check.sh "$backup_file"
+
+export RESTORE_CHECK_DATABASE
+RESTORE_CHECK_DATABASE=$(cat "${backup_file}.restore-db")
+"${compose[@]}" run --rm -e PGDATABASE="$RESTORE_CHECK_DATABASE" migrate
+"${compose[@]}" exec -T db psql -U postgres -d "$RESTORE_CHECK_DATABASE" -At -v ON_ERROR_STOP=1 \
+  -c "SELECT access_code FROM participants WHERE participant_code = 'P002';" > secrets/e2e_restored_access_code
+export E2E_ACCESS_CODE_FILE="$PWD/secrets/e2e_restored_access_code"
+"${compose[@]}" -f compose.yaml -f deploy/compose.restore-test.yaml up -d --wait app
+npm run test:e2e

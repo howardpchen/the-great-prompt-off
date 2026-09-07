@@ -13,8 +13,15 @@ test("private deterministic participant and organizer rehearsal", async ({ page,
   const accessCode = readFileSync(accessFile, "utf8").trim();
   const origin = process.env.E2E_BASE_URL || "http://localhost:3000";
   const writeHeaders = { Origin: origin };
+  page.on("dialog", dialog => dialog.accept());
   const health = await context.request.get("/api/health");
   expect(health.ok()).toBe(true);
+  const legacyLogin = await context.request.get("/api/participants/validate");
+  expect(legacyLogin.status()).toBe(405);
+  const hostileWrite = await context.request.post("/api/admin/challenge-phase", {
+    headers: { Origin: "https://untrusted.invalid" }, data: { phase: "practice_open" },
+  });
+  expect(hostileWrite.status()).toBe(403);
   const unauthorized = await context.request.post("/api/admin/challenge-phase", {
     headers: writeHeaders, data: { phase: "practice_open" },
   });
@@ -24,7 +31,14 @@ test("private deterministic participant and organizer rehearsal", async ({ page,
   await page.getByLabel("Admin secret", { exact: true }).fill(adminSecret);
   const login = page.waitForResponse(r => r.url().endsWith("/api/admin/login"));
   await page.getByRole("button", { name: "Enter admin", exact: true }).click();
-  expect((await login).ok()).toBe(true);
+  const loginResponse = await login;
+  expect(loginResponse.ok()).toBe(true);
+  expect(loginResponse.headers()["cache-control"]).toContain("no-store");
+  const adminCookie = (await context.cookies()).find(cookie => cookie.name === "great-prompt-off-admin-session");
+  expect(Boolean(adminCookie)).toBe(true);
+  expect(adminCookie?.secure).toBe(true);
+  expect(adminCookie?.httpOnly).toBe(true);
+  expect(adminCookie?.sameSite).toBe("Strict");
   await expect(page.getByLabel("Admin secret", { exact: true })).toHaveCount(0);
   const phase = await context.request.post("/api/admin/challenge-phase", {
     headers: writeHeaders, data: { phase: "practice_open" },
@@ -35,13 +49,14 @@ test("private deterministic participant and organizer rehearsal", async ({ page,
   await page.getByLabel("Participant access code", { exact: true }).fill(accessCode);
   await page.getByRole("button", { name: "Enter workspace", exact: true }).click();
   await expect(page).toHaveURL(/\/challenge$/);
+  await expect(page.getByRole("heading", { name: "5 public test reports", exact: true })).toBeVisible();
   await page.getByPlaceholder("Write your clinical extraction strategy here...").fill(
     "Extract all specified clinical fields accurately. Return only valid JSON matching the supplied schema.",
   );
   const attempt = page.waitForResponse(r => r.url().endsWith("/api/submissions/public"));
-  await page.getByRole("button", { name: "Use test attempt", exact: true }).click();
+  await page.getByRole("button", { name: "Use test attempt", exact: true }).first().click();
   expect((await attempt).ok()).toBe(true);
-  await expect(page.getByRole("button", { name: "Submit final", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Submit final", exact: true }).first()).toBeDisabled();
 
   const finalPhase = await context.request.post("/api/admin/challenge-phase", {
     headers: writeHeaders, data: { phase: "final_open" },
@@ -51,17 +66,19 @@ test("private deterministic participant and organizer rehearsal", async ({ page,
   await page.getByPlaceholder("Write your clinical extraction strategy here...").fill(
     "Extract all specified clinical fields accurately. Return only valid JSON matching the supplied schema.",
   );
-  page.on("dialog", dialog => dialog.accept());
   const finalResponse = page.waitForResponse(r => r.url().endsWith("/api/submissions/final"));
-  await page.getByRole("button", { name: "Submit final", exact: true }).click();
+  await page.getByRole("button", { name: "Submit final", exact: true }).first().click();
   const final = await finalResponse;
   expect(final.ok()).toBe(true);
   const result = await final.json();
   // Final evaluation must not expose per-report hidden data.
   expect(Object.keys(result)).not.toContain("results");
   expect(Object.keys(result)).not.toContain("reports");
+  expect(Object.keys(result.feedback || {})).not.toContain("reportDetails");
+  expect(Object.keys(result.feedback || {})).not.toContain("reportScores");
+  expect(final.headers()["cache-control"]).toContain("no-store");
   await page.reload();
-  await expect(page.getByRole("button", { name: "Submit final", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Submit final", exact: true }).first()).toBeDisabled();
   await page.goto("/display/leaderboard");
   await expect(page.locator("body")).toContainText(/leaderboard/i);
 });

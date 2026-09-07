@@ -77,7 +77,9 @@ docker compose ps
 For remote installation, transfer prebuilt immutable images instead of building
 on the target. Set `APP_IMAGE` and `TOOLING_IMAGE` to reviewed release tags and
 use `up --no-build`. The PostgreSQL service has no published port and lives on
-an internal network with outbound access blocked. App runtime is unprivileged,
+an internal database network. The app also joins an ingress bridge so Docker
+can publish its loopback-only port; app egress is not firewall-blocked. Real-model
+evaluation remains disabled by configuration and no provider credentials are mounted. App runtime is unprivileged,
 read-only with narrowly scoped tmpfs, capabilities dropped. Migration tooling
 is a separate image and profile, not included in runtime. Database bootstrap
 creates separate owner, migration and application roles; only the migrator owns
@@ -137,9 +139,12 @@ release manifest, role bootstrap SQL, migrations and protected credential refs
 separately from the database. Logical backup excludes role definitions/secrets.
 
 `bash deploy/restore-check.sh backups/FILE.dump` verifies checksum, restores into
-a newly named isolated database and checks table presence. It deliberately
-retains the restored DB for application-level row-count, login, leaderboard and
-submission checks. It never overwrites or drops the active database. Record
+a newly named isolated database, preserves ownership/grants, and compares every
+public-table row count/content fingerprint with the quiescent source. Stop app
+writes before dumping/checking. It retains the restored DB and records its name
+in the restricted `.restore-db` companion file. CI then checks migration replay
+and runs the browser flow against that restored DB using the test-only Compose
+override and a different synthetic participant. It never overwrites or drops the active database. Record
 backup time, restored row counts and measured recovery duration; a table count
 alone does not satisfy the final recovery gate. For full recovery, bootstrap
 roles on a fresh cluster, restore with preserved ownership/permissions and

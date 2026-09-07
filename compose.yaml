@@ -76,11 +76,13 @@ services:
       NODE_OPTIONS: --max-old-space-size=256
     secrets: [db_app_password, admin_secret, participant_secret]
     ports: ["127.0.0.1:3000:3000"]
-    networks: [private]
+    networks: [private, ingress]
     depends_on:
       db: {condition: service_healthy}
     read_only: true
-    tmpfs: [/tmp:size=32m, /app/.next/cache:uid=1000,gid=1000,size=32m]
+    tmpfs:
+      - /tmp:size=32m
+      - /app/.next/cache:uid=1000,gid=1000,size=32m
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 384m
@@ -88,6 +90,7 @@ services:
     restart: "no"
 
 networks:
+  ingress:
   private:
     internal: true
 volumes:
