@@ -2,7 +2,9 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { normalizeParticipantCode } from "@/app/lib/participant-codes";
+import { readAuthSecret } from "../auth-secret";
+import { validSessionIssuedAt } from "../session-expiry";
+import { normalizeParticipantCode } from "../participant-codes";
 
 type ParticipantSessionPayload = {
   participantCode: string;
@@ -10,11 +12,9 @@ type ParticipantSessionPayload = {
 };
 
 function getParticipantSessionSecret() {
-  return (
-    process.env.PARTICIPANT_SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "local-mock-participant-session-secret"
-  );
+  const secret = readAuthSecret("PARTICIPANT_SESSION_SECRET");
+  if (secret === readAuthSecret("ADMIN_SECRET")) throw new Error("Authentication secrets must be independent.");
+  return secret;
 }
 
 function base64UrlEncode(value: string) {
@@ -42,13 +42,14 @@ export function createParticipantSessionToken(participantCode: string) {
 }
 
 export function verifyParticipantSessionToken(token: string) {
-  const [encodedPayload, signature] = token.split(".");
+  const [encodedPayload, signature, extra] = token.split(".");
 
-  if (!encodedPayload || !signature) {
+  if (!encodedPayload || !signature || extra !== undefined || token.length > 2048) {
     return null;
   }
 
-  const expectedSignature = sign(encodedPayload);
+  let expectedSignature: string;
+  try { expectedSignature = sign(encodedPayload); } catch { return null; }
   const signatureBytes = Buffer.from(signature);
   const expectedBytes = Buffer.from(expectedSignature);
 
@@ -61,7 +62,8 @@ export function verifyParticipantSessionToken(token: string) {
 
   try {
     const payload = JSON.parse(base64UrlDecode(encodedPayload)) as Partial<ParticipantSessionPayload>;
-    const participantCode = normalizeParticipantCode(payload.participantCode || "");
+    if (!payload || typeof payload.participantCode !== "string" || !validSessionIssuedAt(payload.iat)) return null;
+    const participantCode = normalizeParticipantCode(payload.participantCode);
 
     return participantCode ? { participantCode } : null;
   } catch {

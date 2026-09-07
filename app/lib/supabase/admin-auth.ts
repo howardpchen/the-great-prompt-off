@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { readAuthSecret } from "../auth-secret";
+import { validSessionIssuedAt } from "../session-expiry";
 import { cookies } from "next/headers";
 
 export const adminSessionCookieName = "great-prompt-off-admin-session";
@@ -8,7 +10,7 @@ export const adminSessionCookieName = "great-prompt-off-admin-session";
 const adminSessionMaxAgeSeconds = 60 * 60 * 8;
 
 function getAdminSecret() {
-  return process.env.ADMIN_SECRET || "";
+  return readAuthSecret("ADMIN_SECRET");
 }
 
 function sign(value: string) {
@@ -16,7 +18,7 @@ function sign(value: string) {
 }
 
 export function isAdminSecretConfigured() {
-  return getAdminSecret().length > 0;
+  try { return getAdminSecret().length >= 32; } catch { return false; }
 }
 
 export function verifyAdminSecret(candidate: string) {
@@ -49,9 +51,9 @@ export function verifyAdminSessionToken(token: string) {
     return false;
   }
 
-  const [payload, signature] = token.split(".");
+  const [payload, signature, extra] = token.split(".");
 
-  if (!payload || !signature) {
+  if (!payload || !signature || extra !== undefined || token.length > 2048) {
     return false;
   }
 
@@ -59,10 +61,11 @@ export function verifyAdminSessionToken(token: string) {
   const signatureBytes = Buffer.from(signature);
   const expectedBytes = Buffer.from(expectedSignature);
 
-  return (
-    signatureBytes.length === expectedBytes.length &&
-    timingSafeEqual(signatureBytes, expectedBytes)
-  );
+  if (signatureBytes.length !== expectedBytes.length || !timingSafeEqual(signatureBytes, expectedBytes)) return false;
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return decoded?.role === "admin" && validSessionIssuedAt(decoded.iat);
+  } catch { return false; }
 }
 
 export async function hasAdminSession() {
@@ -83,7 +86,7 @@ export function adminSessionCookieOptions() {
     httpOnly: true,
     maxAge: adminSessionMaxAgeSeconds,
     path: "/",
-    sameSite: "lax" as const,
+    sameSite: "strict" as const,
     secure: process.env.NODE_ENV === "production",
   };
 }

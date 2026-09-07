@@ -1833,9 +1833,11 @@ async function validateParticipantSession(
   participantToken: string,
 ) {
   const response = await fetch(
-    `/api/participants/validate?participantCode=${encodeURIComponent(
-      participantCode,
-    )}&participantToken=${encodeURIComponent(participantToken)}`,
+    "/api/participants/validate", {
+      method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ participantCode, participantToken }),
+    },
   );
 
   if (!response.ok) {
@@ -1852,7 +1854,7 @@ async function getSubmissionStatus(
   const response = await fetch(
     `/api/submissions/status?participantCode=${encodeURIComponent(
       participantCode,
-    )}&participantToken=${encodeURIComponent(participantToken)}`,
+    )}`, { cache: "no-store", headers: { Authorization: `Bearer ${participantToken}` } },
   );
 
   if (!response.ok) {

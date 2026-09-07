@@ -12,6 +12,10 @@ import { verifyParticipantSessionToken } from "@/app/lib/supabase/participant-se
 import { MAX_PROMPT_CHARS, promptTooLongMessage } from "@/app/lib/prompt-limits";
 
 export async function POST(request: Request) {
+  const idempotencyKey = request.headers.get("Idempotency-Key") || undefined;
+  if (idempotencyKey && (idempotencyKey.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(idempotencyKey))) {
+    return Response.json({ error: "Invalid idempotency key." }, { status: 400 });
+  }
   const body = await request.json().catch(() => null);
 
   if (!isSubmissionRequest(body)) {
@@ -40,6 +44,7 @@ export async function POST(request: Request) {
         kind: "public",
         participantCode: verifiedSession.participantCode,
         prompt: body.prompt,
+        idempotencyKey,
       }),
     );
   } catch (error) {
