@@ -1,0 +1,96 @@
+name: prompt-off-private
+
+x-db-env: &db-env
+  PGHOST: db
+  PGPORT: "5432"
+  PGDATABASE: prompt_off
+  PGUSER: prompt_off_app
+  PGPASSWORD_FILE: /run/secrets/db_app_password
+  USE_REAL_LLM: "false"
+  ALLOW_LOCAL_FALLBACK: "false"
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:17-bookworm}
+    user: postgres
+    environment:
+      POSTGRES_DB: prompt_off
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_owner_password
+    secrets:
+      - db_owner_password
+      - db_app_password
+      - db_migrator_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/init-roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    networks: [private]
+    # No host ports: only the private container network can reach PostgreSQL.
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d prompt_off"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=25]
+    mem_limit: 256m
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 60s
+    restart: "no"
+
+  migrate:
+    image: ${TOOLING_IMAGE:-prompt-off-tooling:local}
+    build:
+      context: .
+      target: tooling
+    profiles: [tools]
+    environment:
+      <<: *db-env
+      PGUSER: prompt_off_migrator
+      PGPASSWORD_FILE: /run/secrets/db_migrator_password
+    secrets: [db_migrator_password]
+    networks: [private]
+    depends_on:
+      db: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+    command: [npm, run, db:migrate]
+
+  app:
+    image: ${APP_IMAGE:-prompt-off:local}
+    build:
+      context: .
+      target: runtime
+    environment:
+      <<: *db-env
+      ADMIN_SECRET_FILE: /run/secrets/admin_secret
+      PARTICIPANT_SESSION_SECRET_FILE: /run/secrets/participant_secret
+      APP_ORIGIN: http://localhost:3000
+      NODE_OPTIONS: --max-old-space-size=256
+    secrets: [db_app_password, admin_secret, participant_secret]
+    ports: ["127.0.0.1:3000:3000"]
+    networks: [private]
+    depends_on:
+      db: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp:size=32m, /app/.next/cache:uid=1000,gid=1000,size=32m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    stop_grace_period: 30s
+    restart: "no"
+
+networks:
+  private:
+    internal: true
+volumes:
+  postgres_data:
+secrets:
+  db_owner_password:
+    file: ./secrets/db_owner_password
+  db_migrator_password:
+    file: ./secrets/db_migrator_password
+  db_app_password:
+    file: ./secrets/db_app_password
+  admin_secret:
+    file: ./secrets/admin_secret
+  participant_secret:
+    file: ./secrets/participant_secret
