@@ -15,8 +15,8 @@ follows the installed Next output/deploying documentation. Before deployment,
 resolve `NODE_IMAGE` and `POSTGRES_IMAGE` to immutable approved digests; record
 those, exact Git commit, architecture, image IDs, checksums and migration list
 in the release manifest. `npm ci` enforces the committed dependency lock.
-Floating default base tags are convenient for local tests, not an immutable
-release manifest. Never build with secrets as Docker arguments.
+Default Node/PostgreSQL references are pinned to retrieved image digests; any
+overrides must also be pinned and verified. Never build with secrets as Docker arguments.
 
 ## Protected inputs
 

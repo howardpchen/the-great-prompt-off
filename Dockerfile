@@ -1,5 +1,5 @@
-# Pin these image references by digest in the reviewed release manifest.
-ARG NODE_IMAGE=node:22-bookworm-slim
+# Base image digest is part of the release; update deliberately with verification.
+ARG NODE_IMAGE=node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 FROM ${NODE_IMAGE} AS dependencies
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
