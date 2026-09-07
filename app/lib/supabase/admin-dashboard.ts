@@ -624,26 +624,24 @@ export async function grantExtraPublicAttempt(participantCode: string) {
     throw new Error("Reactivate this participant before granting an extra Test Attempt.");
   }
 
-  const { data: existing, error: existingError } = await supabase.execute<{ extra_public_attempts: number }>({ table: "participant_attempt_overrides", columns: "extra_public_attempts", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", normalizedParticipantCode]] });
-
-  if (existingError) {
-    throw new Error(
-      `Failed to load participant attempt override: ${existingError.message}`,
+  // Increment inside PostgreSQL so concurrent organizer grants cannot overwrite
+  // each other. This table is keyed by participant_code, not id.
+  try {
+    const [override] = await supabase.sql<{ extra_public_attempts: number }>(
+      `INSERT INTO participant_attempt_overrides
+         (participant_code, extra_public_attempts, updated_at)
+       VALUES ($1, 1, now())
+       ON CONFLICT (participant_code) DO UPDATE
+         SET extra_public_attempts = participant_attempt_overrides.extra_public_attempts + 1,
+             updated_at = now()
+       RETURNING extra_public_attempts`,
+      [normalizedParticipantCode],
     );
+
+    return override.extra_public_attempts;
+  } catch {
+    throw new Error("Failed to grant extra Test Attempt: Database operation failed");
   }
-
-  const extraPublicAttempts = (existing?.extra_public_attempts ?? 0) + 1;
-  const { error: upsertError } = await supabase.execute<Record<string, unknown>[]>({ table: "participant_attempt_overrides", values: {
-      participant_code: normalizedParticipantCode,
-      extra_public_attempts: extraPublicAttempts,
-      updated_at: new Date().toISOString(),
-    }, operation: "upsert" });
-
-  if (upsertError) {
-    throw new Error(`Failed to grant extra Test Attempt: ${upsertError.message}`);
-  }
-
-  return extraPublicAttempts;
 }
 
 function adminRpcError(message: string) {

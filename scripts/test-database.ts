@@ -6,7 +6,7 @@ import {
   submitToSupabase,
   getSupabaseLeaderboard,
 } from "../app/lib/supabase/submission-workflow";
-import { getAdminDashboardData } from "../app/lib/supabase/admin-dashboard";
+import { getAdminDashboardData, grantExtraPublicAttempt } from "../app/lib/supabase/admin-dashboard";
 async function main() {
   if (process.env.PGDATABASE !== "gpo_test")
     throw new Error("Requires disposable gpo_test database");
@@ -23,6 +23,24 @@ async function main() {
     "UPDATE challenges SET event_phase='practice_open' WHERE id=$1",
     [challenge.id],
   );
+  // Exercise the real organizer operation, not merely the query adapter.
+  assert.equal(await grantExtraPublicAttempt(" p001 "), 1);
+  assert.equal(await grantExtraPublicAttempt("P001"), 2);
+  const grants = await Promise.all(
+    Array.from({ length: 8 }, () => grantExtraPublicAttempt("P001")),
+  );
+  assert.deepEqual(grants.sort((a, b) => a - b), [3, 4, 5, 6, 7, 8, 9, 10]);
+  const [override] = await db.sql<{ extra_public_attempts: number }>(
+    "SELECT extra_public_attempts FROM participant_attempt_overrides WHERE participant_code=$1",
+    ["P001"],
+  );
+  assert.equal(override.extra_public_attempts, 10);
+  await assert.rejects(grantExtraPublicAttempt("NOT_REGISTERED"));
+  await db.sql("UPDATE participants SET is_active=false WHERE id=$1", [participant.id]);
+  await assert.rejects(grantExtraPublicAttempt("P001"));
+  await db.sql("UPDATE participants SET is_active=true WHERE id=$1", [participant.id]);
+  // Keep the established five-attempt admission fixture unchanged.
+  await db.sql("DELETE FROM participant_attempt_overrides WHERE participant_code=$1", ["P001"]);
   const prompt =
     "Return valid JSON for each field acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion. Use present, absent, uncertain, not_reported.";
   const score = await submitToSupabase({
@@ -129,7 +147,7 @@ async function main() {
     // Even if a caller handles a query error, an aborted transaction must not report success.
   }));
   console.log(
-    "PASS: replay, admission burst, atomic rollback, 5-public/45-private evaluation, final exclusivity, admin dashboard and clear, leaderboard",
+    "PASS: first/repeated/concurrent organizer grants, replay, admission burst, atomic rollback, 5-public/45-private evaluation, final exclusivity, admin dashboard and clear, leaderboard",
   );
   await getPool().end();
 }

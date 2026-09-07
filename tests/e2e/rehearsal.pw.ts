@@ -45,6 +45,22 @@ test("private deterministic participant and organizer rehearsal", async ({ page,
   });
   expect(phase.ok()).toBe(true);
 
+  // Organizer rescue must work through the authenticated API, including upsert.
+  // Use a different synthetic participant so the submission fixture is unchanged.
+  const clearGrantFixture = await context.request.post("/api/admin/participants/clear-data", {
+    headers: writeHeaders,
+    data: { participantCode: "P003", confirmation: "P003" },
+  });
+  expect(clearGrantFixture.ok()).toBe(true);
+  for (const expected of [1, 2]) {
+    const grant = await context.request.post("/api/admin/participants/grant-extra-test-attempt", {
+      headers: writeHeaders,
+      data: { participantCode: "P003", confirmation: "P003" },
+    });
+    expect(grant.ok()).toBe(true);
+    expect((await grant.json()).extraPublicAttempts).toBe(expected);
+  }
+
   await page.goto("/");
   await page.getByLabel("Participant access code", { exact: true }).fill(accessCode);
   await page.getByRole("button", { name: "Enter workspace", exact: true }).click();
