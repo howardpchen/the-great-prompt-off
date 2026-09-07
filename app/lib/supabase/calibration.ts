@@ -16,7 +16,7 @@ import {
   getActiveChallenge,
   getSupabaseAnswerKeysForSplit,
 } from "./submission-workflow";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 
 export const calibrationBaselines = [
   { id: "blank", label: "Blank prompt", prompt: "" },
@@ -70,7 +70,7 @@ export async function runBaselineCalibration(): Promise<CalibrationResult> {
     throw new Error("OPENROUTER_API_KEY is not configured.");
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const challenge = await getActiveChallenge(supabase);
   const challengeMode = resolveChallengeMode(
     challenge.mode_id,

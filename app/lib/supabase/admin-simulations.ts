@@ -20,7 +20,7 @@ import {
   createSchemaSnapshot,
   resolveChallengeMode,
 } from "@/app/lib/schema-storage";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 import {
   getActiveChallenge,
   getSupabaseAnswerKeysForSplit,
@@ -38,7 +38,7 @@ type StoredSimulationBatch = SimulationBatchWithSchema & {
 };
 
 export async function runAdminSimulationDryRun(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   payload: unknown,
 ) {
   const context = await loadSimulationContext(supabase, payload);
@@ -52,7 +52,7 @@ export async function runAdminSimulationDryRun(
 }
 
 export async function runAndPersistAdminSimulation(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   payload: unknown,
 ) {
   const context = await loadSimulationContext(supabase, payload);
@@ -65,9 +65,7 @@ export async function runAndPersistAdminSimulation(
   let batchId: string | null = null;
 
   try {
-    const { data: batch, error: batchError } = await supabase
-      .from("simulation_batches")
-      .insert({
+    const { data: batch, error: batchError } = await supabase.execute<{ id: string }>({ table: "simulation_batches", values: {
         challenge_id: context.challengeId,
         mode_id: context.mode.id,
         schema_version: context.mode.version,
@@ -80,19 +78,14 @@ export async function runAndPersistAdminSimulation(
         field_count: execution.summary.fieldCount,
         profile_count: execution.runs.length,
         total_evaluations: execution.summary.totalEvaluations,
-      })
-      .select("id")
-      .single<{ id: string }>();
+      }, columns: "id", single: "single", operation: "insert" });
 
     if (batchError || !batch) {
       throw new Error(batchError?.message || "Simulation batch insert failed.");
     }
     batchId = batch.id;
 
-    const { data: storedRuns, error: runsError } = await supabase
-      .from("simulation_runs")
-      .insert(
-        execution.runs.map((run) => ({
+    const { data: storedRuns, error: runsError } = await supabase.execute<Array<{ id: string; profile_id: string; profile_version: number }>>({ table: "simulation_runs", values: execution.runs.map((run) => ({
           simulation_batch_id: batch.id,
           profile_id: run.profileId,
           profile_version: run.profileVersion,
@@ -106,10 +99,7 @@ export async function runAndPersistAdminSimulation(
           missing_field_count: run.missingFieldCount,
           invalid_value_count: run.invalidValueCount,
           completed_report_count: run.completedReportCount,
-        })),
-      )
-      .select("id, profile_id, profile_version")
-      .returns<Array<{ id: string; profile_id: string; profile_version: number }>>();
+        })), columns: "id, profile_id, profile_version", operation: "insert" });
 
     if (runsError || !storedRuns || storedRuns.length !== execution.runs.length) {
       throw new Error(runsError?.message || "Simulation run insert failed.");
@@ -140,22 +130,17 @@ export async function runAndPersistAdminSimulation(
     });
 
     if (itemRows.length > 0) {
-      const { error: itemsError } = await supabase
-        .from("simulation_run_items")
-        .insert(itemRows);
+      const { error: itemsError } = await supabase.execute<Record<string, unknown>[]>({ table: "simulation_run_items", values: itemRows, operation: "insert" });
       if (itemsError) {
         throw new Error(itemsError.message);
       }
     }
 
-    const { error: completionError } = await supabase
-      .from("simulation_batches")
-      .update({
+    const { error: completionError } = await supabase.execute<Record<string, unknown>[]>({ table: "simulation_batches", values: {
         status: "completed",
         completed_at: new Date().toISOString(),
         error_message: null,
-      })
-      .eq("id", batch.id);
+      }, operation: "update", where: [["id", "eq", batch.id]] });
     if (completionError) {
       throw new Error(completionError.message);
     }
@@ -180,14 +165,11 @@ export async function runAndPersistAdminSimulation(
           batchId,
           message: cleanupError.message,
         });
-        const { error: failedStatusError } = await supabase
-          .from("simulation_batches")
-          .update({
+        const { error: failedStatusError } = await supabase.execute<Record<string, unknown>[]>({ table: "simulation_batches", values: {
             status: "failed",
             completed_at: new Date().toISOString(),
             error_message: "Simulation persistence failed; cleanup is required.",
-          })
-          .eq("id", batchId);
+          }, operation: "update", where: [["id", "eq", batchId]] });
         if (failedStatusError) {
           console.error("[admin-simulation] Failed status update failed", {
             batchId,
@@ -208,24 +190,13 @@ export async function runAndPersistAdminSimulation(
 }
 
 export async function listAdminSimulationBatches(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
 ) {
   const challenge = await getActiveChallenge(supabase);
   const [{ data, error }, { data: reportRows, error: reportError }] =
     await Promise.all([
-      supabase
-        .from("simulation_batches")
-        .select(
-          "id, mode_id, schema_version, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at, is_reference, reference_label",
-        )
-        .eq("challenge_id", challenge.id)
-        .order("created_at", { ascending: false })
-        .limit(25),
-      supabase
-        .from("reports")
-        .select("split")
-        .eq("challenge_id", challenge.id)
-        .in("split", ["public", "private"]),
+      supabase.execute<Record<string, unknown>[]>({ table: "simulation_batches", columns: "id, mode_id, schema_version, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at, is_reference, reference_label", limit: 25, operation: "select", where: [["challenge_id", "eq", challenge.id]], order: [["created_at", { ascending: false }]] }),
+      supabase.execute<Record<string, unknown>[]>({ table: "reports", columns: "split", operation: "select", where: [["challenge_id", "eq", challenge.id],["split", "in", ["public", "private"]]] }),
     ]);
 
   if (error || reportError) {
@@ -238,7 +209,7 @@ export async function listAdminSimulationBatches(
     challenge.mode_id,
     challenge.schema_version,
   );
-  const reportCounts = (reportRows ?? []).reduce(
+  const reportCounts = (reportRows ?? []).reduce<{public:number;private:number}>(
     (counts, report) => {
       if (report.split === "public") {
         counts.public += 1;
@@ -280,18 +251,11 @@ export async function listAdminSimulationBatches(
 }
 
 export async function getAdminSimulationBatch(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   batchId: string,
 ) {
   const batch = await getActiveChallengeBatch(supabase, batchId);
-  const { data: runs, error } = await supabase
-    .from("simulation_runs")
-    .select(
-      "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at",
-    )
-    .eq("simulation_batch_id", batch.id)
-    .order("created_at", { ascending: true })
-    .returns<SimulationAnalyticsRun[]>();
+  const { data: runs, error } = await supabase.execute<SimulationAnalyticsRun[]>({ table: "simulation_runs", columns: "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at", operation: "select", where: [["simulation_batch_id", "eq", batch.id]], order: [["created_at", { ascending: true }]] });
 
   if (error) {
     throw new SimulationDataUnavailableError(
@@ -325,7 +289,7 @@ export async function getAdminSimulationBatch(
 }
 
 export async function deleteAdminSimulationBatch(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   batchId: string,
 ) {
   const batch = await getActiveChallengeBatch(supabase, batchId);
@@ -341,7 +305,7 @@ export async function deleteAdminSimulationBatch(
 }
 
 export async function clearAdminSimulationData(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
 ) {
   const challenge = await getActiveChallenge(supabase);
   const { error } = await supabase.rpc("admin_clear_simulation_data", {
@@ -356,7 +320,7 @@ export async function clearAdminSimulationData(
 }
 
 async function loadSimulationContext(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   payload: unknown,
 ) {
   const input = parseSimulationInput(payload);
@@ -407,7 +371,7 @@ async function loadSimulationContext(
 }
 
 async function getActiveChallengeBatch(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   batchId: string,
 ) {
   if (!isUuid(batchId)) {
@@ -415,14 +379,7 @@ async function getActiveChallengeBatch(
   }
 
   const challenge = await getActiveChallenge(supabase);
-  const { data, error } = await supabase
-    .from("simulation_batches")
-    .select(
-      "id, mode_id, schema_version, schema_snapshot, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at, is_reference, reference_label, reference_notes",
-    )
-    .eq("id", batchId)
-    .eq("challenge_id", challenge.id)
-    .maybeSingle<StoredSimulationBatch>();
+  const { data, error } = await supabase.execute<StoredSimulationBatch>({ table: "simulation_batches", columns: "id, mode_id, schema_version, schema_snapshot, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at, is_reference, reference_label, reference_notes", single: "maybeSingle", operation: "select", where: [["id", "eq", batchId],["challenge_id", "eq", challenge.id]] });
 
   if (error) {
     throw new SimulationDataUnavailableError(

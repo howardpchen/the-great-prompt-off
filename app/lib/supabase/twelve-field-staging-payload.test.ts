@@ -59,7 +59,7 @@ describe("knee MRI twelve-field staging payload", () => {
 
   it("is not referenced by the production Supabase seed script", () => {
     const seedScript = readFileSync(
-      path.join(process.cwd(), "scripts", "seed-supabase.ts"),
+      path.join(process.cwd(), "scripts", "seed-demo.ts"),
       "utf8",
     );
 

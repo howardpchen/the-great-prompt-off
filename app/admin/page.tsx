@@ -111,7 +111,7 @@ export default async function AdminPage() {
           </h2>
           <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
             <HealthItem
-              label="Supabase connected"
+              label="Database connected"
               value={data.health.supabaseConnected ? "Yes" : "No"}
             />
             <HealthItem

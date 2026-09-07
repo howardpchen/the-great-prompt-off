@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Private deployment material and browser artifacts
+/secrets/
+/backups/
+/playwright-report/
+/test-results/

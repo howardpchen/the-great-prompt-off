@@ -1,6 +1,6 @@
 import manifest from "@/data/mock-report-manifest.json";
 import answerKeys from "@/data/mock-answer-keys.json";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { fallbackChallengeConfig } from "@/app/lib/challenge-config";
 import { challenge as mockChallenge } from "@/app/lib/challenge-constants";
 import { getPublicChallengeModeMetadata } from "@/app/lib/challenge-modes";
@@ -112,22 +112,14 @@ async function getExactCount(
 
 export async function GET() {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createDatabase();
 
-    const { data: challenge, error: challengeError } = await supabase
-      .from("challenges")
-      .select(
-        "id, slug, title, description, instructions, locked_model, evaluation_model, mode_id, schema_version, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label",
-      )
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single<ChallengeRow>();
+    const { data: challenge, error: challengeError } = await supabase.execute<ChallengeRow>({ table: "challenges", columns: "id, slug, title, description, instructions, locked_model, evaluation_model, mode_id, schema_version, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
     if (challengeError) {
       return Response.json(
         getFallbackChallengeData(
-          `Supabase active challenge unavailable: ${challengeError.message}`,
+          `Database active challenge unavailable: ${challengeError.message}`,
         ),
       );
     }
@@ -135,17 +127,12 @@ export async function GET() {
     if (!challenge) {
       return Response.json(
         getFallbackChallengeData(
-          "Supabase is reachable, but no active challenge is seeded.",
+          "Database is reachable, but no active challenge is seeded.",
         ),
       );
     }
 
-    const { data: reports, error: reportsError } = await supabase
-      .from("reports")
-      .select("id, external_id, filename, split")
-      .eq("challenge_id", challenge.id)
-      .order("external_id", { ascending: true })
-      .returns<ReportMetadataRow[]>();
+    const { data: reports, error: reportsError } = await supabase.execute<ReportMetadataRow[]>({ table: "reports", columns: "id, external_id, filename, split", operation: "select", where: [["challenge_id", "eq", challenge.id]], order: [["external_id", { ascending: true }]] });
 
     if (reportsError) {
       throw new Error(`Failed to load reports: ${reportsError.message}`);
@@ -154,7 +141,7 @@ export async function GET() {
     if (reports.length === 0) {
       return Response.json(
         getFallbackChallengeData(
-          "Supabase active challenge exists, but no reports are seeded.",
+          "Database active challenge exists, but no reports are seeded.",
         ),
       );
     }
@@ -163,20 +150,11 @@ export async function GET() {
     const activeMode = resolveChallengeMode(challenge.mode_id, challenge.schema_version);
     const [participantCount, answerKeyCount] = await Promise.all([
       getExactCount(
-        supabase
-          .from("participants")
-          .select("id", { count: "exact", head: true })
-          .then((result) => result),
+        supabase.execute({table:'participants',count:true}),
         "participant count",
       ),
       getExactCount(
-        supabase
-          .from("answer_keys")
-          .select("id", { count: "exact", head: true })
-          .in("report_id", reportIds)
-          .eq("mode_id", activeMode.id)
-          .eq("schema_version", activeMode.version)
-          .then((result) => result),
+        supabase.execute({table:'answer_keys',count:true,where:[['report_id','in',reportIds],['mode_id','eq',activeMode.id],['schema_version','eq',activeMode.version]]}),
         "answer key count",
       ),
     ]);
@@ -220,8 +198,8 @@ export async function GET() {
       participantCount,
       answerKeyCount,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+  } catch {
+    const message = "Challenge data is temporarily unavailable";
 
     return Response.json(getFallbackChallengeData(message));
   }

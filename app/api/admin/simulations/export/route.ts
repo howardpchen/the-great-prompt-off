@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { getAdminSimulationCsvExport } from "@/app/lib/supabase/admin-simulation-exports";
 import {
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   try {
     const result = await getAdminSimulationCsvExport(
-      createSupabaseAdminClient(),
+      createDatabase(),
       batchId,
     );
     return new Response(result.csv, {

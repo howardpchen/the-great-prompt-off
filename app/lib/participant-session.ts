@@ -26,7 +26,7 @@ function getParticipantTokenSnapshot() {
     return "";
   }
 
-  return window.localStorage.getItem(participantSessionTokenStorageKey) ?? "";
+  return window.sessionStorage.getItem(participantSessionTokenStorageKey) ?? "";
 }
 
 function getServerSnapshot() {
@@ -69,12 +69,14 @@ export function saveParticipantId(participantId: string) {
 
 export function saveParticipantSession(participantId: string, participantToken: string) {
   saveParticipantId(participantId);
-  window.localStorage.setItem(participantSessionTokenStorageKey, participantToken);
+  window.localStorage.removeItem(participantSessionTokenStorageKey);
+  window.sessionStorage.setItem(participantSessionTokenStorageKey, participantToken);
   emitParticipantSessionChange();
 }
 
 export function clearParticipantId() {
   window.localStorage.removeItem(participantStorageKey);
   window.localStorage.removeItem(participantSessionTokenStorageKey);
+  window.sessionStorage.removeItem(participantSessionTokenStorageKey);
   emitParticipantSessionChange();
 }

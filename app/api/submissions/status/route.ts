@@ -8,11 +8,11 @@ import { verifyParticipantSessionToken } from "@/app/lib/supabase/participant-se
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const participantCode = url.searchParams.get("participantCode")?.trim();
-  const participantToken = url.searchParams.get("participantToken")?.trim();
+  const participantToken = request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1];
 
   if (!participantCode || !participantToken) {
     return Response.json(
-      { error: "participantCode and participantToken query parameters are required." },
+      { error: "participantCode query parameter and Bearer authorization are required." },
       { status: 400 },
     );
   }

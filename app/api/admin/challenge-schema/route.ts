@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { callAdminChallengeSchemaUpdate } from "@/app/lib/supabase/admin-challenge-schema-route";
 
 export async function POST(request: Request) {
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   } | null;
 
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createDatabase();
     const result = await callAdminChallengeSchemaUpdate(supabase, body?.modeId, body?.schemaVersion);
     return Response.json(result);
   } catch (error) {

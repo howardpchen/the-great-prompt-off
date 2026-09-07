@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { preflightAdminChallengeSchema } from "@/app/lib/supabase/admin-challenge-schema-route";
 
 export async function POST(request: Request) {
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await preflightAdminChallengeSchema(
-      createSupabaseAdminClient(),
+      createDatabase(),
       body?.modeId,
       body?.schemaVersion,
     );

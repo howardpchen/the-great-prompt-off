@@ -12,7 +12,7 @@ import {
 } from "../schema-storage";
 import { defaultChallengeMode } from "../challenge-modes";
 import type { FindingKey, FindingValue } from "../types";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 
 export type AdminCaseSplit = "public" | "private";
 export type AdminFindingField = FindingKey;
@@ -71,19 +71,13 @@ type AnswerKeyRow = {
 };
 
 export async function getAdminCaseManagerData(): Promise<AdminCaseManagerData> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const challenge = await getActiveChallenge(supabase);
   const mode = resolveChallengeMode(challenge.mode_id, challenge.schema_version);
   if (mode.id !== defaultChallengeMode.id || mode.version !== defaultChallengeMode.version) {
     throw new Error("Case Manager currently supports only the active six-field challenge schema.");
   }
-  const { data: reports, error: reportsError } = await supabase
-    .from("reports")
-    .select("id, external_id, filename, split, report_text")
-    .eq("challenge_id", challenge.id)
-    .in("split", ["public", "private"])
-    .order("filename", { ascending: true })
-    .returns<ReportRow[]>();
+  const { data: reports, error: reportsError } = await supabase.execute<ReportRow[]>({ table: "reports", columns: "id, external_id, filename, split, report_text", operation: "select", where: [["challenge_id", "eq", challenge.id],["split", "in", ["public", "private"]]], order: [["filename", { ascending: true }]] });
 
   if (reportsError) {
     throw new Error(`Failed to load reports: ${reportsError.message}`);
@@ -92,22 +86,10 @@ export async function getAdminCaseManagerData(): Promise<AdminCaseManagerData> {
   const reportIds = reports.map((report) => report.id);
   const [answerKeysResult, runItemsResult] = await Promise.all([
     reportIds.length > 0
-      ? supabase
-          .from("answer_keys")
-          .select(
-            "report_id, mode_id, schema_version, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion",
-          )
-          .in("report_id", reportIds)
-          .eq("mode_id", mode.id)
-          .eq("schema_version", mode.version)
-          .returns<AnswerKeyRow[]>()
+      ? supabase.execute<AnswerKeyRow[]>({ table: "answer_keys", columns: "report_id, mode_id, schema_version, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion", operation: "select", where: [["report_id", "in", reportIds],["mode_id", "eq", mode.id],["schema_version", "eq", mode.version]] })
       : Promise.resolve({ data: [], error: null }),
     reportIds.length > 0
-      ? supabase
-          .from("prompt_run_items")
-          .select("report_id")
-          .in("report_id", reportIds)
-          .returns<Array<{ report_id: string }>>()
+      ? supabase.execute<Array<{ report_id: string }>>({ table: "prompt_run_items", columns: "report_id", operation: "select", where: [["report_id", "in", reportIds]] })
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -161,7 +143,7 @@ export async function createAdminCase(input: {
   split: AdminCaseSplit;
 }) {
   const validated = validateCaseInput(input);
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const challenge = await getActiveChallenge(supabase);
   const externalId = externalIdFromFilename(validated.filename);
   await ensureUniqueReportIdentity(supabase, challenge.id, {
@@ -169,18 +151,14 @@ export async function createAdminCase(input: {
     filename: validated.filename,
   });
 
-  const { data: report, error: reportError } = await supabase
-    .from("reports")
-    .insert({
+  const { data: report, error: reportError } = await supabase.execute<{ id: string }>({ table: "reports", values: {
       challenge_id: challenge.id,
       external_id: externalId,
       filename: validated.filename,
       split: validated.split,
       report_text: validated.reportText,
       synthetic: true,
-    })
-    .select("id")
-    .single<{ id: string }>();
+    }, columns: "id", single: "single", operation: "insert" });
 
   if (reportError) {
     throw new Error(`Failed to create report: ${reportError.message}`);
@@ -203,14 +181,9 @@ export async function updateAdminCase(input: {
   }
 
   const validated = validateCaseInput(input);
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const challenge = await getActiveChallenge(supabase);
-  const { data: existing, error: existingError } = await supabase
-    .from("reports")
-    .select("id")
-    .eq("challenge_id", challenge.id)
-    .eq("id", reportId)
-    .maybeSingle<{ id: string }>();
+  const { data: existing, error: existingError } = await supabase.execute<{ id: string }>({ table: "reports", columns: "id", single: "maybeSingle", operation: "select", where: [["challenge_id", "eq", challenge.id],["id", "eq", reportId]] });
 
   if (existingError) {
     throw new Error(`Failed to load report: ${existingError.message}`);
@@ -225,14 +198,11 @@ export async function updateAdminCase(input: {
     ignoreReportId: reportId,
   });
 
-  const { error: reportError } = await supabase
-    .from("reports")
-    .update({
+  const { error: reportError } = await supabase.execute<Record<string, unknown>[]>({ table: "reports", values: {
       filename: validated.filename,
       split: validated.split,
       report_text: validated.reportText,
-    })
-    .eq("id", reportId);
+    }, operation: "update", where: [["id", "eq", reportId]] });
 
   if (reportError) {
     throw new Error(`Failed to update report: ${reportError.message}`);
@@ -251,12 +221,8 @@ export async function deleteAdminCase(input: {
     throw new Error("reportId is required.");
   }
 
-  const supabase = createSupabaseAdminClient();
-  const { data: report, error: reportError } = await supabase
-    .from("reports")
-    .select("id, filename")
-    .eq("id", reportId)
-    .maybeSingle<{ id: string; filename: string | null }>();
+  const supabase = createDatabase();
+  const { data: report, error: reportError } = await supabase.execute<{ id: string; filename: string | null }>({ table: "reports", columns: "id, filename", single: "maybeSingle", operation: "select", where: [["id", "eq", reportId]] });
 
   if (reportError) {
     throw new Error(`Failed to load report: ${reportError.message}`);
@@ -272,12 +238,7 @@ export async function deleteAdminCase(input: {
     throw new Error("Confirm deletion by typing the exact filename.");
   }
 
-  const { data: runItems, error: runItemsError } = await supabase
-    .from("prompt_run_items")
-    .select("id")
-    .eq("report_id", reportId)
-    .limit(1)
-    .returns<Array<{ id: string }>>();
+  const { data: runItems, error: runItemsError } = await supabase.execute<Array<{ id: string }>>({ table: "prompt_run_items", columns: "id", limit: 1, operation: "select", where: [["report_id", "eq", reportId]] });
 
   if (runItemsError) {
     throw new Error(`Failed to check report run history: ${runItemsError.message}`);
@@ -291,10 +252,7 @@ export async function deleteAdminCase(input: {
 
   // answer_keys.report_id has ON DELETE CASCADE, so deleting the report removes
   // only its answer key after the run-history guard above has passed.
-  const { error: deleteError } = await supabase
-    .from("reports")
-    .delete()
-    .eq("id", reportId);
+  const { error: deleteError } = await supabase.execute<Record<string, unknown>[]>({ table: "reports", operation: "delete", where: [["id", "eq", reportId]] });
 
   if (deleteError) {
     throw new Error(`Failed to delete report: ${deleteError.message}`);
@@ -355,15 +313,12 @@ export function validateAnswerKey(value: unknown): AdminAnswerKey {
 }
 
 async function upsertAnswerKey(reportId: string, answerKey: AdminAnswerKey) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const mode = defaultChallengeMode;
-  const { error } = await supabase.from("answer_keys").upsert(
-    {
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "answer_keys", values: {
       report_id: reportId,
       ...buildVersionedAnswerKeyStoragePayload(answerKey, mode),
-    },
-    { onConflict: "report_id,mode_id,schema_version" },
-  );
+    }, conflict: ({ onConflict: "report_id,mode_id,schema_version" }).onConflict, operation: "upsert" });
 
   if (error) {
     throw new Error(`Failed to upsert answer key: ${error.message}`);
@@ -371,7 +326,7 @@ async function upsertAnswerKey(reportId: string, answerKey: AdminAnswerKey) {
 }
 
 async function ensureUniqueReportIdentity(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   challengeId: string,
   input: {
     externalId?: string;
@@ -379,20 +334,7 @@ async function ensureUniqueReportIdentity(
     ignoreReportId?: string;
   },
 ) {
-  let query = supabase
-    .from("reports")
-    .select("id, external_id, filename")
-    .eq("challenge_id", challengeId);
-
-  if (input.externalId) {
-    query = query.or(`external_id.eq.${input.externalId},filename.eq.${input.filename}`);
-  } else {
-    query = query.eq("filename", input.filename);
-  }
-
-  const { data, error } = await query.returns<
-    Array<{ id: string; external_id: string; filename: string | null }>
-  >();
+  const {data,error} = await supabase.execute<Array<{id:string;external_id:string;filename:string|null}>>({table:'reports',columns:'id, external_id, filename',where:[['challenge_id','eq',challengeId]],any:input.externalId ? [['external_id','eq',input.externalId],['filename','eq',input.filename]] : [['filename','eq',input.filename]]});
 
   if (error) {
     throw new Error(`Failed to check report uniqueness: ${error.message}`);
@@ -406,18 +348,12 @@ async function ensureUniqueReportIdentity(
 }
 
 async function getActiveChallenge(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
 ) {
-  const { data, error } = await supabase
-    .from("challenges")
-    .select("id, mode_id, schema_version")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single<ActiveChallenge>();
+  const { data, error } = await supabase.execute<ActiveChallenge>({ table: "challenges", columns: "id, mode_id, schema_version", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
   if (error) {
-    throw new Error(`Supabase active challenge unavailable: ${error.message}`);
+    throw new Error(`Database active challenge unavailable: ${error.message}`);
   }
 
   return data;

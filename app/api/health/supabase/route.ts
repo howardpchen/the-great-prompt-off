@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -31,23 +31,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("challenges")
-      .select("id, slug, title")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<ChallengeHealthRow>();
+    const supabase = createDatabase();
+    const { data, error } = await supabase.execute<ChallengeHealthRow>({ table: "challenges", columns: "id, slug, title", limit: 1, single: "maybeSingle", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
     if (error) {
-      console.warn("Supabase health check failed.");
+      console.warn("Database health check failed.");
 
       return Response.json(
         {
           ok: false,
           source: "supabase",
-          error: "Supabase health check failed.",
+          error: "Database health check failed.",
           checkedAt,
         },
         { status: 503 },
@@ -67,13 +61,13 @@ export async function GET(request: Request) {
         : null,
     });
   } catch {
-    console.warn("Supabase health check could not run.");
+    console.warn("Database health check could not run.");
 
     return Response.json(
       {
         ok: false,
         source: "supabase",
-        error: "Supabase health check could not run.",
+        error: "Database health check could not run.",
         checkedAt,
       },
       { status: 503 },

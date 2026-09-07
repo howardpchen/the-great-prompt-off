@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { prepareAdminAnswerKeyImport } from "@/app/lib/supabase/admin-challenge-schema-route";
 
 export async function POST(request: Request) {
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await prepareAdminAnswerKeyImport(
-      createSupabaseAdminClient(),
+      createDatabase(),
       payload,
     );
     return Response.json(result, { status: result.ok ? 200 : 400 });

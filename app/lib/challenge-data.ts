@@ -3,7 +3,7 @@ import path from "node:path";
 
 import answerKeys from "@/data/mock-answer-keys.json";
 import manifest from "@/data/mock-report-manifest.json";
-import { createSupabaseAdminClient } from "./supabase/admin";
+import { createDatabase } from "./supabase/admin";
 import {
   canUseLegacySixFieldAnswerKey,
   resolveChallengeMode,
@@ -82,7 +82,7 @@ export async function getSampleReports(): Promise<SampleReport[]> {
 
     if (process.env.ALLOW_LOCAL_FALLBACK !== "true") {
       console.error(
-        "[challenge-data] Supabase public reports unavailable and local fallback is disabled",
+        "[challenge-data] Database public reports unavailable and local fallback is disabled",
         message,
       );
 
@@ -132,14 +132,8 @@ async function getLocalPublicReports(): Promise<SampleReport[]> {
 }
 
 async function getSupabasePublicReports(): Promise<SampleReport[]> {
-  const supabase = createSupabaseAdminClient();
-  const { data: challenge, error: challengeError } = await supabase
-    .from("challenges")
-    .select("id, mode_id, schema_version")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single<SupabaseChallengeRow>();
+  const supabase = createDatabase();
+  const { data: challenge, error: challengeError } = await supabase.execute<SupabaseChallengeRow>({ table: "challenges", columns: "id, mode_id, schema_version", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
   if (challengeError || !challenge) {
     throw new Error(challengeError?.message || "No active challenge found.");
@@ -147,13 +141,7 @@ async function getSupabasePublicReports(): Promise<SampleReport[]> {
 
   const mode = resolveChallengeMode(challenge.mode_id, challenge.schema_version);
 
-  const { data: reports, error: reportsError } = await supabase
-    .from("reports")
-    .select("id, external_id, filename, split, report_text")
-    .eq("challenge_id", challenge.id)
-    .eq("split", "public")
-    .order("filename", { ascending: true })
-    .returns<SupabaseReportRow[]>();
+  const { data: reports, error: reportsError } = await supabase.execute<SupabaseReportRow[]>({ table: "reports", columns: "id, external_id, filename, split, report_text", operation: "select", where: [["challenge_id", "eq", challenge.id],["split", "eq", "public"]], order: [["filename", { ascending: true }]] });
 
   if (reportsError) {
     throw new Error(reportsError.message);
@@ -164,15 +152,7 @@ async function getSupabasePublicReports(): Promise<SampleReport[]> {
   }
 
   const reportIds = reports.map((report) => report.id);
-  const { data: answerKeyRows, error: answerKeyError } = await supabase
-    .from("answer_keys")
-    .select(
-      "report_id, mode_id, schema_version, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion",
-    )
-    .in("report_id", reportIds)
-    .eq("mode_id", mode.id)
-    .eq("schema_version", mode.version)
-    .returns<SupabaseAnswerKeyRow[]>();
+  const { data: answerKeyRows, error: answerKeyError } = await supabase.execute<SupabaseAnswerKeyRow[]>({ table: "answer_keys", columns: "report_id, mode_id, schema_version, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion", operation: "select", where: [["report_id", "in", reportIds],["mode_id", "eq", mode.id],["schema_version", "eq", mode.version]] });
 
   if (answerKeyError) {
     throw new Error(answerKeyError.message);

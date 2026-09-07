@@ -1,0 +1,5 @@
+# Test-only app override: connect to a NEW restored database, never replace live data.
+services:
+  app:
+    environment:
+      PGDATABASE: ${RESTORE_CHECK_DATABASE:?Set the newly restored database name}

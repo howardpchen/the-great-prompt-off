@@ -9,21 +9,27 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "seed:supabase": "tsx scripts/seed-supabase.ts"
+    "db:migrate": "NODE_OPTIONS=--conditions=react-server tsx scripts/migrate.ts",
+    "seed:demo": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-demo.ts",
+    "test:e2e": "playwright test",
+    "test:database": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-database.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.108.2",
-    "next": "16.2.9",
+    "next": "^16.3.4",
+    "pg": "^8.23.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "^16.3.4",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5",

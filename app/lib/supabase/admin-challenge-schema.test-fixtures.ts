@@ -28,7 +28,7 @@ export function makeAnswerKey(
       osteoarthritis: "not_reported",
       effusion: "present",
       ...overrides,
-    },
+    } as Record<string, unknown> | null,
     acl_tear: "absent",
     mcl_injury: "absent",
     meniscus_tear: "not_reported",

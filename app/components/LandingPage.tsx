@@ -319,9 +319,11 @@ export function LandingPage() {
 
 async function validateParticipantCode(accessCode: string) {
   const response = await fetch(
-    `/api/participants/validate?accessCode=${encodeURIComponent(
-      accessCode,
-    )}`,
+    "/api/participants/validate", {
+      method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessCode }),
+    },
   );
 
   if (!response.ok) {
@@ -336,9 +338,11 @@ async function validateParticipantSession(
   participantToken: string,
 ) {
   const response = await fetch(
-    `/api/participants/validate?participantCode=${encodeURIComponent(
-      participantCode,
-    )}&participantToken=${encodeURIComponent(participantToken)}`,
+    "/api/participants/validate", {
+      method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ participantCode, participantToken }),
+    },
   );
 
   if (!response.ok) {

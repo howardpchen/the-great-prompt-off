@@ -21,47 +21,19 @@ import { getChallengeConfigurationLockStatus } from "./admin-challenge";
 
 const TWELVE_FIELD_MODE = "knee_mri_12_basic";
 
-type SupabaseLike = {
-  from: (table: string) => {
-    select: (columns: string) => unknown;
-  };
-  rpc: (name: string, args: Record<string, unknown>) => Promise<{
-    data: unknown;
-    error: { message: string; code?: string } | null;
-  }>;
-};
+import type { Database } from '../db/database';
 
 async function loadActiveChallengeReports(
   supabase: unknown,
   targetMode?: ChallengeModeDefinition,
 ) {
-  const client = supabase as SupabaseLike;
-  const challengeResult = await (client.from("challenges").select(
-    "id, mode_id, schema_version",
-  ) as unknown as {
-    eq: (column: string, value: boolean) => {
-      single: <T>() => Promise<{ data: T | null; error: { message: string } | null }>;
-    };
-  }).eq("is_active", true).single<{
-    id: string;
-    mode_id: string | null;
-    schema_version: number | null;
-  }>();
+  const client = supabase as Database;
+  const challengeResult = await client.execute<{id:string; mode_id:string|null; schema_version:number|null}>({table:'challenges',columns:'id, mode_id, schema_version',where:[['is_active','eq',true]],single:'single'});
   if (challengeResult.error || !challengeResult.data) {
     throw new Error("No active challenge was found.");
   }
 
-  const reportsQuery = client.from("reports").select("id, split, filename, external_id") as unknown as {
-    eq: (column: string, value: string) => {
-      in: (column: string, values: string[]) => {
-        returns: <T>() => Promise<{ data: T[]; error: { message: string } | null }>;
-      };
-    };
-  };
-  const reportsResult = await reportsQuery
-    .eq("challenge_id", challengeResult.data.id)
-    .in("split", ["public", "private"])
-    .returns<AdminSchemaReportRow>();
+  const reportsResult = await client.execute<AdminSchemaReportRow[]>({table:'reports',columns:'id, split, filename, external_id',where:[['challenge_id','eq',challengeResult.data.id],['split','in',['public','private']]]});
   if (reportsResult.error) {
     throw new Error("Could not validate challenge reports and answer keys.");
   }
@@ -136,21 +108,8 @@ export async function prepareAdminAnswerKeyImport(
 
   if (!write || !preparation.validation.ok) return baseResult;
 
-  const client = supabase as SupabaseLike;
-  const existingQuery = client.from("answer_keys").select("report_id, provenance") as unknown as {
-    in: (column: string, values: string[]) => {
-      eq: (column: string, value: string | number) => {
-        eq: (column: string, value: string | number) => Promise<{
-          data: { report_id: string; provenance: string | null }[] | null;
-          error: { message: string; code?: string } | null;
-        }>;
-      };
-    };
-  };
-  const existingResult = await existingQuery
-    .in("report_id", preparation.rows.map((row) => row.report_id))
-    .eq("mode_id", mode.id)
-    .eq("schema_version", mode.version);
+  const client = supabase as Database;
+  const existingResult = await client.execute<{report_id:string;provenance:string|null}[]>({table:'answer_keys',columns:'report_id, provenance',where:[['report_id','in',preparation.rows.map(row=>row.report_id)],['mode_id','eq',mode.id],['schema_version','eq',mode.version]]});
   if (existingResult.error) {
     console.error("[admin-answer-key-import] Existing-row check failed", {
       code: existingResult.error.code,
@@ -172,24 +131,11 @@ export async function prepareAdminAnswerKeyImport(
       "Clinician-adjudicated answer keys cannot be replaced by non-adjudicated imports.",
     );
   }
-  const answerKeysTable = client.from("answer_keys") as unknown as {
-    insert: (rows: typeof preparation.rows) => Promise<{
-      error: { message: string; code?: string } | null;
-    }>;
-    upsert: (
-      rows: typeof preparation.rows,
-      options: { onConflict: string },
-    ) => Promise<{ error: { message: string; code?: string } | null }>;
-  };
   const writeRows = async (
     operation: "insert" | "upsert",
     rows: readonly (typeof preparation.rows)[number][],
   ) => {
-    const writeResult = operation === "upsert"
-      ? await answerKeysTable.upsert([...rows], {
-          onConflict: "report_id,mode_id,schema_version",
-        })
-      : await answerKeysTable.insert([...rows]);
+    const writeResult = await client.execute({table:'answer_keys',operation,values:[...rows],conflict:'report_id,mode_id,schema_version'});
     if (writeResult.error) {
       if (writeResult.error.code === "23505") {
         throw new Error(EXISTING_ANSWER_KEY_ERROR);
@@ -273,7 +219,7 @@ export async function callAdminChallengeSchemaUpdate(
   const metadata = createChallengeSchemaMetadata(mode);
   const inputs = await loadChallengeSchemaInputsForMode(supabase, mode);
   validateTargetAnswerKeysForActivation(inputs.reports, inputs.answerKeys, mode);
-  const client = supabase as SupabaseLike;
+  const client = supabase as Database;
   const rpcResult = await client.rpc("admin_update_challenge_schema", {
     target_mode_id: metadata.modeId,
     target_schema_version: metadata.schemaVersion,
@@ -288,23 +234,8 @@ async function loadChallengeSchemaInputsForMode(
   mode: ChallengeModeDefinition,
 ) {
   const reports = await loadActiveChallengeReports(supabase, mode);
-  const client = supabase as SupabaseLike;
-  const keysQuery = client.from("answer_keys").select(
-    "report_id, provenance, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion",
-  ) as unknown as {
-    in: (column: string, values: string[]) => {
-      eq: (column: string, value: string | number) => {
-        eq: (column: string, value: string | number) => {
-          returns: <T>() => Promise<{ data: T[]; error: { message: string } | null }>;
-        };
-      };
-    };
-  };
-  const keysResult = await keysQuery
-    .in("report_id", reports.reports.map((report) => report.id))
-    .eq("mode_id", mode.id)
-    .eq("schema_version", mode.version)
-    .returns<AdminSchemaAnswerKeyRow>();
+  const client = supabase as Database;
+  const keysResult = await client.execute<AdminSchemaAnswerKeyRow[]>({table:'answer_keys',columns:'report_id, provenance, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion',where:[['report_id','in',reports.reports.map(report=>report.id)],['mode_id','eq',mode.id],['schema_version','eq',mode.version]]});
   if (keysResult.error) {
     throw new Error("Could not validate challenge reports and answer keys.");
   }

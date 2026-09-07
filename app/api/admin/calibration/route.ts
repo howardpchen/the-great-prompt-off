@@ -19,7 +19,7 @@ export async function POST() {
     return Response.json(
       {
         error:
-          "Baseline calibration could not complete. Check the active model, Supabase data, and OpenRouter configuration.",
+          "Baseline calibration could not complete. Check the active model, database data, and OpenRouter configuration.",
       },
       { status: 502 },
     );

@@ -31,23 +31,8 @@ export async function getChallengeConfigurationLockStatus(
   supabase: unknown,
   challengeId: string,
 ) {
-  const client = supabase as {
-    from: (table: string) => {
-      select: (
-        columns: string,
-        options?: { count?: "exact"; head?: boolean },
-      ) => {
-        eq: (column: string, value: string) => Promise<{
-          count: number | null;
-          error: { message: string; code?: string } | null;
-        }>;
-      };
-    };
-  };
-  const { count, error } = await client
-    .from("submissions")
-    .select("id", { count: "exact", head: true })
-    .eq("challenge_id", challengeId);
+  const client = supabase as import('../db/database').Database;
+  const {count, error} = await client.execute({table:'submissions',count:true,where:[['challenge_id','eq',challengeId]]});
 
   if (error) {
     throw new Error(`Could not check challenge configuration lock: ${error.message}`);

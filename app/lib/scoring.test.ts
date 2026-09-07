@@ -26,7 +26,7 @@ const strictOutput: AnswerKey = {
   effusion: "present",
 };
 
-function fieldResult(output: unknown, field: FindingKey) {
+function fieldResult(output: Parameters<typeof scoreModelOutput>[0], field: FindingKey) {
   const result = scoreModelOutput(output, answerKey);
   const fieldScore = result.per_field.find((item) => item.field === field);
 

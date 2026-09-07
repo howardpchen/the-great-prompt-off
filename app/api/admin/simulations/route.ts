@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import {
   clearAdminSimulationData,
   listAdminSimulationBatches,
@@ -16,7 +16,7 @@ export async function GET() {
 
   try {
     return Response.json(
-      await listAdminSimulationBatches(createSupabaseAdminClient()),
+      await listAdminSimulationBatches(createDatabase()),
     );
   } catch (error) {
     const message = error instanceof SimulationDataUnavailableError
@@ -45,7 +45,7 @@ export async function DELETE(request: Request) {
 
   try {
     return Response.json(
-      await clearAdminSimulationData(createSupabaseAdminClient()),
+      await clearAdminSimulationData(createDatabase()),
     );
   } catch (error) {
     const message = error instanceof SimulationPersistenceError

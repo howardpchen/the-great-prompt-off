@@ -27,7 +27,7 @@ const helpSections = [
   {
     title: "Admin Health Check expected values",
     items: [
-      "Supabase connected: Yes.",
+      "Database connected: Yes.",
       "USE_REAL_LLM: true for production events.",
       "Report split: 5 public / 45 private.",
       "Participants: 50 unless the workshop roster changed.",
@@ -71,7 +71,7 @@ const helpSections = [
     items: [
       "The full reset deletes prompt run items, submissions, prompt runs, and extra Test Attempt grants.",
       "The reset preserves participants, access codes, reports, answer keys, and challenges.",
-      "Atomic reset functions should exist in Supabase before relying on reset tools.",
+      "The ordered PostgreSQL migrations must be applied before using reset tools; see deploy/README.md.",
     ],
   },
   {
@@ -100,9 +100,9 @@ const helpSections = [
   {
     title: "Troubleshooting",
     items: [
-      "Vercel environment variable changes require a redeploy.",
-      "If Health Check counts look wrong, verify the Supabase seed and report split SQL.",
-      "If reset fails, verify supabase/admin-atomic-clears.sql was run in the correct project.",
+      "Server configuration changes require recreating the application container using the deployment runbook.",
+      "If Health Check counts look wrong, review the active database and report split. Do not reseed an existing event to troubleshoot counts.",
+      "If reset fails, ask the operator to verify the ordered PostgreSQL migrations against the active database; see deploy/README.md.",
       "If real LLM runs fail, check OpenRouter key, model, quota, and concurrency.",
     ],
   },
@@ -152,9 +152,9 @@ export default async function AdminHelpPage() {
           </p>
           <p>
             <span className="font-semibold text-slate-800">
-              SUPABASE_MIGRATIONS_GUIDE.md
+              deploy/README.md
             </span>{" "}
-            explains database SQL migrations and verification queries.
+            explains PostgreSQL migrations, verification, deployment, and recovery.
           </p>
         </div>
         <p className="mt-3 text-sm leading-6 text-slate-600">
