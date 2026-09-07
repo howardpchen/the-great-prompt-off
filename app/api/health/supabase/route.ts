@@ -35,13 +35,13 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.execute<ChallengeHealthRow>({ table: "challenges", columns: "id, slug, title", limit: 1, single: "maybeSingle", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
     if (error) {
-      console.warn("Supabase health check failed.");
+      console.warn("Database health check failed.");
 
       return Response.json(
         {
           ok: false,
           source: "supabase",
-          error: "Supabase health check failed.",
+          error: "Database health check failed.",
           checkedAt,
         },
         { status: 503 },
@@ -61,13 +61,13 @@ export async function GET(request: Request) {
         : null,
     });
   } catch {
-    console.warn("Supabase health check could not run.");
+    console.warn("Database health check could not run.");
 
     return Response.json(
       {
         ok: false,
         source: "supabase",
-        error: "Supabase health check could not run.",
+        error: "Database health check could not run.",
         checkedAt,
       },
       { status: 503 },

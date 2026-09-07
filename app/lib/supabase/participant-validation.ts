@@ -135,7 +135,7 @@ export async function validateParticipantAccessCode(
       participantId: null,
       fallbackReason: message,
       message:
-        "Supabase participant validation is unavailable, so local mock mode accepted this access code.",
+        "Database participant validation is unavailable, so local mock mode accepted this access code.",
     };
   }
 }
@@ -226,7 +226,7 @@ export async function validateParticipantSession(
       participantId: null,
       fallbackReason: message,
       message:
-        "Supabase participant session validation is unavailable, so local mock mode accepted this saved participant.",
+        "Database participant session validation is unavailable, so local mock mode accepted this saved participant.",
     };
   }
 }

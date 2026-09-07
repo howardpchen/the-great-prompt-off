@@ -119,7 +119,7 @@ export async function GET() {
     if (challengeError) {
       return Response.json(
         getFallbackChallengeData(
-          `Supabase active challenge unavailable: ${challengeError.message}`,
+          `Database active challenge unavailable: ${challengeError.message}`,
         ),
       );
     }
@@ -127,7 +127,7 @@ export async function GET() {
     if (!challenge) {
       return Response.json(
         getFallbackChallengeData(
-          "Supabase is reachable, but no active challenge is seeded.",
+          "Database is reachable, but no active challenge is seeded.",
         ),
       );
     }
@@ -141,7 +141,7 @@ export async function GET() {
     if (reports.length === 0) {
       return Response.json(
         getFallbackChallengeData(
-          "Supabase active challenge exists, but no reports are seeded.",
+          "Database active challenge exists, but no reports are seeded.",
         ),
       );
     }

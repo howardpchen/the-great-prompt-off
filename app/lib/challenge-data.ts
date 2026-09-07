@@ -82,7 +82,7 @@ export async function getSampleReports(): Promise<SampleReport[]> {
 
     if (process.env.ALLOW_LOCAL_FALLBACK !== "true") {
       console.error(
-        "[challenge-data] Supabase public reports unavailable and local fallback is disabled",
+        "[challenge-data] Database public reports unavailable and local fallback is disabled",
         message,
       );
 

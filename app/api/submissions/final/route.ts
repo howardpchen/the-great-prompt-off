@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : String(error);
 
     if (process.env.ALLOW_LOCAL_FALLBACK !== "true") {
-      console.error("[submit-final] Supabase submission unavailable", message);
+      console.error("[submit-final] Database submission unavailable", message);
 
       return Response.json(
         {

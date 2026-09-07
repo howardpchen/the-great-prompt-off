@@ -653,7 +653,7 @@ function adminRpcError(message: string) {
     message.toLowerCase().includes("function") ||
     message.toLowerCase().includes("where clause")
   ) {
-    return `${message}. Run the latest supabase/admin-atomic-clears.sql in this Supabase project.`;
+    return `${message}. Ask the operator to verify and apply the ordered PostgreSQL migrations using deploy/README.md; do not reset or reseed existing event data.`;
   }
 
   return message;

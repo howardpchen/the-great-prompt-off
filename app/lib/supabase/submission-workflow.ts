@@ -708,7 +708,7 @@ export async function getActiveChallenge(
   const { data, error } = await supabase.execute<ActiveChallenge>({ table: "challenges", columns: "id, locked_model, evaluation_model, mode_id, schema_version, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
   if (error) {
-    throw new Error(`Supabase active challenge unavailable: ${error.message}`);
+    throw new Error(`Database active challenge unavailable: ${error.message}`);
   }
 
   return data;
