@@ -5,9 +5,11 @@
 This packaging is for a **private synthetic rehearsal** only. No DNS, Caddy,
 public ports, paid evaluation, persistent restart policies or backup schedules
 are activated here. Server changes are coordinator-only. Build on a sufficiently
-sized machine, never on the discovered 458 MiB/no-swap host. Minimum practical
+sized machine rather than on the resource-constrained target. Latest coordinator
+inventory verifies 1967 MiB RAM, x86_64 and approximately 6.8 GiB free disk. Minimum practical
 starting point is 1 GiB RAM for a small rehearsal; 2 GiB gives useful headroom.
-Neither is a measured 50-user capacity guarantee. Current Compose caps total
+The current 2 GiB host meets that starting recommendation, but this is not a
+measured 50-user capacity guarantee. Current Compose caps total
 app/database memory at 640 MiB before host/daemon overhead.
 
 Use maintained Docker Compose v2, PostgreSQL 17 and Node 22. Next standalone
@@ -17,6 +19,27 @@ those, exact Git commit, architecture, image IDs, checksums and migration list
 in the release manifest. `npm ci` enforces the committed dependency lock.
 Default Node/PostgreSQL references are pinned to retrieved image digests; any
 overrides must also be pinned and verified. Never build with secrets as Docker arguments.
+
+## Disk and off-host release transfer
+
+The 6.8 GiB available target disk is plausible for a small synthetic rehearsal
+ONLY with off-host builds and bounded retention. Exact integrated images must
+still be measured. Retrieved compressed image sizes are about 149 MiB PostgreSQL
+and 76 MiB Node; expanded snapshots, tooling dependencies and previous images
+consume additional space. Do not treat compressed sizes as installed usage.
+Before transfer record `docker system df -v`, `df -h` and image archive sizes.
+Budget for current and previous app, one tooling image, PostgreSQL, DB data,
+one local backup and at least 2 GiB free operating headroom after installation.
+If that headroom cannot be met, stop and obtain a storage/retention decision.
+
+Build app/tooling on the local build machine and stream the reviewed archive
+through the already authorized coordinator SSH channel into `docker load`;
+verify image IDs after transfer. Streaming avoids retaining duplicate tar files.
+Do not run full `npm ci`, browser installation or Docker builds on the target.
+No global image/cache pruning: remove only identified obsolete release artifacts
+after confirming the previous known-good release and backup remain recoverable.
+Use Docker's bounded local logging driver below; database backups also need
+explicit retention. No disk-growth monitor or persistent scheduler is activated.
 
 ## Protected inputs
 
@@ -94,9 +117,12 @@ and projector rendering. Traces/screenshots/video are off to avoid credential
 or hidden-answer capture. Never run against a real event: it changes event phase
 and consumes attempts. Record test output without request payloads.
 
-CI checks lint, units, production audit/build and container build. Full database
-integration/browser evidence must be collected against the integrated app, not
-inferred from passing units or a successful image build. Before 50-user use,
+CI checks lint, units, production audit/build, then `deploy/ci-rehearsal.sh`
+builds and launches actual containers, migrates/seeds an isolated fixture, runs
+the browser rehearsal and populated backup/restore mechanics. The script refuses
+existing secret directories and non-CI environments; credentials are generated
+directly to protected files. No logs/traces or backups are uploaded as artifacts.
+Full integration evidence must be collected, not inferred from harness presence. Before 50-user use,
 measure simultaneous bursts, memory, pool saturation, failure recovery and
 attempt accounting. Deterministic success is not live-model readiness.
 

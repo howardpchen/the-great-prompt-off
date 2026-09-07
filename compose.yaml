@@ -1,5 +1,11 @@
 name: prompt-off-private
 
+x-logging: &bounded-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-db-env: &db-env
   PGHOST: db
   PGPORT: "5432"
@@ -11,6 +17,7 @@ x-db-env: &db-env
 
 services:
   db:
+    logging: *bounded-logging
     image: ${POSTGRES_IMAGE:-postgres:17-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0}
     user: postgres
     environment:
@@ -38,6 +45,7 @@ services:
     restart: "no"
 
   migrate:
+    logging: *bounded-logging
     image: ${TOOLING_IMAGE:-prompt-off-tooling:local}
     build:
       context: .
@@ -55,6 +63,7 @@ services:
     command: [npm, run, db:migrate]
 
   app:
+    logging: *bounded-logging
     image: ${APP_IMAGE:-prompt-off:local}
     build:
       context: .
