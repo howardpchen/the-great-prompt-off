@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 
 type ParticipantRow = {
   id: string;
@@ -83,22 +83,11 @@ export type AdminAnalyticsData = {
 };
 
 export async function getAdminAnalyticsData(): Promise<AdminAnalyticsData> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const [participantsResult, submissionsResult, runItemsResult] = await Promise.all([
-    supabase
-      .from("participants")
-      .select("id, participant_code, display_name")
-      .order("participant_code", { ascending: true })
-      .returns<ParticipantRow[]>(),
-    supabase
-      .from("submissions")
-      .select("participant_id, submission_type, score, submitted_at, prompt_run_id")
-      .order("submitted_at", { ascending: true })
-      .returns<SubmissionRow[]>(),
-    supabase
-      .from("prompt_run_items")
-      .select("valid_json, missing_fields, invalid_fields")
-      .returns<PromptRunItemRow[]>(),
+    supabase.execute<ParticipantRow[]>({ table: "participants", columns: "id, participant_code, display_name", operation: "select", order: [["participant_code", { ascending: true }]] }),
+    supabase.execute<SubmissionRow[]>({ table: "submissions", columns: "participant_id, submission_type, score, submitted_at, prompt_run_id", operation: "select", order: [["submitted_at", { ascending: true }]] }),
+    supabase.execute<PromptRunItemRow[]>({ table: "prompt_run_items", columns: "valid_json, missing_fields, invalid_fields", operation: "select" }),
   ]);
 
   if (participantsResult.error) {

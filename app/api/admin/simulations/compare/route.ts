@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { compareAdminSimulationBatches } from "@/app/lib/supabase/admin-simulation-analytics";
 import {
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   try {
     return Response.json(
       await compareAdminSimulationBatches(
-        createSupabaseAdminClient(),
+        createDatabase(),
         leftBatchId,
         rightBatchId,
       ),

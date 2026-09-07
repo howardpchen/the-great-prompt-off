@@ -50,16 +50,16 @@ describe("admin simulation dry-run route", () => {
       "utf8",
     );
 
-    expect(service).toContain('.from("simulation_batches")');
-    expect(service).toContain('.from("simulation_runs")');
+    expect(service).toContain('table: "simulation_batches"');
+    expect(service).toContain('table: "simulation_runs"');
     expect(service).toContain('"admin_set_simulation_reference"');
     expect(service).toContain('"admin_clear_simulation_reference"');
-    expect(service).not.toContain('.from("participants")');
-    expect(service).not.toContain('.from("prompt_runs")');
-    expect(service).not.toContain('.from("prompt_run_items")');
-    expect(service).not.toContain('.from("submissions")');
-    expect(service).not.toContain('.from("reports")');
-    expect(service).not.toContain('.from("answer_keys")');
+    expect(service).not.toContain('table: "participants"');
+    expect(service).not.toContain('table: "prompt_runs"');
+    expect(service).not.toContain('table: "prompt_run_items"');
+    expect(service).not.toContain('table: "submissions"');
+    expect(service).not.toContain('table: "reports"');
+    expect(service).not.toContain('table: "answer_keys"');
   });
 
   it("limits reference storage and replacement to completed deterministic batches", () => {
@@ -169,16 +169,16 @@ describe("admin simulation dry-run route", () => {
       "utf8",
     );
 
-    expect(service).toContain('.from("simulation_batches")');
-    expect(service).toContain('.from("simulation_runs")');
-    expect(service).toContain('.from("simulation_run_items")');
+    expect(service).toContain('table: "simulation_batches"');
+    expect(service).toContain('table: "simulation_runs"');
+    expect(service).toContain('table: "simulation_run_items"');
     expect(service).toContain('"admin_delete_simulation_batch"');
     expect(service).toContain('"admin_clear_simulation_data"');
-    expect(service).not.toContain('.from("participants")');
-    expect(service).not.toContain('.from("prompt_runs")');
-    expect(service).not.toContain('.from("prompt_run_items")');
-    expect(service).not.toContain('.from("submissions")');
-    expect(service).not.toContain('.from("participant_attempt_overrides")');
+    expect(service).not.toContain('table: "participants"');
+    expect(service).not.toContain('table: "prompt_runs"');
+    expect(service).not.toContain('table: "prompt_run_items"');
+    expect(service).not.toContain('table: "submissions"');
+    expect(service).not.toContain('table: "participant_attempt_overrides"');
   });
 
   it("reads simulation analytics only from isolated simulation tables", () => {
@@ -193,15 +193,15 @@ describe("admin simulation dry-run route", () => {
       "utf8",
     );
 
-    expect(service).toContain('.from("simulation_batches")');
-    expect(service).toContain('.from("simulation_runs")');
-    expect(service).not.toContain('.from("simulation_run_items")');
-    expect(service).not.toContain('.from("participants")');
-    expect(service).not.toContain('.from("prompt_runs")');
-    expect(service).not.toContain('.from("prompt_run_items")');
-    expect(service).not.toContain('.from("submissions")');
-    expect(service).not.toContain('.from("reports")');
-    expect(service).not.toContain('.from("answer_keys")');
+    expect(service).toContain('table: "simulation_batches"');
+    expect(service).toContain('table: "simulation_runs"');
+    expect(service).not.toContain('table: "simulation_run_items"');
+    expect(service).not.toContain('table: "participants"');
+    expect(service).not.toContain('table: "prompt_runs"');
+    expect(service).not.toContain('table: "prompt_run_items"');
+    expect(service).not.toContain('table: "submissions"');
+    expect(service).not.toContain('table: "reports"');
+    expect(service).not.toContain('table: "answer_keys"');
   });
 
   it("keeps simulation analytics UI free of source and private result fields", () => {
@@ -235,18 +235,18 @@ describe("admin simulation dry-run route", () => {
       "utf8",
     );
 
-    expect(service).toContain('.from("simulation_batches")');
-    expect(service).toContain('.from("simulation_runs")');
-    expect(service).toContain('.eq("challenge_id", challenge.id)');
-    expect(service).toContain('.eq("status", "completed")');
-    expect(service).toContain('batchQuery.eq("id", batchId)');
-    expect(service).not.toContain('.from("simulation_run_items")');
-    expect(service).not.toContain('.from("participants")');
-    expect(service).not.toContain('.from("prompt_runs")');
-    expect(service).not.toContain('.from("prompt_run_items")');
-    expect(service).not.toContain('.from("submissions")');
-    expect(service).not.toContain('.from("reports")');
-    expect(service).not.toContain('.from("answer_keys")');
+    expect(service).toContain('table: "simulation_batches"');
+    expect(service).toContain('table: "simulation_runs"');
+    expect(service).toContain('["challenge_id", "eq", challenge.id]');
+    expect(service).toContain("['status','eq','completed']");
+    expect(service).toContain("['id','eq',batchId]");
+    expect(service).not.toContain('table: "simulation_run_items"');
+    expect(service).not.toContain('table: "participants"');
+    expect(service).not.toContain('table: "prompt_runs"');
+    expect(service).not.toContain('table: "prompt_run_items"');
+    expect(service).not.toContain('table: "submissions"');
+    expect(service).not.toContain('table: "reports"');
+    expect(service).not.toContain('table: "answer_keys"');
   });
 
   it("does not expose source content through exports or reproducibility UI", () => {

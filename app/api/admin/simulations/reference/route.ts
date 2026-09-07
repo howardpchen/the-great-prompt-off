@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import {
   clearAdminSimulationReference,
@@ -21,7 +21,7 @@ export async function GET() {
 
   try {
     return Response.json(
-      await getAdminSimulationReferenceData(createSupabaseAdminClient()),
+      await getAdminSimulationReferenceData(createDatabase()),
     );
   } catch (error) {
     return referenceError(error);
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   try {
     return Response.json(
       await setAdminSimulationReference(
-        createSupabaseAdminClient(),
+        createDatabase(),
         payload,
       ),
     );
@@ -67,7 +67,7 @@ export async function DELETE(request: Request) {
 
   try {
     return Response.json(
-      await clearAdminSimulationReference(createSupabaseAdminClient()),
+      await clearAdminSimulationReference(createDatabase()),
     );
   } catch (error) {
     return referenceError(error);

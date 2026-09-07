@@ -18,7 +18,7 @@ import {
   defaultChallengeMode,
 } from "@/app/lib/challenge-modes";
 import { resolveChallengeMode } from "@/app/lib/schema-storage";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 import {
   createChallengeModesReadiness,
   type AdminModeReadiness,
@@ -153,7 +153,7 @@ type ParticipantAttemptOverrideRow = {
 };
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const [
     challengeResult,
     participantsResult,
@@ -163,38 +163,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     reportsResult,
   ] =
     await Promise.all([
-    supabase
-      .from("challenges")
-      .select(
-        "id, evaluation_model, mode_id, schema_version, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label, public_submission_limit",
-      )
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single<ChallengeControlRow>(),
-    supabase
-      .from("participants")
-      .select("id, participant_code, display_name, email, access_code, is_active")
-      .order("participant_code", { ascending: true })
-      .returns<ParticipantRow[]>(),
-    supabase
-      .from("participant_attempt_overrides")
-      .select("participant_code, extra_public_attempts")
-      .returns<ParticipantAttemptOverrideRow[]>(),
-    supabase
-      .from("submissions")
-      .select("challenge_id, participant_id, submission_type, score, submitted_at, prompt_run_id")
-      .order("submitted_at", { ascending: true })
-      .returns<SubmissionRow[]>(),
-    supabase
-      .from("prompt_runs")
-      .select("id, participant_id, model, completed_at, created_at")
-      .order("created_at", { ascending: false })
-      .returns<PromptRunRow[]>(),
-    supabase
-      .from("reports")
-      .select("id, challenge_id, split")
-      .returns<ReportCountRow[]>(),
+    supabase.execute<ChallengeControlRow>({ table: "challenges", columns: "id, evaluation_model, mode_id, schema_version, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label, public_submission_limit", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] }),
+    supabase.execute<ParticipantRow[]>({ table: "participants", columns: "id, participant_code, display_name, email, access_code, is_active", operation: "select", order: [["participant_code", { ascending: true }]] }),
+    supabase.execute<ParticipantAttemptOverrideRow[]>({ table: "participant_attempt_overrides", columns: "participant_code, extra_public_attempts", operation: "select" }),
+    supabase.execute<SubmissionRow[]>({ table: "submissions", columns: "challenge_id, participant_id, submission_type, score, submitted_at, prompt_run_id", operation: "select", order: [["submitted_at", { ascending: true }]] }),
+    supabase.execute<PromptRunRow[]>({ table: "prompt_runs", columns: "id, participant_id, model, completed_at, created_at", operation: "select", order: [["created_at", { ascending: false }]] }),
+    supabase.execute<ReportCountRow[]>({ table: "reports", columns: "id, challenge_id, split", operation: "select" }),
   ]);
 
   if (challengeResult.error) {
@@ -233,13 +207,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   let readinessAnswerKeys: AdminSchemaAnswerKeyRow[] = [];
 
   if (readinessReports.length > 0) {
-    const answerKeysResult = await supabase
-      .from("answer_keys")
-      .select(
-        "report_id, mode_id, schema_version, provenance, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion",
-      )
-      .in("report_id", readinessReports.map((report) => report.id))
-      .returns<AdminSchemaAnswerKeyRow[]>();
+    const answerKeysResult = await supabase.execute<AdminSchemaAnswerKeyRow[]>({ table: "answer_keys", columns: "report_id, mode_id, schema_version, provenance, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion", operation: "select", where: [["report_id", "in", readinessReports.map((report) => report.id)]] });
 
     if (answerKeysResult.error) {
       throw new Error(
@@ -512,11 +480,8 @@ export async function updateActiveChallengePhase(phase: EventPhase) {
     throw new Error("Invalid event phase.");
   }
 
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
-    .from("challenges")
-    .update({ event_phase: phase })
-    .eq("is_active", true);
+  const supabase = createDatabase();
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "challenges", values: { event_phase: phase }, operation: "update", where: [["is_active", "eq", true]] });
 
   if (error) {
     throw new Error(`Failed to update event phase: ${error.message}`);
@@ -530,11 +495,8 @@ export async function updateActiveChallengeLeaderboardVisibility(
     throw new Error("Invalid leaderboard visibility.");
   }
 
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
-    .from("challenges")
-    .update({ leaderboard_visibility: visibility })
-    .eq("is_active", true);
+  const supabase = createDatabase();
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "challenges", values: { leaderboard_visibility: visibility }, operation: "update", where: [["is_active", "eq", true]] });
 
   if (error) {
     throw new Error(`Failed to update leaderboard visibility: ${error.message}`);
@@ -548,11 +510,8 @@ export async function updateActiveChallengeAnnouncement(announcement: string) {
     throw new Error("Announcement must be 240 characters or fewer.");
   }
 
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
-    .from("challenges")
-    .update({ event_announcement: normalizedAnnouncement })
-    .eq("is_active", true);
+  const supabase = createDatabase();
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "challenges", values: { event_announcement: normalizedAnnouncement }, operation: "update", where: [["is_active", "eq", true]] });
 
   if (error) {
     throw new Error(`Failed to update announcement: ${error.message}`);
@@ -581,18 +540,15 @@ export async function updateActiveChallengeTimer({
     throw new Error("Timer duration must be between 1 and 180 minutes.");
   }
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const eventTimerEndsAt =
     durationMinutes === null
       ? null
       : new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
-  const { error } = await supabase
-    .from("challenges")
-    .update({
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "challenges", values: {
       event_timer_ends_at: eventTimerEndsAt,
       event_timer_label: durationMinutes === null ? "" : normalizedLabel,
-    })
-    .eq("is_active", true);
+    }, operation: "update", where: [["is_active", "eq", true]] });
 
   if (error) {
     throw new Error(`Failed to update event timer: ${error.message}`);
@@ -605,7 +561,7 @@ export async function updateActiveChallengeTimer({
 }
 
 export async function resetWorkshopRunData() {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const { error } = await supabase.rpc("admin_reset_workshop_run_data");
 
   if (error) {
@@ -614,15 +570,11 @@ export async function resetWorkshopRunData() {
 }
 
 export async function regenerateParticipantAccessCode(participantCode: string) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   let accessCode = createParticipantAccessCode();
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const { data: existing, error: existingError } = await supabase
-      .from("participants")
-      .select("id")
-      .eq("access_code", accessCode)
-      .maybeSingle<{ id: string }>();
+    const { data: existing, error: existingError } = await supabase.execute<{ id: string }>({ table: "participants", columns: "id", single: "maybeSingle", operation: "select", where: [["access_code", "eq", accessCode]] });
 
     if (existingError) {
       throw new Error(`Failed to check access code uniqueness: ${existingError.message}`);
@@ -635,10 +587,7 @@ export async function regenerateParticipantAccessCode(participantCode: string) {
     accessCode = createParticipantAccessCode();
   }
 
-  const { error } = await supabase
-    .from("participants")
-    .update({ access_code: accessCode })
-    .eq("participant_code", participantCode);
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "participants", values: { access_code: accessCode }, operation: "update", where: [["participant_code", "eq", participantCode]] });
 
   if (error) {
     throw new Error(`Failed to regenerate access code: ${error.message}`);
@@ -648,7 +597,7 @@ export async function regenerateParticipantAccessCode(participantCode: string) {
 }
 
 export async function clearParticipantRunData(participantCode: string) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const { error } = await supabase.rpc("admin_clear_participant_run_data", {
     target_participant_code: participantCode,
   });
@@ -659,13 +608,9 @@ export async function clearParticipantRunData(participantCode: string) {
 }
 
 export async function grantExtraPublicAttempt(participantCode: string) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const normalizedParticipantCode = participantCode.trim().toUpperCase();
-  const { data: participant, error: participantError } = await supabase
-    .from("participants")
-    .select("participant_code, is_active")
-    .eq("participant_code", normalizedParticipantCode)
-    .maybeSingle<{ participant_code: string; is_active: boolean }>();
+  const { data: participant, error: participantError } = await supabase.execute<{ participant_code: string; is_active: boolean }>({ table: "participants", columns: "participant_code, is_active", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", normalizedParticipantCode]] });
 
   if (participantError) {
     throw new Error(`Failed to load participant: ${participantError.message}`);
@@ -679,11 +624,7 @@ export async function grantExtraPublicAttempt(participantCode: string) {
     throw new Error("Reactivate this participant before granting an extra Test Attempt.");
   }
 
-  const { data: existing, error: existingError } = await supabase
-    .from("participant_attempt_overrides")
-    .select("extra_public_attempts")
-    .eq("participant_code", normalizedParticipantCode)
-    .maybeSingle<{ extra_public_attempts: number }>();
+  const { data: existing, error: existingError } = await supabase.execute<{ extra_public_attempts: number }>({ table: "participant_attempt_overrides", columns: "extra_public_attempts", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", normalizedParticipantCode]] });
 
   if (existingError) {
     throw new Error(
@@ -692,13 +633,11 @@ export async function grantExtraPublicAttempt(participantCode: string) {
   }
 
   const extraPublicAttempts = (existing?.extra_public_attempts ?? 0) + 1;
-  const { error: upsertError } = await supabase
-    .from("participant_attempt_overrides")
-    .upsert({
+  const { error: upsertError } = await supabase.execute<Record<string, unknown>[]>({ table: "participant_attempt_overrides", values: {
       participant_code: normalizedParticipantCode,
       extra_public_attempts: extraPublicAttempts,
       updated_at: new Date().toISOString(),
-    });
+    }, operation: "upsert" });
 
   if (upsertError) {
     throw new Error(`Failed to grant extra Test Attempt: ${upsertError.message}`);
@@ -721,11 +660,8 @@ function adminRpcError(message: string) {
 }
 
 export async function setParticipantActive(participantCode: string, isActive: boolean) {
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
-    .from("participants")
-    .update({ is_active: isActive })
-    .eq("participant_code", participantCode);
+  const supabase = createDatabase();
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "participants", values: { is_active: isActive }, operation: "update", where: [["participant_code", "eq", participantCode]] });
 
   if (error) {
     throw new Error(`Failed to update participant status: ${error.message}`);
@@ -741,14 +677,11 @@ export async function updateParticipantIdentity({
   email: string | null;
   participantCode: string;
 }) {
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
-    .from("participants")
-    .update({
+  const supabase = createDatabase();
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "participants", values: {
       display_name: displayName,
       email,
-    })
-    .eq("participant_code", participantCode);
+    }, operation: "update", where: [["participant_code", "eq", participantCode]] });
 
   if (error) {
     throw new Error(`Failed to update participant identity: ${error.message}`);

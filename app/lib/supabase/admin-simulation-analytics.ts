@@ -6,7 +6,7 @@ import {
   type SimulationAnalyticsBatch,
   type SimulationAnalyticsRun,
 } from "@/app/lib/simulation-analytics";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 import {
   SimulationDataUnavailableError,
   SimulationInputError,
@@ -15,18 +15,10 @@ import {
 import { getActiveChallenge } from "./submission-workflow";
 
 export async function getAdminSimulationAnalytics(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
 ) {
   const challenge = await getActiveChallenge(supabase);
-  const { data: batches, error: batchError } = await supabase
-    .from("simulation_batches")
-    .select(
-      "id, mode_id, schema_version, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at",
-    )
-    .eq("challenge_id", challenge.id)
-    .order("created_at", { ascending: false })
-    .limit(100)
-    .returns<SimulationAnalyticsBatch[]>();
+  const { data: batches, error: batchError } = await supabase.execute<SimulationAnalyticsBatch[]>({ table: "simulation_batches", columns: "id, mode_id, schema_version, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at", limit: 100, operation: "select", where: [["challenge_id", "eq", challenge.id]], order: [["created_at", { ascending: false }]] });
 
   if (batchError) {
     throw new SimulationDataUnavailableError(
@@ -38,13 +30,7 @@ export async function getAdminSimulationAnalytics(
     return buildSimulationAnalytics([], []);
   }
 
-  const { data: runs, error: runError } = await supabase
-    .from("simulation_runs")
-    .select(
-      "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at",
-    )
-    .in("simulation_batch_id", batches.map((batch) => batch.id))
-    .returns<SimulationAnalyticsRun[]>();
+  const { data: runs, error: runError } = await supabase.execute<SimulationAnalyticsRun[]>({ table: "simulation_runs", columns: "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at", operation: "select", where: [["simulation_batch_id", "in", batches.map((batch) => batch.id)]] });
 
   if (runError) {
     throw new SimulationDataUnavailableError(
@@ -56,7 +42,7 @@ export async function getAdminSimulationAnalytics(
 }
 
 export async function compareAdminSimulationBatches(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   leftBatchId: string,
   rightBatchId: string,
 ) {
@@ -74,13 +60,7 @@ export async function compareAdminSimulationBatches(
       "Only completed simulation batches can be compared.",
     );
   }
-  const { data: runs, error } = await supabase
-    .from("simulation_runs")
-    .select(
-      "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at",
-    )
-    .in("simulation_batch_id", [leftBatch.id, rightBatch.id])
-    .returns<SimulationAnalyticsRun[]>();
+  const { data: runs, error } = await supabase.execute<SimulationAnalyticsRun[]>({ table: "simulation_runs", columns: "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at", operation: "select", where: [["simulation_batch_id", "in", [leftBatch.id, rightBatch.id]]] });
 
   if (error) {
     throw new SimulationDataUnavailableError(
@@ -97,7 +77,7 @@ export async function compareAdminSimulationBatches(
 }
 
 async function getChallengeSimulationBatch(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   challengeId: string,
   batchId: string,
 ) {
@@ -105,14 +85,7 @@ async function getChallengeSimulationBatch(
     throw new SimulationInputError("A valid simulation batch ID is required.");
   }
 
-  const { data, error } = await supabase
-    .from("simulation_batches")
-    .select(
-      "id, mode_id, schema_version, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at",
-    )
-    .eq("id", batchId)
-    .eq("challenge_id", challengeId)
-    .maybeSingle<SimulationAnalyticsBatch>();
+  const { data, error } = await supabase.execute<SimulationAnalyticsBatch>({ table: "simulation_batches", columns: "id, mode_id, schema_version, evaluator_type, report_scope, status, report_count, field_count, profile_count, total_evaluations, created_at, completed_at", single: "maybeSingle", operation: "select", where: [["id", "eq", batchId],["challenge_id", "eq", challengeId]] });
 
   if (error) {
     throw new SimulationDataUnavailableError(

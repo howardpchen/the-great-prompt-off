@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import {
   deleteAdminSimulationBatch,
   getAdminSimulationBatch,
@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const { batchId } = await params;
   try {
     return Response.json(
-      await getAdminSimulationBatch(createSupabaseAdminClient(), batchId),
+      await getAdminSimulationBatch(createDatabase(), batchId),
     );
   } catch (error) {
     return simulationReadError(error);
@@ -48,7 +48,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
   try {
     return Response.json(
-      await deleteAdminSimulationBatch(createSupabaseAdminClient(), batchId),
+      await deleteAdminSimulationBatch(createDatabase(), batchId),
     );
   } catch (error) {
     if (error instanceof SimulationPersistenceError) {

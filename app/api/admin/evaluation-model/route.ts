@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import {
   assertChallengeConfigurationMutable,
   ChallengeConfigurationLockedError,
@@ -46,12 +46,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
-    const { data: challenge, error: challengeError } = await supabase
-      .from("challenges")
-      .select("id")
-      .eq("is_active", true)
-      .single<{ id: string }>();
+    const supabase = createDatabase();
+    const { data: challenge, error: challengeError } = await supabase.execute<{ id: string }>({ table: "challenges", columns: "id", single: "single", operation: "select", where: [["is_active", "eq", true]] });
 
     if (challengeError || !challenge) {
       console.error(
@@ -66,12 +62,7 @@ export async function POST(request: Request) {
 
     await assertChallengeConfigurationMutable(supabase, challenge.id);
 
-    const { data, error } = await supabase
-      .from("challenges")
-      .update({ evaluation_model: evaluationModel })
-      .eq("is_active", true)
-      .select("evaluation_model")
-      .single<{ evaluation_model: string | null }>();
+    const { data, error } = await supabase.execute<{ evaluation_model: string | null }>({ table: "challenges", values: { evaluation_model: evaluationModel }, columns: "evaluation_model", single: "single", operation: "update", where: [["is_active", "eq", true]] });
 
     if (error) {
       if (

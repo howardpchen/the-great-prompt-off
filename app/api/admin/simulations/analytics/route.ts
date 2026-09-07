@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { getAdminSimulationAnalytics } from "@/app/lib/supabase/admin-simulation-analytics";
 import {
@@ -14,7 +14,7 @@ export async function GET() {
 
   try {
     return Response.json(
-      await getAdminSimulationAnalytics(createSupabaseAdminClient()),
+      await getAdminSimulationAnalytics(createDatabase()),
     );
   } catch (error) {
     const message = error instanceof SimulationDataUnavailableError

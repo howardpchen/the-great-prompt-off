@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
-import { createSupabaseAdminClient } from "@/app/lib/supabase/admin";
+import { createDatabase } from "@/app/lib/supabase/admin";
 import {
   runAndPersistAdminSimulation,
   SimulationDataUnavailableError,
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await runAndPersistAdminSimulation(
-      createSupabaseAdminClient(),
+      createDatabase(),
       payload,
     );
     return Response.json(result);

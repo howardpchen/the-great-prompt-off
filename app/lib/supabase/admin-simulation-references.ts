@@ -8,7 +8,7 @@ import {
   buildSimulationRegression,
   simulationRegressionThresholds,
 } from "@/app/lib/simulation-regression";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 import {
   SimulationDataUnavailableError,
   SimulationInputError,
@@ -24,25 +24,13 @@ type SimulationReferenceBatch = SimulationAnalyticsBatch & {
 };
 
 export async function getAdminSimulationReferenceData(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
 ) {
   const challenge = await getActiveChallenge(supabase);
   const [{ data: reference, error: referenceError }, { data: recent, error: recentError }] =
     await Promise.all([
-      supabase
-        .from("simulation_batches")
-        .select(referenceBatchColumns)
-        .eq("challenge_id", challenge.id)
-        .eq("is_reference", true)
-        .maybeSingle<SimulationReferenceBatch>(),
-      supabase
-        .from("simulation_batches")
-        .select(referenceBatchColumns)
-        .eq("challenge_id", challenge.id)
-        .eq("status", "completed")
-        .order("created_at", { ascending: false })
-        .limit(10)
-        .returns<SimulationReferenceBatch[]>(),
+      supabase.execute<SimulationReferenceBatch>({ table: "simulation_batches", columns: referenceBatchColumns, single: "maybeSingle", operation: "select", where: [["challenge_id", "eq", challenge.id],["is_reference", "eq", true]] }),
+      supabase.execute<SimulationReferenceBatch[]>({ table: "simulation_batches", columns: referenceBatchColumns, limit: 10, operation: "select", where: [["challenge_id", "eq", challenge.id],["status", "eq", "completed"]], order: [["created_at", { ascending: false }]] }),
     ]);
 
   if (referenceError || recentError) {
@@ -63,13 +51,7 @@ export async function getAdminSimulationReferenceData(
 
   const candidates = (recent ?? []).filter((batch) => batch.id !== reference.id);
   const batchIds = [reference.id, ...candidates.map((batch) => batch.id)];
-  const { data: runs, error: runError } = await supabase
-    .from("simulation_runs")
-    .select(
-      "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at",
-    )
-    .in("simulation_batch_id", batchIds)
-    .returns<SimulationAnalyticsRun[]>();
+  const { data: runs, error: runError } = await supabase.execute<SimulationAnalyticsRun[]>({ table: "simulation_runs", columns: "id, simulation_batch_id, profile_id, profile_version, profile_label, correct_fields, total_fields, score, valid_json_count, invalid_json_count, missing_field_count, invalid_value_count, completed_report_count, created_at", operation: "select", where: [["simulation_batch_id", "in", batchIds]] });
 
   if (runError) {
     throw new SimulationDataUnavailableError(
@@ -100,17 +82,12 @@ export async function getAdminSimulationReferenceData(
 }
 
 export async function setAdminSimulationReference(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   payload: unknown,
 ) {
   const input = parseReferenceInput(payload);
   const challenge = await getActiveChallenge(supabase);
-  const { data: batch, error: batchError } = await supabase
-    .from("simulation_batches")
-    .select("id, status, evaluator_type")
-    .eq("id", input.batchId)
-    .eq("challenge_id", challenge.id)
-    .maybeSingle<{ id: string; status: string; evaluator_type: string }>();
+  const { data: batch, error: batchError } = await supabase.execute<{ id: string; status: string; evaluator_type: string }>({ table: "simulation_batches", columns: "id, status, evaluator_type", single: "maybeSingle", operation: "select", where: [["id", "eq", input.batchId],["challenge_id", "eq", challenge.id]] });
 
   if (batchError) {
     throw new SimulationDataUnavailableError(
@@ -151,7 +128,7 @@ export async function setAdminSimulationReference(
 }
 
 export async function clearAdminSimulationReference(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
 ) {
   const challenge = await getActiveChallenge(supabase);
   const { error } = await supabase.rpc("admin_clear_simulation_reference", {

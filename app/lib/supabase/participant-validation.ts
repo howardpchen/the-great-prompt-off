@@ -4,7 +4,7 @@ import {
   normalizeParticipantAccessCode,
   normalizeParticipantCode,
 } from "@/app/lib/participant-codes";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 import {
   createParticipantSessionToken,
   verifyParticipantSessionToken,
@@ -46,7 +46,7 @@ type ParticipantRow = {
 };
 
 function allowLocalFallback() {
-  return process.env.ALLOW_LOCAL_FALLBACK === "true";
+  return process.env.ALLOW_LOCAL_FALLBACK === "true" && process.env.NODE_ENV !== "production";
 }
 
 export async function validateParticipantAccessCode(
@@ -67,12 +67,8 @@ export async function validateParticipantAccessCode(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("participants")
-      .select("id, participant_code, is_active")
-      .eq("access_code", normalizedAccessCode)
-      .maybeSingle<ParticipantRow>();
+    const supabase = createDatabase();
+    const { data, error } = await supabase.execute<ParticipantRow>({ table: "participants", columns: "id, participant_code, is_active", single: "maybeSingle", operation: "select", where: [["access_code", "eq", normalizedAccessCode]] });
 
     if (error) {
       throw new Error(`Participant lookup failed: ${error.message}`);
@@ -164,12 +160,8 @@ export async function validateParticipantSession(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("participants")
-      .select("id, participant_code, is_active")
-      .eq("participant_code", normalizedCode)
-      .maybeSingle<ParticipantRow>();
+    const supabase = createDatabase();
+    const { data, error } = await supabase.execute<ParticipantRow>({ table: "participants", columns: "id, participant_code, is_active", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", normalizedCode]] });
 
     if (error) {
       throw new Error(`Participant session lookup failed: ${error.message}`);

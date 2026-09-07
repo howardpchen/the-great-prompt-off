@@ -1,4 +1,5 @@
 import "server-only";
+import { reserveAttempt, failReservation, AttemptAdmissionError } from "../db/attempts";
 
 import { fallbackChallengeConfig } from "@/app/lib/challenge-config";
 import { getAnswerKeyItems } from "@/app/lib/challenge-data";
@@ -37,7 +38,7 @@ import type {
   ScoreSummary,
   SubmissionKind,
 } from "@/app/lib/types";
-import { createSupabaseAdminClient } from "./admin";
+import { createDatabase } from "./admin";
 
 type DataSource = "supabase" | "mock-file-fallback";
 
@@ -226,7 +227,7 @@ export function fallbackLeaderboard(reason: string): LeaderboardResponse {
 export async function getSupabaseSubmissionStatus(
   participantCode: string,
 ): Promise<SubmissionStatusResponse> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const challenge = await getActiveChallenge(supabase);
   const participant = await getParticipantByCode(
     supabase,
@@ -255,17 +256,15 @@ export async function submitToSupabase({
   kind,
   participantCode,
   prompt,
+  idempotencyKey,
 }: {
   kind: SubmissionKind;
   participantCode: string;
   prompt: string;
+  idempotencyKey?: string;
 }): Promise<SubmitScoreResponse> {
-  const supabase = createSupabaseAdminClient();
-  const challenge = await getActiveChallenge(supabase);
-  const challengeMode = resolveChallengeMode(
-    challenge.mode_id,
-    challenge.schema_version,
-  );
+  const supabase = createDatabase();
+  let challenge = await getActiveChallenge(supabase);
   const participant = await getParticipantByCode(
     supabase,
     normalizeParticipantCode(participantCode),
@@ -281,29 +280,15 @@ export async function submitToSupabase({
     throw new ParticipantValidationError("This participant is inactive.");
   }
 
-  const currentStatus = await getSubmissionStatusForParticipant(
-    supabase,
-    challenge,
-    participant.id,
-    participant.participant_code,
-  );
-
-  if (kind === "public" && challenge.event_phase !== "practice_open") {
-    throw new EventPhaseError("Test Attempts are not open right now.");
-  }
-
-  if (kind === "final" && challenge.event_phase !== "final_open") {
-    throw new EventPhaseError("Final Submission is not open right now.");
-  }
-
-  if (kind === "public" && currentStatus.remainingPublicSubmissions <= 0) {
-    throw new SubmissionLimitError("Public submission limit reached.");
-  }
-
-  if (kind === "final" && currentStatus.finalSubmissionUsed) {
-    throw new SubmissionLimitError("Final submission has already been used.");
-  }
-
+  let reservation;
+  try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey});}
+  catch(error) {if(error instanceof AttemptAdmissionError) throw new SubmissionLimitError(error.message);throw error;}
+  if(reservation.status === 'completed') return reservation.response as SubmitScoreResponse;
+  try {
+  const refreshedChallenge = await getActiveChallenge(supabase);
+  if(refreshedChallenge.id !== challenge.id) throw new EventPhaseError("Active challenge changed; please reload.");
+  challenge = refreshedChallenge;
+  const challengeMode = resolveChallengeMode(challenge.mode_id,challenge.schema_version);
   const split: ReportSplit = kind === "public" ? "public" : "private";
   const answerKeys = await getSupabaseAnswerKeysForSplit(
     supabase,
@@ -318,15 +303,16 @@ export async function submitToSupabase({
     model: resolveOpenRouterModel(challenge.evaluation_model),
     mode: challengeMode,
   });
+  return await supabase.transaction(async (supabase) => {
+  const [held] = await supabase.sql<{status:string}>('SELECT status FROM attempt_reservations WHERE id=$1 FOR UPDATE',[reservation.id]);
+  if(held?.status !== 'pending') throw new SubmissionLimitError('Attempt reservation is no longer active.');
   const now = new Date().toISOString();
   const attemptNumber =
-    kind === "public" ? currentStatus.publicSubmissionsUsed + 1 : 1;
+    reservation.attempt_number;
   const runType = kind === "public" ? "public_submission" : "final_submission";
   const promptText = prompt.trim() ? prompt : "(blank prompt)";
 
-  const { data: promptRun, error: promptRunError } = await supabase
-    .from("prompt_runs")
-    .insert({
+  const { data: promptRun, error: promptRunError } = await supabase.execute<{ id: string }>({ table: "prompt_runs", values: {
       challenge_id: challenge.id,
       participant_id: participant.id,
       run_type: runType,
@@ -341,9 +327,7 @@ export async function submitToSupabase({
       field_accuracy: evaluation.summary.accuracy,
       overall_score: evaluation.summary.accuracy,
       completed_at: now,
-    })
-    .select("id")
-    .single<{ id: string }>();
+    }, columns: "id", single: "single", operation: "insert" });
 
   if (promptRunError) {
     throw new SubmissionStorageError(
@@ -353,10 +337,7 @@ export async function submitToSupabase({
   }
 
   if (evaluation.items.length > 0) {
-    const { error: runItemsError } = await supabase
-      .from("prompt_run_items")
-      .insert(
-        evaluation.items.map((item) => ({
+    const { error: runItemsError } = await supabase.execute<Record<string, unknown>[]>({ table: "prompt_run_items", values: evaluation.items.map((item) => ({
           prompt_run_id: promptRun.id,
           report_id: item.supabaseReportId,
           raw_model_output: item.modelOutput,
@@ -374,11 +355,10 @@ export async function submitToSupabase({
           osteoarthritis: item.prediction.osteoarthritis ?? null,
           effusion: item.prediction.effusion ?? null,
           error_message: item.error,
-        })),
-      );
+        })), operation: "insert" });
 
     if (runItemsError) {
-      await cleanupPromptRun(supabase, promptRun.id);
+      // Transaction rollback removes partial rows.
       throw new SubmissionStorageError(
         `Your ${kind === "final" ? "final submission" : "test attempt"} was not counted. Please try again or contact the organizer.`,
         runItemsError.message,
@@ -386,7 +366,7 @@ export async function submitToSupabase({
     }
   }
 
-  const { error: submissionError } = await supabase.from("submissions").insert({
+  const { error: submissionError } = await supabase.execute<Record<string, unknown>[]>({ table: "submissions", values: {
     challenge_id: challenge.id,
     participant_id: participant.id,
     prompt_run_id: promptRun.id,
@@ -399,10 +379,10 @@ export async function submitToSupabase({
     mode_id: challengeMode.id,
     schema_version: challengeMode.version,
     submitted_at: now,
-  });
+  }, operation: "insert" });
 
   if (submissionError) {
-    await cleanupPromptRun(supabase, promptRun.id);
+    // Transaction rollback removes partial rows.
 
     if (kind === "final" && isDuplicateSubmissionError(submissionError)) {
       throw new SubmissionLimitError("Final submission has already been used.");
@@ -421,7 +401,7 @@ export async function submitToSupabase({
     participant.participant_code,
   );
 
-  return {
+  const response: SubmitScoreResponse = {
     ...nextStatus,
     kind,
     evaluationMode: evaluation.mode,
@@ -433,10 +413,15 @@ export async function submitToSupabase({
     summary: evaluation.summary,
     feedback: createSafeFeedback(kind, evaluation),
   };
+  await supabase.sql("UPDATE attempt_reservations SET status='completed',response=$2::jsonb,completed_at=now() WHERE id=$1",[reservation.id,JSON.stringify(response)]);
+  return response;
+  });
+  } catch(error) {await failReservation(supabase,reservation.id);throw error;}
+
 }
 
 export async function getSupabaseLeaderboard(): Promise<LeaderboardResponse> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createDatabase();
   const challenge = await getActiveChallenge(supabase);
 
   if (
@@ -464,14 +449,7 @@ export async function getSupabaseLeaderboard(): Promise<LeaderboardResponse> {
 
   const submissionType: SubmissionKind =
     challenge.event_phase === "practice_open" ? "public" : "final";
-  const { data: submissions, error: submissionsError } = await supabase
-    .from("submissions")
-    .select("participant_id, score, submitted_at")
-    .eq("challenge_id", challenge.id)
-    .eq("submission_type", submissionType)
-    .order("score", { ascending: false })
-    .order("submitted_at", { ascending: true })
-    .returns<Array<Pick<SubmissionRow, "participant_id" | "score" | "submitted_at">>>();
+  const { data: submissions, error: submissionsError } = await supabase.execute<Array<Pick<SubmissionRow, "participant_id" | "score" | "submitted_at">>>({ table: "submissions", columns: "participant_id, score, submitted_at", operation: "select", where: [["challenge_id", "eq", challenge.id],["submission_type", "eq", submissionType]], order: [["score", { ascending: false }],["submitted_at", { ascending: true }]] });
 
   if (submissionsError) {
     throw new Error(`Failed to load leaderboard: ${submissionsError.message}`);
@@ -687,8 +665,8 @@ async function evaluateWithRealLlm(
       reportCount: answerKeys.length,
       items,
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+  } catch {
+    const message = "Evaluation provider request failed";
 
     console.error("[submission-workflow] Real LLM evaluation failed", {
       kind,
@@ -725,17 +703,9 @@ async function mapWithConcurrency<T, R>(
 }
 
 export async function getActiveChallenge(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
 ) {
-  const { data, error } = await supabase
-    .from("challenges")
-    .select(
-      "id, locked_model, evaluation_model, mode_id, schema_version, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility",
-    )
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single<ActiveChallenge>();
+  const { data, error } = await supabase.execute<ActiveChallenge>({ table: "challenges", columns: "id, locked_model, evaluation_model, mode_id, schema_version, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
   if (error) {
     throw new Error(`Supabase active challenge unavailable: ${error.message}`);
@@ -745,14 +715,10 @@ export async function getActiveChallenge(
 }
 
 async function getParticipantByCode(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   participantCode: string,
 ) {
-  const { data, error } = await supabase
-    .from("participants")
-    .select("id, participant_code, is_active")
-    .eq("participant_code", participantCode)
-    .maybeSingle<Participant>();
+  const { data, error } = await supabase.execute<Participant>({ table: "participants", columns: "id, participant_code, is_active", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", participantCode]] });
 
   if (error) {
     throw new Error(`Failed to load participant: ${error.message}`);
@@ -762,20 +728,12 @@ async function getParticipantByCode(
 }
 
 async function getSubmissionStatusForParticipant(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   challenge: ActiveChallenge,
   participantId: string,
   participantCode: string,
 ): Promise<SubmissionStatusResponse> {
-  const { data, error } = await supabase
-    .from("submissions")
-    .select(
-      "id, participant_id, submission_type, attempt_number, score, correct_fields, total_fields, report_count, submitted_at",
-    )
-    .eq("challenge_id", challenge.id)
-    .eq("participant_id", participantId)
-    .order("submitted_at", { ascending: true })
-    .returns<SubmissionRow[]>();
+  const { data, error } = await supabase.execute<SubmissionRow[]>({ table: "submissions", columns: "id, participant_id, submission_type, attempt_number, score, correct_fields, total_fields, report_count, submitted_at", operation: "select", where: [["challenge_id", "eq", challenge.id],["participant_id", "eq", participantId]], order: [["submitted_at", { ascending: true }]] });
 
   if (error) {
     throw new Error(`Failed to load submissions: ${error.message}`);
@@ -809,14 +767,10 @@ async function getSubmissionStatusForParticipant(
 }
 
 async function getExtraPublicAttempts(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   participantCode: string,
 ) {
-  const { data, error } = await supabase
-    .from("participant_attempt_overrides")
-    .select("extra_public_attempts")
-    .eq("participant_code", participantCode)
-    .maybeSingle<{ extra_public_attempts: number }>();
+  const { data, error } = await supabase.execute<{ extra_public_attempts: number }>({ table: "participant_attempt_overrides", columns: "extra_public_attempts", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", participantCode]] });
 
   if (error) {
     throw new Error(`Failed to load participant attempt overrides: ${error.message}`);
@@ -826,18 +780,12 @@ async function getExtraPublicAttempts(
 }
 
 export async function getSupabaseAnswerKeysForSplit(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   challengeId: string,
   split: ReportSplit,
   mode = resolveChallengeMode(),
 ) {
-  const { data: reports, error: reportsError } = await supabase
-    .from("reports")
-    .select("id, external_id, filename, split, report_text")
-    .eq("challenge_id", challengeId)
-    .eq("split", split)
-    .order("external_id", { ascending: true })
-    .returns<ReportRow[]>();
+  const { data: reports, error: reportsError } = await supabase.execute<ReportRow[]>({ table: "reports", columns: "id, external_id, filename, split, report_text", operation: "select", where: [["challenge_id", "eq", challengeId],["split", "eq", split]], order: [["external_id", { ascending: true }]] });
 
   if (reportsError) {
     throw new Error(`Failed to load ${split} reports: ${reportsError.message}`);
@@ -848,15 +796,7 @@ export async function getSupabaseAnswerKeysForSplit(
   }
 
   const reportIds = reports.map((report) => report.id);
-  const { data: answerKeys, error: answerKeysError } = await supabase
-    .from("answer_keys")
-    .select(
-      "report_id, mode_id, schema_version, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion",
-    )
-    .in("report_id", reportIds)
-    .eq("mode_id", mode.id)
-    .eq("schema_version", mode.version)
-    .returns<AnswerKeyRow[]>();
+  const { data: answerKeys, error: answerKeysError } = await supabase.execute<AnswerKeyRow[]>({ table: "answer_keys", columns: "report_id, mode_id, schema_version, answer_values, acl_tear, mcl_injury, meniscus_tear, fracture, osteoarthritis, effusion", operation: "select", where: [["report_id", "in", reportIds],["mode_id", "eq", mode.id],["schema_version", "eq", mode.version]] });
 
   if (answerKeysError) {
     throw new Error(`Failed to load ${split} answer keys: ${answerKeysError.message}`);
@@ -1018,48 +958,15 @@ function isDuplicateSubmissionError(error: SupabaseErrorLike) {
   );
 }
 
-async function cleanupPromptRun(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  promptRunId: string,
-) {
-  const { error: itemsError } = await supabase
-    .from("prompt_run_items")
-    .delete()
-    .eq("prompt_run_id", promptRunId);
-
-  if (itemsError) {
-    console.error("[submission-workflow] Failed to clean prompt run items", {
-      promptRunId,
-      error: itemsError.message,
-    });
-  }
-
-  const { error: runError } = await supabase
-    .from("prompt_runs")
-    .delete()
-    .eq("id", promptRunId);
-
-  if (runError) {
-    console.error("[submission-workflow] Failed to clean prompt run", {
-      promptRunId,
-      error: runError.message,
-    });
-  }
-}
-
 async function getParticipantCodes(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  supabase: ReturnType<typeof createDatabase>,
   participantIds: string[],
 ) {
   if (participantIds.length === 0) {
     return new Map<string, string>();
   }
 
-  const { data, error } = await supabase
-    .from("participants")
-    .select("id, participant_code")
-    .in("id", participantIds)
-    .returns<Array<{ id: string; participant_code: string }>>();
+  const { data, error } = await supabase.execute<Array<{ id: string; participant_code: string }>>({ table: "participants", columns: "id, participant_code", operation: "select", where: [["id", "in", participantIds]] });
 
   if (error) {
     throw new Error(`Failed to load participant codes: ${error.message}`);
