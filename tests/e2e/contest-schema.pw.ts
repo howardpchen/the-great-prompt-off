@@ -36,6 +36,12 @@ test("administrator configures mixed fields and imports answers; participant see
   await expect(
     page.getByRole("button", { name: "Save schema as new draft version" }),
   ).toBeEnabled();
+  // Initialize the fixture explicitly: fresh CI and restored databases begin
+  // with the legacy six-field contest, not a previously exercised mixed schema.
+  await page.getByRole("button", {
+    name: "Load mixed 5 binary / 5 multiclass / 2 measurement template",
+    exact: true,
+  }).click();
   await expect(page.getByLabel("Key", { exact: true })).toHaveCount(12);
   await page.getByRole("button", { name: "Add field (maximum 64)" }).click();
   await expect(page.getByLabel("Key", { exact: true })).toHaveCount(13);
