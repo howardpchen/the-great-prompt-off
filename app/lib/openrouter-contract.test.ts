@@ -73,7 +73,7 @@ describe("OpenRouter evaluation contract", () => {
     });
     expect(messages[2]).toEqual({
       role: "user",
-      content: `Input synthetic knee MRI report:\n${reportText}`,
+      content: `Input report:\n${reportText}`,
     });
   });
 

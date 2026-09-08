@@ -1,3 +1,4 @@
+import { buildOutputSchema } from "./schema-storage";
 import {
   defaultChallengeMode,
   type ChallengeModeDefinition,
@@ -11,6 +12,12 @@ export type OpenRouterMessage = {
 export function buildOpenRouterSystemInstruction(
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): string {
+  if (mode.fields.some(f => f.type !== undefined)) return [
+    "Apply the participant extraction strategy to the input. Return exactly one raw JSON object; no markdown or extra keys.",
+    "Do not invent evidence. A missing/uncertain value may be null only for fields that permit null; never substitute numeric zero for missing evidence.",
+    ...mode.fields.map(f => `${f.key}: ${f.label}. ${f.description || ""} Weight ${f.weight ?? 1}. ${f.type === "number" ? `Number in ${f.unit}, inclusive absolute tolerance ${f.tolerance}.` : `Exact labels: ${f.allowedValues.join(", " )}.`} ${f.nullable ? "null is allowed for missing/uncertain evidence." : "A valid non-null value is required."}`),
+    JSON.stringify(buildOutputSchema(mode)),
+  ].join("\n");
   const allowedValues = [
     ...new Set(mode.fields.flatMap((field) => field.allowedValues)),
   ];
@@ -69,7 +76,7 @@ export function buildOpenRouterMessages({
     },
     {
       role: "user",
-      content: ["Input synthetic knee MRI report:", reportText].join("\n"),
+      content: ["Input report:", reportText].join("\n"),
     },
   ];
 }

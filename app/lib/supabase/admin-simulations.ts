@@ -208,6 +208,7 @@ export async function listAdminSimulationBatches(
   const activeMode = resolveChallengeMode(
     challenge.mode_id,
     challenge.schema_version,
+    challenge.contest_schema,
   );
   const reportCounts = (reportRows ?? []).reduce<{public:number;private:number}>(
     (counts, report) => {
@@ -226,7 +227,7 @@ export async function listAdminSimulationBatches(
     batches: data ?? [],
     configuration: {
       activeModeId: activeMode.id,
-      modes: Object.values(challengeModes).map((mode) => ({
+      modes: [activeMode, ...Object.values(challengeModes).filter(m => m.id !== activeMode.id)].map((mode) => ({
         id: mode.id,
         version: mode.version,
         title: mode.title,
@@ -324,16 +325,16 @@ async function loadSimulationContext(
   payload: unknown,
 ) {
   const input = parseSimulationInput(payload);
+  const challenge = await getActiveChallenge(supabase);
   let mode;
 
   try {
-    mode = resolveChallengeMode(input.modeId, input.schemaVersion);
+    mode = resolveChallengeMode(input.modeId, input.schemaVersion, input.modeId === challenge.mode_id ? challenge.contest_schema : undefined);
   } catch {
     throw new SimulationInputError(
       "The requested challenge mode or schema version is unsupported.",
     );
   }
-  const challenge = await getActiveChallenge(supabase);
   const splits = input.reportScope === "all"
     ? (["public", "private"] as const)
     : ([input.reportScope] as const);

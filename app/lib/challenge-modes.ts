@@ -1,4 +1,11 @@
 export type ChallengeFieldDefinition = {
+  type?: "binary" | "multiclass" | "number";
+  unit?: string;
+  minimum?: number;
+  maximum?: number;
+  tolerance?: number;
+  nullable?: boolean;
+  weight?: number;
   key: string;
   label: string;
   description?: string;
@@ -19,7 +26,7 @@ export type PublicChallengeModeMetadata = {
   id: string;
   version: number;
   title: string;
-  fields: readonly { key: string; label: string }[];
+  fields: readonly ChallengeFieldDefinition[];
   allowedValues: readonly string[];
 };
 
@@ -189,7 +196,11 @@ export function getPublicChallengeModeMetadata(
     id: mode.id,
     version: mode.version,
     title: mode.title,
-    fields: mode.fields.map(({ key, label }) => ({ key, label })),
+    fields: mode.fields.map(f => ({key:f.key,label:f.label,allowedValues:[...f.allowedValues],
+      ...(f.type !== undefined ? {type:f.type} : {}), ...(f.description !== undefined ? {description:f.description} : {}),
+      ...(f.unit !== undefined ? {unit:f.unit} : {}), ...(f.minimum !== undefined ? {minimum:f.minimum} : {}),
+      ...(f.maximum !== undefined ? {maximum:f.maximum} : {}), ...(f.tolerance !== undefined ? {tolerance:f.tolerance} : {}),
+      ...(f.nullable !== undefined ? {nullable:f.nullable} : {}), ...(f.weight !== undefined ? {weight:f.weight} : {})})),
     allowedValues: [
       ...new Set(mode.fields.flatMap((field) => field.allowedValues)),
     ],

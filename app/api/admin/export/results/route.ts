@@ -7,6 +7,8 @@ export async function GET() {
     const data = await getAdminDashboardData();
     const csv = toCsv([
       [
+        "mode_id",
+        "schema_version",
         "participant_code",
         "display_name",
         "email",
@@ -18,6 +20,8 @@ export async function GET() {
         "final_model_name",
       ],
       ...data.participants.map((participant) => [
+        data.overview.challengeSchema.modeId,
+        String(data.overview.challengeSchema.schemaVersion),
         participant.participantCode,
         participant.displayName || "",
         participant.email || "",

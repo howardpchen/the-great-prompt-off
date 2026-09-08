@@ -1,3 +1,4 @@
+import { differentFieldValue } from "./mock-evaluation";
 import type { ChallengeModeDefinition } from "./challenge-modes";
 import {
   getSimulationProfiles,
@@ -10,7 +11,7 @@ export type SimulationReportScope = "public" | "private" | "all";
 export type SimulationAnswerKeyReport = {
   id: string;
   split: "public" | "private";
-  answerKey: Record<string, string>;
+  answerKey: Record<string, string | number | null>;
 };
 
 export type SimulationDryRunResult = {
@@ -62,7 +63,7 @@ export type DeterministicSimulationExecution = {
       validJson: boolean;
       missingFields: string[];
       invalidFields: string[];
-      scoredValues: Record<string, string>;
+      scoredValues: Record<string, string | number | null>;
     }>;
   }>;
 };
@@ -143,7 +144,7 @@ export function executeDeterministicSimulation({
       0,
     );
     const aggregateScore =
-      totalFields === 0 ? 0 : (correctFields / totalFields) * 100;
+      evaluations.length ? evaluations.reduce((sum,e) => sum + e.score.overall_score,0) / evaluations.length : 0;
 
     return {
       summary: {
@@ -209,13 +210,13 @@ export function executeDeterministicSimulation({
 
 function createDeterministicPrediction(
   profile: SimulationProfile,
-  answerKey: Record<string, string>,
+  answerKey: Record<string, string | number | null>,
   mode: ChallengeModeDefinition,
 ) {
   return Object.fromEntries(
     mode.fields.map((field, index) => {
       const expected = answerKey[field.key];
-      let value: string;
+      let value: string | number | null;
 
       switch (profile.predictionPolicy) {
         case "all_not_reported":
@@ -225,10 +226,10 @@ function createDeterministicPrediction(
           value = index === 0 ? expected : "not_reported";
           break;
         case "weak_all_fields":
-          value = index % 3 === 0 ? expected : differentAllowedValue(field.allowedValues, expected);
+          value = index % 3 === 0 ? expected : differentFieldValue(field, expected);
           break;
         case "basic_all_fields":
-          value = index % 4 === 0 ? differentAllowedValue(field.allowedValues, expected) : expected;
+          value = index % 4 === 0 ? differentFieldValue(field, expected) : expected;
           break;
         case "exact_all_fields":
           value = expected;
@@ -238,11 +239,4 @@ function createDeterministicPrediction(
       return [field.key, value];
     }),
   );
-}
-
-function differentAllowedValue(
-  allowedValues: readonly string[],
-  expected: string,
-) {
-  return allowedValues.find((value) => value !== expected) ?? expected;
 }

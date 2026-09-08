@@ -38,5 +38,6 @@ export async function getChallengeConfigurationLockStatus(
     throw new Error(`Could not check challenge configuration lock: ${error.message}`);
   }
 
-  return isChallengeConfigurationLocked(count ?? 0);
+  const [row] = await client.sql<{schema_locked:boolean}>("SELECT schema_locked FROM challenges WHERE id=$1",[challengeId]);
+  return Boolean(row?.schema_locked) || isChallengeConfigurationLocked(count ?? 0);
 }

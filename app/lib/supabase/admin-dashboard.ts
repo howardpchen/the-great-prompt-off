@@ -121,6 +121,7 @@ type SubmissionRow = {
 };
 
 type PromptRunRow = {
+  challenge_id: string;
   id: string;
   participant_id: string;
   model: string;
@@ -139,6 +140,8 @@ type ChallengeControlRow = {
   evaluation_model: string | null;
   mode_id: string | null;
   schema_version: number | null;
+  contest_schema?: unknown;
+  schema_locked?: boolean;
   event_phase: EventPhase;
   leaderboard_visibility: LeaderboardVisibility;
   event_announcement: string;
@@ -163,11 +166,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     reportsResult,
   ] =
     await Promise.all([
-    supabase.execute<ChallengeControlRow>({ table: "challenges", columns: "id, evaluation_model, mode_id, schema_version, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label, public_submission_limit", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] }),
+    supabase.execute<ChallengeControlRow>({ table: "challenges", columns: "id, evaluation_model, mode_id, schema_version, contest_schema, schema_locked, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label, public_submission_limit", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] }),
     supabase.execute<ParticipantRow[]>({ table: "participants", columns: "id, participant_code, display_name, email, access_code, is_active", operation: "select", order: [["participant_code", { ascending: true }]] }),
     supabase.execute<ParticipantAttemptOverrideRow[]>({ table: "participant_attempt_overrides", columns: "participant_code, extra_public_attempts", operation: "select" }),
     supabase.execute<SubmissionRow[]>({ table: "submissions", columns: "challenge_id, participant_id, submission_type, score, submitted_at, prompt_run_id", operation: "select", order: [["submitted_at", { ascending: true }]] }),
-    supabase.execute<PromptRunRow[]>({ table: "prompt_runs", columns: "id, participant_id, model, completed_at, created_at", operation: "select", order: [["created_at", { ascending: false }]] }),
+    supabase.execute<PromptRunRow[]>({ table: "prompt_runs", columns: "id, challenge_id, participant_id, model, completed_at, created_at", operation: "select", order: [["created_at", { ascending: false }]] }),
     supabase.execute<ReportCountRow[]>({ table: "reports", columns: "id, challenge_id, split", operation: "select" }),
   ]);
 
@@ -197,6 +200,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     throw new Error(`Failed to load report counts: ${reportsResult.error.message}`);
   }
 
+  // Archived contest versions must never contaminate the active scoreboard.
+  submissionsResult.data = submissionsResult.data.filter(row => row.challenge_id === challengeResult.data.id);
+  runsResult.data = runsResult.data.filter(row => row.challenge_id === challengeResult.data.id);
   const activeReports = reportsResult.data.filter(
     (report) => report.challenge_id === challengeResult.data.id,
   );
@@ -305,13 +311,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   const challengeMode = resolveChallengeMode(
     challengeResult.data.mode_id,
     challengeResult.data.schema_version,
+    challengeResult.data.contest_schema,
   );
   const challengeSchema = {
     modeId: challengeResult.data.mode_id || defaultChallengeMode.id,
     schemaVersion: challengeResult.data.schema_version || challengeMode.version,
     title: challengeMode.title,
     fields: challengeMode.fields.map(({ key, label }) => ({ key, label })),
-    configurationLocked: submissionsResult.data.some(
+    configurationLocked: Boolean(challengeResult.data.schema_locked) || submissionsResult.data.some(
       (submission) => submission.challenge_id === challengeResult.data.id,
     ),
     activationOptions: activatableChallengeModeIds.map((modeId) => {

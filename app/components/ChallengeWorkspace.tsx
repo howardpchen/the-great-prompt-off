@@ -1109,10 +1109,10 @@ function TaskSidebar({
         Active task
       </p>
       <h2 className="mt-2 text-xl font-semibold text-slate-950">
-        Structured MRI findings
+        Structured extraction task
       </h2>
       <p className="mt-3 text-sm leading-6 text-slate-600">
-        Write a prompt that converts each synthetic knee MRI report into a JSON
+        Write a prompt that converts each report into a JSON
         object. Each field is handled by the platform&apos;s output contract.
       </p>
 
@@ -1127,7 +1127,7 @@ function TaskSidebar({
               <span className="font-mono text-xs text-slate-700">
                 {field.key}
               </span>
-              <span className="text-xs text-slate-500">{field.label}</span>
+              <span className="text-xs text-slate-500">{field.label}<br/>{field.description}<br/>{field.type === 'number' ? `Number in ${field.unit}; tolerance ±${field.tolerance}${field.minimum !== undefined ? `; min ${field.minimum}` : ''}${field.maximum !== undefined ? `; max ${field.maximum}` : ''}` : `Exact labels: ${field.allowedValues.join(', ')}`}<br/>Weight {field.weight ?? 1}; {field.nullable ? 'null allowed for missing/uncertain' : 'non-null value required'}</span>
             </div>
           ))}
         </div>

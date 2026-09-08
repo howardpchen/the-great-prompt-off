@@ -69,14 +69,7 @@ describe("challenge mode registry", () => {
       id: "knee_mri_6_basic",
       version: 1,
       title: "Knee MRI Extraction Challenge",
-      fields: [
-        { key: "acl_tear", label: "ACL tear" },
-        { key: "mcl_injury", label: "MCL injury" },
-        { key: "meniscus_tear", label: "Meniscus tear" },
-        { key: "fracture", label: "Fracture" },
-        { key: "osteoarthritis", label: "Osteoarthritis" },
-        { key: "effusion", label: "Effusion" },
-      ],
+      fields: defaultChallengeMode.fields.map(({ aliases: _aliases, ...field }) => { void _aliases; return field; }),
       allowedValues: ["present", "absent", "uncertain", "not_reported"],
     });
     expect(JSON.stringify(metadata)).not.toContain("answer");

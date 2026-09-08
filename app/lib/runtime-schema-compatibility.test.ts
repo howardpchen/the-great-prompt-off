@@ -66,7 +66,7 @@ describe("runtime schema compatibility", () => {
     const serialized = JSON.stringify(metadata);
 
     expect(metadata.fields).toHaveLength(12);
-    expect(metadata.fields[0]).toEqual({ key: "acl_tear", label: "ACL tear" });
+    expect(metadata.fields[0]).toMatchObject({ key: "acl_tear", label: "ACL tear", allowedValues: kneeMri12BasicMode.fields[0].allowedValues });
     expect(serialized).not.toContain("answer_key");
     expect(serialized).not.toContain("report_text");
     expect(activatableChallengeModeIds).toEqual(["knee_mri_6_basic"]);

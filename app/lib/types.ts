@@ -55,9 +55,10 @@ export type ScoringResult = {
 };
 
 export type SchemaFieldScoreResult = {
+  weight?: number;
   field: string;
-  expected: string;
-  actual: string | null;
+  expected: string | number | null;
+  actual: string | number | null;
   correct: boolean;
   missing: boolean;
   invalid: boolean;

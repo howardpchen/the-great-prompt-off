@@ -13,14 +13,14 @@ type RuntimeAnswerKeyItem = {
   id: string;
   filename: string;
   split: "sample" | "public" | "private";
-  answer_key: Record<string, string>;
+  answer_key: Record<string, string | number | null>;
   notes?: string;
   text?: string;
 };
 
 export type MockReportResult = {
   reportId: string;
-  prediction: Record<string, string>;
+  prediction: Record<string, string | number | null>;
   score: SchemaScoringResult;
   modelOutput?: string;
   error?: string | null;
@@ -59,7 +59,7 @@ export function evaluateAnswerKeySet(
   return {
     correct,
     total,
-    accuracy: total === 0 ? 0 : (correct / total) * 100,
+    accuracy: scores.length ? scores.reduce((sum,s) => sum + s.overall_score,0) / scores.length : 0,
   };
 }
 
@@ -94,7 +94,7 @@ export function summarizeReportResults(results: MockReportResult[]): ScoreSummar
   return {
     correct,
     total,
-    accuracy: total === 0 ? 0 : (correct / total) * 100,
+    accuracy: results.length ? results.reduce((sum,r) => sum + r.score.overall_score,0) / results.length : 0,
   };
 }
 
@@ -104,12 +104,12 @@ export function countCorrectFields(score: SchemaScoringResult) {
 
 function createMockPrediction(
   prompt: string,
-  answerKey: Record<string, string>,
+  answerKey: Record<string, string | number | null>,
   mode: ChallengeModeDefinition,
 ) {
   const quality = promptQuality(prompt, mode);
 
-  return mode.fields.reduce<Record<string, string>>((prediction, field, index) => {
+  return mode.fields.reduce<Record<string, string | number | null>>((prediction, field, index) => {
     const key = field.key;
     if (quality === "strong") {
       prediction[key] = answerKey[key];
@@ -121,7 +121,7 @@ function createMockPrediction(
       return prediction;
     }
 
-    prediction[key] = fallbackValue(key, answerKey[key]);
+    prediction[key] = mode.id === defaultChallengeMode.id ? fallbackValue(key, answerKey[key]) : differentFieldValue(field,answerKey[key]);
     return prediction;
   }, {});
 }
@@ -170,7 +170,7 @@ function termsForField(
   ].map((term) => term.toLowerCase());
 }
 
-function fallbackValue(key: string, correct: string) {
+function fallbackValue(key: string, correct: string | number | null) {
   if (key === "effusion" && correct === "present") {
     return "uncertain";
   }
@@ -180,4 +180,13 @@ function fallbackValue(key: string, correct: string) {
   }
 
   return correct;
+}
+
+export function differentFieldValue(field: ChallengeFieldDefinition, expected: string | number | null): string | number | null {
+ if(field.type !== 'number') return field.allowedValues.find(v=>v!==expected) ?? null;
+ if(typeof expected !== 'number') return field.minimum ?? 0;
+ const delta = (field.tolerance ?? 0) + 1;
+ if(field.maximum === undefined || expected + delta <= field.maximum) return expected + delta;
+ if(field.minimum === undefined || expected - delta >= field.minimum) return expected - delta;
+ return null; // Intentionally unsuccessful prediction when no valid wrong number exists.
 }

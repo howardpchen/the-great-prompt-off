@@ -48,6 +48,7 @@ type ActiveChallenge = {
   evaluation_model: string | null;
   mode_id: string | null;
   schema_version: number | null;
+  contest_schema?: unknown;
   public_submission_limit: number;
   final_submission_limit: number;
   event_phase: EventPhase;
@@ -84,6 +85,7 @@ type AnswerKeyRow = {
   report_id: string;
   mode_id: string | null;
   schema_version: number | null;
+  contest_schema?: unknown;
   answer_values: unknown;
   acl_tear: FindingValue;
   mcl_injury: FindingValue;
@@ -102,7 +104,7 @@ type RuntimeAnswerKeyItem = {
   id: string;
   filename: string;
   split: ReportSplit;
-  answer_key: Record<string, string>;
+  answer_key: Record<string, string | number | null>;
   notes?: string;
   supabaseReportId?: string;
   text?: string;
@@ -172,7 +174,7 @@ type EvaluatedReport = {
   reportId: string;
   filename?: string;
   supabaseReportId?: string;
-  prediction: Record<string, string>;
+  prediction: Record<string, string | number | null>;
   score: SchemaScoringResult;
   modelOutput: string;
   error: string | null;
@@ -288,7 +290,7 @@ export async function submitToSupabase({
   const refreshedChallenge = await getActiveChallenge(supabase);
   if(refreshedChallenge.id !== challenge.id) throw new EventPhaseError("Active challenge changed; please reload.");
   challenge = refreshedChallenge;
-  const challengeMode = resolveChallengeMode(challenge.mode_id,challenge.schema_version);
+  const challengeMode = resolveChallengeMode(challenge.mode_id,challenge.schema_version,challenge.contest_schema);
   const split: ReportSplit = kind === "public" ? "public" : "private";
   const answerKeys = await getSupabaseAnswerKeysForSplit(
     supabase,
@@ -324,7 +326,7 @@ export async function submitToSupabase({
       total_reports: evaluation.reportCount,
       correct_fields: evaluation.summary.correct,
       total_fields: evaluation.summary.total,
-      field_accuracy: evaluation.summary.accuracy,
+      field_accuracy: evaluation.summary.total ? 100 * evaluation.summary.correct / evaluation.summary.total : 0,
       overall_score: evaluation.summary.accuracy,
       completed_at: now,
     }, columns: "id", single: "single", operation: "insert" });
@@ -348,12 +350,12 @@ export async function submitToSupabase({
           field_accuracy: item.score.field_accuracy,
           overall_score: item.score.overall_score,
           scored_values: item.prediction,
-          acl_tear: item.prediction.acl_tear ?? null,
-          mcl_injury: item.prediction.mcl_injury ?? null,
-          meniscus_tear: item.prediction.meniscus_tear ?? null,
-          fracture: item.prediction.fracture ?? null,
-          osteoarthritis: item.prediction.osteoarthritis ?? null,
-          effusion: item.prediction.effusion ?? null,
+          acl_tear: canUseLegacySixFieldAnswerKey(challengeMode) ? item.prediction.acl_tear ?? null : null,
+          mcl_injury: canUseLegacySixFieldAnswerKey(challengeMode) ? item.prediction.mcl_injury ?? null : null,
+          meniscus_tear: canUseLegacySixFieldAnswerKey(challengeMode) ? item.prediction.meniscus_tear ?? null : null,
+          fracture: canUseLegacySixFieldAnswerKey(challengeMode) ? item.prediction.fracture ?? null : null,
+          osteoarthritis: canUseLegacySixFieldAnswerKey(challengeMode) ? item.prediction.osteoarthritis ?? null : null,
+          effusion: canUseLegacySixFieldAnswerKey(challengeMode) ? item.prediction.effusion ?? null : null,
           error_message: item.error,
         })), operation: "insert" });
 
@@ -705,7 +707,7 @@ async function mapWithConcurrency<T, R>(
 export async function getActiveChallenge(
   supabase: ReturnType<typeof createDatabase>,
 ) {
-  const { data, error } = await supabase.execute<ActiveChallenge>({ table: "challenges", columns: "id, locked_model, evaluation_model, mode_id, schema_version, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
+  const { data, error } = await supabase.execute<ActiveChallenge>({ table: "challenges", columns: "id, locked_model, evaluation_model, mode_id, schema_version, contest_schema, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
   if (error) {
     throw new Error(`Database active challenge unavailable: ${error.message}`);
@@ -930,7 +932,7 @@ function submissionLabel(kind: SubmissionKind) {
 function predictionFromScore(
   perField: Array<{
     field: string;
-    actual: string | null;
+    actual: string | number | null;
   }>,
 ) {
   return buildScoredValues(perField);

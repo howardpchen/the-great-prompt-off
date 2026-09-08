@@ -1,3 +1,4 @@
+import { isValidFieldValue } from "./contest-schema";
 import {
   defaultChallengeMode,
   type ChallengeFieldDefinition,
@@ -34,12 +35,12 @@ export function scoreModelOutput(
 ): ScoringResult;
 export function scoreModelOutput(
   modelOutput: ModelOutputObject | string,
-  answerKey: Record<string, string>,
+  answerKey: Record<string, string | number | null>,
   mode: ChallengeModeDefinition,
 ): SchemaScoringResult;
 export function scoreModelOutput(
   modelOutput: ModelOutputObject | string,
-  answerKey: Record<string, string>,
+  answerKey: Record<string, string | number | null>,
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): ScoringResult | SchemaScoringResult {
   const schema = createSchemaRuntime(mode);
@@ -76,7 +77,21 @@ export function scoreModelOutput(
       field: field.key,
       expected: answerKey[field.key],
       actual,
-      correct: actual === answerKey[field.key],
+      weight: field.weight ?? 1,
+      correct:
+        !missing &&
+        !invalid &&
+        (typeof actual === "number" && typeof answerKey[field.key] === "number"
+          ? Math.abs(actual - (answerKey[field.key] as number)) <=
+            (field.tolerance ?? 0) +
+              Number.EPSILON *
+                Math.max(
+                  1,
+                  Math.abs(actual),
+                  Math.abs(answerKey[field.key] as number),
+                ) *
+                4
+          : actual === answerKey[field.key]),
       missing,
       invalid,
     };
@@ -92,7 +107,9 @@ export function scoreModelOutput(
   });
 }
 
-function parseModelOutput(modelOutput: ModelOutputObject | string): ParsedModelOutput {
+function parseModelOutput(
+  modelOutput: ModelOutputObject | string,
+): ParsedModelOutput {
   const baseDiagnostics: ScoringDiagnostics = {
     strict_json_valid: false,
     recovered_json_used: false,
@@ -207,7 +224,7 @@ function normalizeOutputObject(
 ) {
   const unwrapped = unwrapNestedSingleReport(output);
   const sourceOutput = unwrapped.output;
-  const normalized: ModelOutputObject = {};
+  const normalized: ModelOutputObject = Object.create(null);
   const ignoredExtraFields: string[] = [];
   let normalizationUsed = diagnostics.normalization_used;
   let keyNormalizationUsed = diagnostics.key_normalization_used;
@@ -248,7 +265,8 @@ function normalizeOutputObject(
       normalization_used: normalizationUsed,
       key_normalization_used: keyNormalizationUsed,
       value_normalization_used: valueNormalizationUsed,
-      ignored_outer_key: unwrapped.ignoredOuterKey ?? diagnostics.ignored_outer_key,
+      ignored_outer_key:
+        unwrapped.ignoredOuterKey ?? diagnostics.ignored_outer_key,
       ignored_extra_fields: ignoredExtraFields,
     },
     output: normalized,
@@ -269,6 +287,7 @@ function normalizeValue(value: unknown, field: string, schema: SchemaRuntime) {
   const normalized = normalizeValueText(value);
   const fieldDefinition = schema.fields.find((item) => item.key === field);
 
+  if (fieldDefinition?.type !== undefined) return value;
   if (fieldDefinition?.allowedValues.includes(normalized)) {
     return normalized;
   }
@@ -281,7 +300,10 @@ function normalizeValue(value: unknown, field: string, schema: SchemaRuntime) {
 }
 
 function normalizeKeyToken(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function normalizeValueText(value: string) {
@@ -300,7 +322,10 @@ function unwrapNestedSingleReport(output: ModelOutputObject) {
 
   const [outerKey, innerValue] = entries[0];
 
-  if (!nestedReportKeys.has(outerKey.trim().toLowerCase()) || !isPlainObject(innerValue)) {
+  if (
+    !nestedReportKeys.has(outerKey.trim().toLowerCase()) ||
+    !isPlainObject(innerValue)
+  ) {
     return { ignoredOuterKey: null, output, used: false };
   }
 
@@ -311,9 +336,9 @@ function unwrapNestedSingleReport(output: ModelOutputObject) {
   };
 }
 
-function parseJson(value: string):
-  | { ok: true; value: unknown }
-  | { ok: false; value: null } {
+function parseJson(
+  value: string,
+): { ok: true; value: unknown } | { ok: false; value: null } {
   try {
     return { ok: true, value: JSON.parse(value) };
   } catch {
@@ -377,7 +402,7 @@ function extractFirstJsonObject(value: string) {
 }
 
 function buildInvalidJsonResult(
-  answerKey: Record<string, string>,
+  answerKey: Record<string, string | number | null>,
   diagnostics: ScoringDiagnostics,
   fields: readonly ChallengeFieldDefinition[],
 ): SchemaScoringResult {
@@ -416,6 +441,11 @@ function buildScoringResult({
   fieldCount: number;
 }): SchemaScoringResult {
   const correct = perField.filter((result) => result.correct).length;
+  const totalWeight = perField.reduce((sum, f) => sum + (f.weight ?? 1), 0);
+  const earnedWeight = perField.reduce(
+    (sum, f) => sum + (f.correct ? (f.weight ?? 1) : 0),
+    0,
+  );
   const fieldAccuracy = fieldCount === 0 ? 0 : (correct / fieldCount) * 100;
 
   return {
@@ -424,7 +454,8 @@ function buildScoringResult({
     missing_fields: missingFields,
     invalid_fields: invalidFields,
     field_accuracy: fieldAccuracy,
-    overall_score: validJson ? fieldAccuracy : 0,
+    overall_score:
+      validJson && totalWeight ? (100 * earnedWeight) / totalWeight : 0,
     diagnostics,
   };
 }
@@ -432,8 +463,8 @@ function buildScoringResult({
 function isAllowedValue(
   value: unknown,
   field: ChallengeFieldDefinition,
-): value is string {
-  return typeof value === "string" && field.allowedValues.includes(value);
+): value is string | number | null {
+  return isValidFieldValue(value, field);
 }
 
 function isPlainObject(value: unknown): value is ModelOutputObject {
