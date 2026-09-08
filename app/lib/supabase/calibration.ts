@@ -39,7 +39,7 @@ type CalibrationReport = {
   id: string;
   filename: string;
   split: "public";
-  answer_key: Record<string, string>;
+  answer_key: Record<string, string | number | null>;
   supabaseReportId?: string;
   text: string;
 };
@@ -75,6 +75,7 @@ export async function runBaselineCalibration(): Promise<CalibrationResult> {
   const challengeMode = resolveChallengeMode(
     challenge.mode_id,
     challenge.schema_version,
+    challenge.contest_schema,
   );
   const reports = (await getSupabaseAnswerKeysForSplit(
     supabase,
@@ -134,7 +135,7 @@ function summarizeBaseline(
   return {
     id,
     label,
-    score: totalFields === 0 ? 0 : (correctFields / totalFields) * 100,
+    score: scores.length ? scores.reduce((sum,s) => sum + s.overall_score,0) / scores.length : 0,
     correctFields,
     totalFields,
     reportScores: scores.map((score) => countCorrectFields(score)),

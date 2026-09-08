@@ -1,3 +1,4 @@
+import { ContestSchemaEditor } from "../components/ContestSchemaEditor";
 import { AdminLoginForm } from "../components/AdminLoginForm";
 import { AdminAutoRefresh } from "../components/AdminAutoRefresh";
 import { AdminModeReadiness } from "../components/AdminModeReadiness";
@@ -65,8 +66,12 @@ export default async function AdminPage() {
         <AdminAutoRefresh intervalSeconds={15} />
       </div>
 
+      <ContestSchemaEditor />
       <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <MetricCard label="Participants" value={data.overview.totalParticipants} />
+        <MetricCard
+          label="Participants"
+          value={data.overview.totalParticipants}
+        />
         <MetricCard
           label="With access codes"
           value={data.overview.participantsWithAccessCodes}
@@ -97,7 +102,8 @@ export default async function AdminPage() {
           Run the workshop
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Live controls for phases, participant messaging, visibility, and readiness.
+          Live controls for phases, participant messaging, visibility, and
+          readiness.
         </p>
       </section>
 
@@ -118,7 +124,10 @@ export default async function AdminPage() {
               label="USE_REAL_LLM"
               value={data.health.useRealLlm ? "true" : "false"}
             />
-            <HealthItem label="OpenRouter model" value={data.health.openRouterModel} />
+            <HealthItem
+              label="OpenRouter model"
+              value={data.health.openRouterModel}
+            />
             <HealthItem
               label="Environment model fallback"
               value={data.health.openRouterEnvironmentModel}
@@ -194,7 +203,8 @@ export default async function AdminPage() {
           Set the evaluation difficulty
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Model choice changes how much participant prompt strategy matters. Run calibration after changing models.
+          Model choice changes how much participant prompt strategy matters. Run
+          calibration after changing models.
         </p>
       </section>
 
@@ -224,12 +234,20 @@ export default async function AdminPage() {
         </a>
       </section>
 
-      <AdminChallengeSchemaPanel challengeSchema={data.overview.challengeSchema} />
+      {!data.overview.challengeSchema.modeId.startsWith("contest_") && (
+        <AdminChallengeSchemaPanel
+          challengeSchema={data.overview.challengeSchema}
+        />
+      )}
 
-      <AdminModeReadiness
-        modes={data.overview.modeReadiness}
-        configurationLocked={data.overview.challengeSchema.configurationLocked}
-      />
+      {!data.overview.challengeSchema.modeId.startsWith("contest_") && (
+        <AdminModeReadiness
+          modes={data.overview.modeReadiness}
+          configurationLocked={
+            data.overview.challengeSchema.configurationLocked
+          }
+        />
+      )}
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
@@ -239,10 +257,22 @@ export default async function AdminPage() {
           Live workflow
         </h2>
         <ol className="mt-3 grid gap-2 text-sm leading-6 text-slate-600 md:grid-cols-2 xl:grid-cols-4">
-          <li><span className="font-semibold text-slate-900">1.</span> Check health and model.</li>
-          <li><span className="font-semibold text-slate-900">2.</span> Open practice and monitor participants.</li>
-          <li><span className="font-semibold text-slate-900">3.</span> Switch to final when ready.</li>
-          <li><span className="font-semibold text-slate-900">4.</span> Review results and export.</li>
+          <li>
+            <span className="font-semibold text-slate-900">1.</span> Check
+            health and model.
+          </li>
+          <li>
+            <span className="font-semibold text-slate-900">2.</span> Open
+            practice and monitor participants.
+          </li>
+          <li>
+            <span className="font-semibold text-slate-900">3.</span> Switch to
+            final when ready.
+          </li>
+          <li>
+            <span className="font-semibold text-slate-900">4.</span> Review
+            results and export.
+          </li>
         </ol>
       </section>
 
@@ -254,7 +284,8 @@ export default async function AdminPage() {
           Monitor and manage
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Open a focused workspace for participants, results, analytics, cases, or help.
+          Open a focused workspace for participants, results, analytics, cases,
+          or help.
         </p>
       </section>
 
@@ -268,7 +299,8 @@ export default async function AdminPage() {
           Dangerous actions
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Use only when intentionally clearing workshop run data before or after an event.
+          Use only when intentionally clearing workshop run data before or after
+          an event.
         </p>
       </section>
 

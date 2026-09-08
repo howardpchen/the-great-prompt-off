@@ -7,32 +7,8 @@ import type {
   AdminCaseManagerData,
   AdminCaseRow,
   AdminCaseSplit,
-  AdminFindingField,
   AdminFindingValue,
 } from "../lib/supabase/admin-cases";
-
-const findingFields: AdminFindingField[] = [
-  "acl_tear",
-  "mcl_injury",
-  "meniscus_tear",
-  "fracture",
-  "osteoarthritis",
-  "effusion",
-];
-const findingValues: AdminFindingValue[] = [
-  "present",
-  "absent",
-  "uncertain",
-  "not_reported",
-];
-const emptyAnswerKey: AdminAnswerKey = {
-  acl_tear: "absent",
-  mcl_injury: "absent",
-  meniscus_tear: "absent",
-  fracture: "absent",
-  osteoarthritis: "absent",
-  effusion: "absent",
-};
 
 type CaseDraft = {
   answerKey: AdminAnswerKey;
@@ -44,7 +20,9 @@ type CaseDraft = {
 
 export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
   const router = useRouter();
-  const [draft, setDraft] = useState<CaseDraft>(newCaseDraft());
+  const findingFields = data.fields.map(f=>f.key);
+  const emptyAnswerKey: AdminAnswerKey = Object.fromEntries(data.fields.map(f=>[f.key,f.type === "number" ? null : f.allowedValues[0]]));
+  const [draft, setDraft] = useState<CaseDraft>(newCaseDraft(emptyAnswerKey));
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [isPending, setIsPending] = useState(false);
@@ -69,7 +47,7 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
   }
 
   function resetDraft() {
-    setDraft(newCaseDraft());
+    setDraft(newCaseDraft(emptyAnswerKey));
     setMessage("");
   }
 
@@ -98,7 +76,7 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
     }
 
     setMessage(isEditing ? "Case updated." : "Case created.");
-    setDraft(newCaseDraft());
+    setDraft(newCaseDraft(emptyAnswerKey));
     router.refresh();
     setIsPending(false);
   }
@@ -304,25 +282,26 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                   className="grid grid-cols-[minmax(0,1fr)_150px] items-center gap-2 text-xs text-slate-600"
                 >
                   <span className="font-mono">{field}</span>
-                  <select
-                    value={draft.answerKey[field]}
+                  {data.fields.find(f=>f.key===field)?.type === 'number' ? <input type="number" step="any" aria-label={field} value={draft.answerKey[field] ?? ''} onChange={e=>setDraft({...draft,answerKey:{...draft.answerKey,[field]:e.target.value === '' ? null : Number(e.target.value)}})}/> : <select
+                    value={draft.answerKey[field] === null ? "__null__" : draft.answerKey[field]}
                     onChange={(event) =>
                       setDraft((current) => ({
                         ...current,
                         answerKey: {
                           ...current.answerKey,
-                          [field]: event.target.value as AdminFindingValue,
+                          [field]: event.target.value === "__null__" ? null : event.target.value as AdminFindingValue,
                         },
                       }))
                     }
                     className="h-9 rounded-md border border-slate-300 bg-white px-2 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                   >
-                    {findingValues.map((value) => (
+                    {data.fields.find(f=>f.key===field)?.nullable && <option value="__null__">Missing / uncertain (null)</option>}
+                    {(data.fields.find(f=>f.key===field)?.allowedValues || []).map((value) => (
                       <option key={value} value={value}>
                         {value}
                       </option>
                     ))}
-                  </select>
+                  </select>}
                 </label>
               ))}
             </div>
@@ -369,7 +348,7 @@ function CaseMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function newCaseDraft(): CaseDraft {
+function newCaseDraft(emptyAnswerKey: AdminAnswerKey): CaseDraft {
   return {
     reportId: null,
     filename: "",

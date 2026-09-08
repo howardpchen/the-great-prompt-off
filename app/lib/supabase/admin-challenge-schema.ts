@@ -171,7 +171,7 @@ export type AnswerKeyImportWriteRow = {
   report_id: string;
   mode_id: string;
   schema_version: number;
-  answer_values: Record<string, string>;
+  answer_values: Record<string, string | number | null>;
   provenance: AnswerKeyProvenance;
   import_batch_id: string;
   adjudicated_by: string | null;

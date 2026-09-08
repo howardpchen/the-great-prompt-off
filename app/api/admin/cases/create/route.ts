@@ -1,4 +1,4 @@
-import { createAdminCase, validateAnswerKey } from "@/app/lib/supabase/admin-cases";
+import { createAdminCase } from "@/app/lib/supabase/admin-cases";
 import type { AdminCaseSplit } from "@/app/lib/supabase/admin-cases";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       filename: typeof body.filename === "string" ? body.filename : "",
       split: typeof body.split === "string" ? (body.split as AdminCaseSplit) : ("" as AdminCaseSplit),
       reportText: typeof body.reportText === "string" ? body.reportText : "",
-      answerKey: validateAnswerKey(body.answerKey),
+      answerKey: body.answerKey,
     });
 
     return Response.json({ ok: true });

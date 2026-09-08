@@ -33,6 +33,7 @@ type ChallengeRow = {
   event_timer_label: string;
   mode_id: string | null;
   schema_version: number | null;
+  contest_schema?: unknown;
 };
 
 type ReportMetadataRow = {
@@ -114,7 +115,7 @@ export async function GET() {
   try {
     const supabase = createDatabase();
 
-    const { data: challenge, error: challengeError } = await supabase.execute<ChallengeRow>({ table: "challenges", columns: "id, slug, title, description, instructions, locked_model, evaluation_model, mode_id, schema_version, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
+    const { data: challenge, error: challengeError } = await supabase.execute<ChallengeRow>({ table: "challenges", columns: "id, slug, title, description, instructions, locked_model, evaluation_model, mode_id, schema_version, contest_schema, public_submission_limit, final_submission_limit, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
     if (challengeError) {
       return Response.json(
@@ -147,7 +148,7 @@ export async function GET() {
     }
 
     const reportIds = reports.map((report) => report.id);
-    const activeMode = resolveChallengeMode(challenge.mode_id, challenge.schema_version);
+    const activeMode = resolveChallengeMode(challenge.mode_id, challenge.schema_version, challenge.contest_schema);
     const [participantCount, answerKeyCount] = await Promise.all([
       getExactCount(
         supabase.execute({table:'participants',count:true}),

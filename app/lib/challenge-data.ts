@@ -24,6 +24,7 @@ type SupabaseChallengeRow = {
   id: string;
   mode_id: string | null;
   schema_version: number | null;
+  contest_schema?: unknown;
 };
 
 type SupabaseReportRow = {
@@ -38,6 +39,7 @@ type SupabaseAnswerKeyRow = {
   report_id: string;
   mode_id: string | null;
   schema_version: number | null;
+  contest_schema?: unknown;
   answer_values: unknown;
   acl_tear: FindingValue;
   mcl_injury: FindingValue;
@@ -133,13 +135,13 @@ async function getLocalPublicReports(): Promise<SampleReport[]> {
 
 async function getSupabasePublicReports(): Promise<SampleReport[]> {
   const supabase = createDatabase();
-  const { data: challenge, error: challengeError } = await supabase.execute<SupabaseChallengeRow>({ table: "challenges", columns: "id, mode_id, schema_version", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
+  const { data: challenge, error: challengeError } = await supabase.execute<SupabaseChallengeRow>({ table: "challenges", columns: "id, mode_id, schema_version, contest_schema", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
 
   if (challengeError || !challenge) {
     throw new Error(challengeError?.message || "No active challenge found.");
   }
 
-  const mode = resolveChallengeMode(challenge.mode_id, challenge.schema_version);
+  const mode = resolveChallengeMode(challenge.mode_id, challenge.schema_version, challenge.contest_schema);
 
   const { data: reports, error: reportsError } = await supabase.execute<SupabaseReportRow[]>({ table: "reports", columns: "id, external_id, filename, split, report_text", operation: "select", where: [["challenge_id", "eq", challenge.id],["split", "eq", "public"]], order: [["filename", { ascending: true }]] });
 

@@ -31,13 +31,17 @@ test -s secrets/e2e_access_code
 "${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
   -e PGDATABASE=gpo_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \
   migrate npm run test:database
+"${compose[@]}" exec -T db createdb -U postgres -T prompt_off gpo_schema_test
+"${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
+  -e PGDATABASE=gpo_schema_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \
+  migrate npm run test:contest-schema
 "${compose[@]}" up -d --wait app
 curl --fail --silent http://localhost:3000/api/health/ready
 export ADMIN_SECRET_FILE="$PWD/secrets/admin_secret"
 export E2E_ACCESS_CODE_FILE="$PWD/secrets/e2e_access_code"
 export E2E_ALLOW_MUTATIONS=true
 export E2E_BASE_URL=http://localhost:3000
-npm run test:e2e
+npm run test:e2e -- tests/e2e/rehearsal.pw.ts
 "${compose[@]}" stop app
 bash deploy/backup.sh
 backup_file=$(ls -t backups/*.dump | head -1)
@@ -50,4 +54,7 @@ RESTORE_CHECK_DATABASE=$(cat "${backup_file}.restore-db")
   -c "SELECT access_code FROM participants WHERE participant_code = 'P002';" > secrets/e2e_restored_access_code
 export E2E_ACCESS_CODE_FILE="$PWD/secrets/e2e_restored_access_code"
 "${compose[@]}" -f compose.yaml -f deploy/compose.restore-test.yaml up -d --wait app
-npm run test:e2e
+npm run test:e2e -- tests/e2e/rehearsal.pw.ts
+# Schema edits fork the active contest. Run only after legacy restore checks so
+# their fixed six-field expectations never depend on another test's mutations.
+npm run test:e2e -- tests/e2e/contest-schema.pw.ts

@@ -30,7 +30,7 @@ export async function reserveAttempt(
       public_submission_limit: number;
       final_submission_limit: number;
     }>(
-      "SELECT event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR SHARE",
+      "SELECT event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
       [input.challengeId],
     );
     const [participant] = await tx.sql<{

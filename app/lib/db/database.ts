@@ -40,6 +40,7 @@ const columns = (value = "*") =>
 const jsonColumns = new Set([
   "output_schema",
   "schema_snapshot",
+  "contest_schema",
   "answer_values",
   "scored_values",
   "parsed_output",

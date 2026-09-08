@@ -12,7 +12,8 @@
     "db:migrate": "NODE_OPTIONS=--conditions=react-server tsx scripts/migrate.ts",
     "seed:demo": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-demo.ts",
     "test:e2e": "playwright test",
-    "test:database": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-database.ts"
+    "test:database": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-database.ts",
+    "test:contest-schema": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-contest-schema.ts"
   },
   "dependencies": {
     "next": "^16.3.4",
