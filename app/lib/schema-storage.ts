@@ -105,10 +105,18 @@ export function createRunSchemaMetadata(mode: ChallengeModeDefinition) {
 }
 
 export function buildScoredValues(
-  perField: readonly { field: string; actual: AnswerValue }[],
+  perField: readonly {
+    field: string;
+    actual: AnswerValue;
+    missing?: boolean;
+    invalid?: boolean;
+  }[],
 ): Record<string, AnswerValue> {
   return perField.reduce<Record<string, AnswerValue>>((values, field) => {
-    if (field.actual !== null) {
+    if (
+      field.actual !== null ||
+      (field.missing === false && field.invalid === false)
+    ) {
       values[field.field] = field.actual;
     }
 

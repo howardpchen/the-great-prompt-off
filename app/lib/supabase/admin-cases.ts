@@ -180,10 +180,7 @@ export async function createAdminCase(input: {
   split: AdminCaseSplit;
 }) {
   return createDatabase().transaction(async (supabase) => {
-    const challenge = await getActiveChallenge(supabase);
-    await supabase.sql("SELECT id FROM challenges WHERE id=$1 FOR UPDATE", [
-      challenge.id,
-    ]);
+    const challenge = await getActiveChallenge(supabase, true);
     const mode = resolveChallengeMode(
       challenge.mode_id,
       challenge.schema_version,
@@ -235,10 +232,7 @@ export async function updateAdminCase(input: {
       throw new Error("reportId is required.");
     }
 
-    const challenge = await getActiveChallenge(supabase);
-    await supabase.sql("SELECT id FROM challenges WHERE id=$1 FOR UPDATE", [
-      challenge.id,
-    ]);
+    const challenge = await getActiveChallenge(supabase, true);
     const mode = resolveChallengeMode(
       challenge.mode_id,
       challenge.schema_version,
@@ -296,69 +290,81 @@ export async function deleteAdminCase(input: {
   confirmationFilename: string;
   reportId: string;
 }) {
-  const reportId = input.reportId.trim();
+  return createDatabase().transaction(async (supabase) => {
+    const reportId = input.reportId.trim();
 
-  if (!reportId) {
-    throw new Error("reportId is required.");
-  }
+    if (!reportId) {
+      throw new Error("reportId is required.");
+    }
 
-  const supabase = createDatabase();
-  const { data: report, error: reportError } = await supabase.execute<{
-    id: string;
-    filename: string | null;
-  }>({
-    table: "reports",
-    columns: "id, filename",
-    single: "maybeSingle",
-    operation: "select",
-    where: [["id", "eq", reportId]],
+    const challenge = await getActiveChallenge(supabase, true);
+    const { data: report, error: reportError } = await supabase.execute<{
+      id: string;
+      filename: string | null;
+    }>({
+      table: "reports",
+      columns: "id, filename",
+      single: "maybeSingle",
+      operation: "select",
+      where: [
+        ["id", "eq", reportId],
+        ["challenge_id", "eq", challenge.id],
+      ],
+    });
+
+    if (reportError) {
+      throw new Error(`Failed to load report: ${reportError.message}`);
+    }
+
+    if (!report) {
+      throw new Error("Report not found.");
+    }
+
+    const filename = report.filename || report.id;
+
+    if (input.confirmationFilename !== filename) {
+      throw new Error("Confirm deletion by typing the exact filename.");
+    }
+
+    const { data: runItems, error: runItemsError } = await supabase.execute<
+      Array<{ id: string }>
+    >({
+      table: "prompt_run_items",
+      columns: "id",
+      limit: 1,
+      operation: "select",
+      where: [["report_id", "eq", reportId]],
+    });
+
+    if (runItemsError) {
+      throw new Error(
+        `Failed to check report run history: ${runItemsError.message}`,
+      );
+    }
+
+    if (runItems.length > 0) {
+      throw new Error(
+        "This report has run history and cannot be deleted. Clear workshop run data first, or keep the report for auditability.",
+      );
+    }
+
+    // answer_keys.report_id has ON DELETE CASCADE, so deleting the report removes
+    // only its answer key after the run-history guard above has passed.
+    const { error: deleteError } = await supabase.execute<
+      Record<string, unknown>[]
+    >({
+      table: "reports",
+      operation: "delete",
+      where: [
+        ["id", "eq", reportId],
+        ["challenge_id", "eq", challenge.id],
+      ],
+    });
+
+    if (deleteError) {
+      throw new Error(`Failed to delete report: ${deleteError.message}`);
+    }
   });
-
-  if (reportError) {
-    throw new Error(`Failed to load report: ${reportError.message}`);
-  }
-
-  if (!report) {
-    throw new Error("Report not found.");
-  }
-
-  const filename = report.filename || report.id;
-
-  if (input.confirmationFilename !== filename) {
-    throw new Error("Confirm deletion by typing the exact filename.");
-  }
-
-  const { data: runItems, error: runItemsError } = await supabase.execute<
-    Array<{ id: string }>
-  >({
-    table: "prompt_run_items",
-    columns: "id",
-    limit: 1,
-    operation: "select",
-    where: [["report_id", "eq", reportId]],
-  });
-
-  if (runItemsError) {
-    throw new Error(
-      `Failed to check report run history: ${runItemsError.message}`,
-    );
-  }
-
-  if (runItems.length > 0) {
-    throw new Error(
-      "This report has run history and cannot be deleted. Clear workshop run data first, or keep the report for auditability.",
-    );
-  }
-
-  // answer_keys.report_id has ON DELETE CASCADE, so deleting the report removes
-  // only its answer key after the run-history guard above has passed.
-  const { error: deleteError } = await supabase.execute<
-    Record<string, unknown>[]
-  >({ table: "reports", operation: "delete", where: [["id", "eq", reportId]] });
-
-  if (deleteError) {
-    throw new Error(`Failed to delete report: ${deleteError.message}`);
-  }
 }
 
 function validateCaseInput(
@@ -480,7 +486,17 @@ async function ensureUniqueReportIdentity(
   }
 }
 
-async function getActiveChallenge(supabase: ReturnType<typeof createDatabase>) {
+async function getActiveChallenge(
+  supabase: ReturnType<typeof createDatabase>,
+  lock = false,
+) {
+  if (lock) {
+    const [challenge] = await supabase.sql<ActiveChallenge>(
+      "SELECT id, mode_id, schema_version, contest_schema FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+    );
+    if (!challenge) throw new Error("No active contest. Reload and retry.");
+    return challenge;
+  }
   const { data, error } = await supabase.execute<ActiveChallenge>({
     table: "challenges",
     columns: "id, mode_id, schema_version, contest_schema",

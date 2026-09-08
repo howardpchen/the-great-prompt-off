@@ -933,6 +933,8 @@ function predictionFromScore(
   perField: Array<{
     field: string;
     actual: string | number | null;
+    missing?: boolean;
+    invalid?: boolean;
   }>,
 ) {
   return buildScoredValues(perField);

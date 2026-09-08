@@ -3,6 +3,7 @@ import { validateContestSchema } from "./contest-schema";
 import { mixedTemplate, twelveBinaryTemplate } from "./contest-schema-fixtures";
 import {
   buildOutputSchema,
+  buildScoredValues,
   validateAnswerValues,
   resolveChallengeMode,
   createSchemaSnapshot,
@@ -81,6 +82,20 @@ describe("configurable contests", () => {
       scoreModelOutput({ ...nullKey, measurement_1: 0 }, nullKey, mixedTemplate)
         .per_field[10].correct,
     ).toBe(false);
+    expect(
+      buildScoredValues(
+        scoreModelOutput(nullKey, nullKey, mixedTemplate).per_field,
+      ),
+    ).toHaveProperty("measurement_1", null);
+    expect(
+      buildScoredValues(
+        scoreModelOutput(
+          { ...nullKey, measurement_1: "invalid" },
+          nullKey,
+          mixedTemplate,
+        ).per_field,
+      ),
+    ).not.toHaveProperty("measurement_1");
     const missing = { ...nullKey };
     delete (missing as Record<string, unknown>).measurement_1;
     expect(

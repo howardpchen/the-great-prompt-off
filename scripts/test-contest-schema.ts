@@ -15,8 +15,11 @@ import {
   getAdminCaseManagerData,
   createAdminCase,
   updateAdminCase,
+  deleteAdminCase,
 } from "../app/lib/supabase/admin-cases";
 import { getAdminDashboardData } from "../app/lib/supabase/admin-dashboard";
+import { buildScoredValues } from "../app/lib/schema-storage";
+import { scoreModelOutput } from "../app/lib/scoring";
 async function main() {
   if (process.env.PGDATABASE !== "gpo_schema_test")
     throw new Error("Requires disposable gpo_schema_test database.");
@@ -27,6 +30,29 @@ async function main() {
     "SELECT id FROM participants WHERE participant_code='P001'",
   );
   let state = await contestSchemaState(db);
+  const archivedDraft = state.reports[0];
+  await saveContestSchema(db, {
+    action: "fork",
+    contestId: state.contestId,
+    expectedVersion: state.schema.version,
+  });
+  state = await contestSchemaState(db);
+  await assert.rejects(
+    deleteAdminCase({
+      reportId: archivedDraft.id,
+      confirmationFilename: archivedDraft.filename,
+    }),
+    /Report not found/,
+  );
+  assert.equal(
+    (
+      await db.sql<{ n: number }>(
+        "SELECT count(*)::int n FROM reports WHERE id=$1",
+        [archivedDraft.id],
+      )
+    )[0].n,
+    1,
+  );
   await saveContestSchema(db, {
     action: "schema",
     contestId: state.contestId,
@@ -243,6 +269,29 @@ async function main() {
   );
   assert.equal(latest.overall_score, 100);
   assert.equal(latest.schema_snapshot.fields.length, 12);
+  const nullableValues = { ...caseAnswers, measurement_1: null };
+  const storedValues = buildScoredValues(
+    scoreModelOutput(nullableValues, nullableValues, state.schema).per_field,
+  );
+  await assert.rejects(
+    db.transaction(async (tx) => {
+      const [item] = await tx.sql<{ id: string }>(
+        "SELECT i.id FROM prompt_run_items i JOIN prompt_runs r ON r.id=i.prompt_run_id WHERE r.challenge_id=$1 LIMIT 1",
+        [state.contestId],
+      );
+      await tx.sql(
+        "UPDATE prompt_run_items SET scored_values=$1::jsonb WHERE id=$2",
+        [JSON.stringify(storedValues), item.id],
+      );
+      const [roundtrip] = await tx.sql<{
+        scored_values: Record<string, unknown>;
+      }>("SELECT scored_values FROM prompt_run_items WHERE id=$1", [item.id]);
+      assert.ok(Object.hasOwn(roundtrip.scored_values, "measurement_1"));
+      assert.equal(roundtrip.scored_values.measurement_1, null);
+      throw new Error("rollback null storage fixture");
+    }),
+    /rollback null storage fixture/,
+  );
   const weighted = await submitToSupabase({
     kind: "public",
     participantCode: "P001",
