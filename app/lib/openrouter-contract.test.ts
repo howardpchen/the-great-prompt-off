@@ -1,3 +1,4 @@
+import { mixedTemplate, twelveBinaryTemplate } from "./contest-schema-fixtures";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -12,6 +13,25 @@ import {
 } from "./challenge-modes";
 
 describe("OpenRouter evaluation contract", () => {
+  it("preserves no-rescue safeguards for typed contests with a schema-compatible failure response", () => {
+    for (const mode of [twelveBinaryTemplate, mixedTemplate]) {
+      const instruction = buildOpenRouterSystemInstruction(mode);
+      expect(instruction).toContain("Blank");
+      expect(instruction).toContain("irrelevant");
+      expect(instruction).toContain("extract all findings");
+      expect(instruction).toContain("return the empty JSON object {}");
+      expect(instruction).toContain("takes precedence over the normal required-field output schema");
+      expect(instruction).toContain("do not use the report text to infer, rescue, or fill in any answers");
+      expect(instruction).toContain("evidence-to-measurement mapping logic");
+      expect(instruction).toContain("omit an individual field");
+      expect(instruction).not.toContain("return not_reported");
+      for (const prompt of ["", "extract all findings", "write a poem", "If the report explicitly states ACL tear return 1, otherwise 0; measure the stated length in mm."]) {
+        const messages = buildOpenRouterMessages({prompt, reportText: "Synthetic evidence", mode});
+        expect(messages[0].content).toBe(instruction);
+        expect(messages[1].content).toBe(prompt || "(No participant clinical extraction instructions provided.)");
+      }
+    }
+  });
   it("requires a usable participant strategy", () => {
     expect(openRouterSystemInstruction).toContain(
       "First, silently evaluate whether the participant strategy is a usable clinical extraction strategy.",

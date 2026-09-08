@@ -55,11 +55,11 @@ export async function saveContestSchema(db: Database, payload: unknown) {
         c.schema_version,
         c.contest_schema,
       );
-      const next = {
+      const next = validateContestSchema({
         ...current,
         id: `contest_${crypto.randomUUID().replaceAll("-", "")}`,
         version: 1,
-      };
+      });
       const [created] = await tx.sql<{ id: string }>(
         "INSERT INTO challenges(slug,title,description,instructions,output_schema,locked_model,evaluation_model,mode_id,schema_version,contest_schema,schema_ready,public_submission_limit,final_submission_limit,is_active) SELECT slug || '-' || substr(gen_random_uuid()::text,1,8),title,description,instructions,$2::jsonb,locked_model,evaluation_model,$3,1,$4::jsonb,false,public_submission_limit,final_submission_limit,false FROM challenges WHERE id=$1 RETURNING id",
         [
@@ -92,11 +92,11 @@ export async function saveContestSchema(db: Database, payload: unknown) {
     if (p.action === "schema") {
       const proposed = validateContestSchema(p.schema);
       // Custom identity is server-generated, never overwrites the legacy template's v1.
-      schema = {
+      schema = validateContestSchema({
         ...proposed,
         id: `contest_${c.id.replaceAll("-", "")}`,
         version: c.schema_version + 1,
-      };
+      });
       await tx.sql(
         "UPDATE challenges SET contest_schema=$2::jsonb,mode_id=$3,schema_version=$4,output_schema=$5::jsonb,schema_ready=false,event_phase='not_started',title=$6,description=$7,updated_at=now() WHERE id=$1",
         [

@@ -206,3 +206,14 @@ export function getPublicChallengeModeMetadata(
     ],
   };
 }
+
+/** Compatibility belongs only to unmodified registry definitions, not omitted types. */
+export function isLegacyChallengeMode(mode: ChallengeModeDefinition): boolean {
+  const registered = Object.values(challengeModes).find(m => m.id === mode.id && m.version === mode.version);
+  if (!registered || registered.fields.length !== mode.fields.length) return false;
+  const contract = (f: ChallengeFieldDefinition) => JSON.stringify([
+    f.key, f.label, f.description, f.type, f.allowedValues, f.aliases,
+    f.nullable, f.weight, f.unit, f.minimum, f.maximum, f.tolerance,
+  ]);
+  return mode.fields.every((field, i) => contract(field) === contract(registered.fields[i]));
+}

@@ -321,7 +321,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     configurationLocked: Boolean(challengeResult.data.schema_locked) || submissionsResult.data.some(
       (submission) => submission.challenge_id === challengeResult.data.id,
     ),
-    activationOptions: activatableChallengeModeIds.map((modeId) => {
+    activationOptions: (challengeResult.data.contest_schema ? [] : activatableChallengeModeIds).map((modeId) => {
       const mode = challengeModes[modeId];
       return {
         id: mode.id,

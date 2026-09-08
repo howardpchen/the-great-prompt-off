@@ -18,7 +18,8 @@ import {
   deleteAdminCase,
 } from "../app/lib/supabase/admin-cases";
 import { getAdminDashboardData } from "../app/lib/supabase/admin-dashboard";
-import { buildScoredValues } from "../app/lib/schema-storage";
+import { defaultChallengeMode } from "../app/lib/challenge-modes";
+import { buildOutputSchema, resolveChallengeMode, buildScoredValues } from "../app/lib/schema-storage";
 import { scoreModelOutput } from "../app/lib/scoring";
 async function main() {
   if (process.env.PGDATABASE !== "gpo_schema_test")
@@ -30,6 +31,29 @@ async function main() {
     "SELECT id FROM participants WHERE participant_code='P001'",
   );
   let state = await contestSchemaState(db);
+  // The existing registry activation remains valid on untouched legacy contests.
+  const activation = {
+    target_mode_id: defaultChallengeMode.id,
+    target_schema_version: defaultChallengeMode.version,
+    target_output_schema: buildOutputSchema(defaultChallengeMode),
+  };
+  assert.equal((await db.rpc("admin_update_challenge_schema", activation)).error, null);
+  const [legacyKeys] = await db.sql<{n:number}>("SELECT count(*)::int n FROM answer_keys k JOIN reports r ON r.id=k.report_id WHERE r.challenge_id=$1", [state.contestId]);
+  assert.ok(legacyKeys.n > 0);
+  // Exact Schala reproduction: custom draft on original legacy contest, old keys retained.
+  await saveContestSchema(db, {action:"schema", contestId:state.contestId, expectedVersion:state.schema.version, schema:twelveBinaryTemplate});
+  const beforeRejectedActivation = await contestSchemaState(db);
+  const rejectedActivation = await db.rpc("admin_update_challenge_schema", activation);
+  assert.equal(rejectedActivation.error?.code, "55000");
+  await assert.rejects(db.sql("SELECT admin_update_challenge_schema($1,$2,$3::jsonb)", [activation.target_mode_id, activation.target_schema_version, JSON.stringify(activation.target_output_schema)]), /Custom contests.*legacy activation/);
+  assert.deepEqual(await contestSchemaState(db), beforeRejectedActivation);
+  assert.equal((await db.sql<{n:number}>("SELECT count(*)::int n FROM answer_keys k JOIN reports r ON r.id=k.report_id WHERE r.challenge_id=$1", [state.contestId]))[0].n, legacyKeys.n);
+  const dashboardAfterRejection = await getAdminDashboardData();
+  assert.equal(dashboardAfterRejection.overview.challengeSchema.modeId, beforeRejectedActivation.schema.id);
+  assert.deepEqual(dashboardAfterRejection.overview.challengeSchema.activationOptions, []);
+  const [participantChallenge] = await db.sql<{mode_id:string; schema_version:number; contest_schema:unknown}>("SELECT mode_id,schema_version,contest_schema FROM challenges WHERE id=$1", [state.contestId]);
+  assert.equal(resolveChallengeMode(participantChallenge.mode_id, participantChallenge.schema_version, participantChallenge.contest_schema).fields.length, 12);
+  state = beforeRejectedActivation;
   const archivedDraft = state.reports[0];
   await saveContestSchema(db, {
     action: "fork",

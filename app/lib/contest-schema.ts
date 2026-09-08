@@ -1,3 +1,4 @@
+import { isLegacyChallengeMode } from "./challenge-modes";
 import type {
   ChallengeFieldDefinition,
   ChallengeModeDefinition,
@@ -115,5 +116,9 @@ export function validateContestSchema(input: unknown): ChallengeModeDefinition {
         throw new Error("Invalid classification labels.");
     }
   }
-  return JSON.parse(JSON.stringify(s)) as ChallengeModeDefinition;
+  const normalized = JSON.parse(JSON.stringify(s)) as ChallengeModeDefinition;
+  if (!isLegacyChallengeMode(normalized)) {
+    normalized.fields = normalized.fields.map(f => ({ ...f, type: f.type ?? "multiclass" }));
+  }
+  return normalized;
 }

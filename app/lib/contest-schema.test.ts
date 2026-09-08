@@ -12,6 +12,7 @@ import { scoreModelOutput } from "./scoring";
 import { summarizeReportResults } from "./mock-evaluation";
 import {
   defaultChallengeMode,
+  isLegacyChallengeMode,
   getPublicChallengeModeMetadata,
 } from "./challenge-modes";
 import { buildOpenRouterSystemInstruction } from "./openrouter-contract";
@@ -36,6 +37,39 @@ describe("configurable contests", () => {
     expect(
       validateContestSchema(createSchemaSnapshot(defaultChallengeMode)).fields,
     ).toHaveLength(6);
+  });
+  it("materializes editor-authored omitted types and never mistakes custom labels for legacy", () => {
+    const edited = {
+      ...structuredClone(defaultChallengeMode),
+      fields: defaultChallengeMode.fields.map(f => ({...f, allowedValues: ["positive", "negative"]})),
+    };
+    expect(edited.fields.every(f => !("type" in f))).toBe(true);
+    const normalized = validateContestSchema(edited);
+    expect(normalized.fields.every(f => f.type === "multiclass")).toBe(true);
+    expect(isLegacyChallengeMode(edited)).toBe(false);
+    const contract = buildOpenRouterSystemInstruction(edited);
+    expect(contract).toContain("Exact labels: positive, negative");
+    expect(contract).not.toContain("output present, absent, or uncertain");
+    const key = Object.fromEntries(edited.fields.map(f => [f.key, "positive"]));
+    for (const schema of [edited, normalized]) {
+      expect(scoreModelOutput(key, key, schema).overall_score).toBe(100);
+      expect(scoreModelOutput(Object.fromEntries(schema.fields.map(f => [f.key, " POSITIVE "])), key, schema).overall_score).toBe(0);
+    }
+    const customIdentity = validateContestSchema({...defaultChallengeMode, id: "contest_custom", version: 2});
+    expect(customIdentity.fields.every(f => f.type === "multiclass")).toBe(true);
+    expect(isLegacyChallengeMode(defaultChallengeMode)).toBe(true);
+    expect(isLegacyChallengeMode(createSchemaSnapshot(defaultChallengeMode))).toBe(true);
+    const legacyKey = Object.fromEntries(defaultChallengeMode.fields.map(f => [f.key, "present"]));
+    expect(scoreModelOutput(Object.fromEntries(defaultChallengeMode.fields.map(f => [f.key, " PRESENT "])), legacyKey, defaultChallengeMode).overall_score).toBe(100);
+  });
+  it("makes the custom no-strategy response unambiguously zero even for nullable answers", () => {
+    for (const schema of [twelveBinaryTemplate, mixedTemplate]) {
+      const key = Object.fromEntries(schema.fields.map(f => [f.key, f.nullable ? null : f.allowedValues[0]]));
+      const result = scoreModelOutput("{}", key, schema);
+      expect(result.overall_score).toBe(0);
+      expect(result.per_field.every(f => f.missing && !f.correct)).toBe(true);
+      expect(result.invalid_fields).toEqual([]); // Failure is missing data, not invented invalid labels.
+    }
   });
   it("uses exact binary labels and rejects unknown keys/missing fields", () => {
     const values = Object.fromEntries(

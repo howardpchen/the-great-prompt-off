@@ -28,3 +28,11 @@ Forking preserves archived data in PostgreSQL; a full archive-browser UI is not 
 ## Tests
 
 Run unit/lint/build checks and the existing database regression. `npm run test:contest-schema` requires a freshly migrated/seeded disposable **gpo_schema_test** database and real evaluation disabled. It tests twelve-binary/mixed submissions, atomic imports, readiness, lock enforcement, numeric editing and preserved history. The browser test `tests/e2e/contest-schema.pw.ts` uses the resulting mixed synthetic contest, protected fixture credential files, and `E2E_ALLOW_MUTATIONS=true`. Never point these mutating tests at a live event.
+
+## Evaluation contract and legacy activation
+
+Only unmodified built-in registry schemas use the historical four-label strategy contract and value normalization. Saving an administrator-authored schema materializes classification fields as multiclass when the editor's type selector was untouched; custom labels remain exact and case-sensitive. Forking a legacy definition also creates an explicitly typed custom contest.
+
+The old mode-activation RPC rejects contests with persisted custom definitions, under the same row lock as schema editing. Use the contest editor (or fork a frozen contest); the legacy selector cannot overwrite only part of a custom definition/readiness state.
+
+For custom contests, unusable participant strategies (empty, vague without mapping logic, or irrelevant) must yield `{}`. That deliberate failure response overrides the normal required-field schema and scores every field as missing/zero, including fields whose reference answer is null. For usable strategies, an individual field without strategy mapping is omitted rather than guessed. Missing evidence can be null only when nullable; otherwise omit the field. Do not invent a label or numeric zero. Field definitions are formatting constraints, not an alternative extraction strategy. The deterministic rehearsal is a plumbing/score fixture, not proof that a live provider obeys these instructions; live-model contract acceptance remains a separate gate before paid evaluation.

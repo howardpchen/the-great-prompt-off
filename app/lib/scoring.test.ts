@@ -70,7 +70,7 @@ describe("scoreModelOutput", () => {
     } as const;
 
     const result = scoreModelOutput(
-      { a: "KEEP", finding_b: "unclear" },
+      { a: "keep", finding_b: "unclear" },
       { finding_a: "keep", finding_b: "unclear" },
       mode,
     );

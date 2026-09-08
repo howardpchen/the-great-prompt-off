@@ -1,6 +1,7 @@
 import { isValidFieldValue } from "./contest-schema";
 import {
   defaultChallengeMode,
+  isLegacyChallengeMode,
   type ChallengeFieldDefinition,
   type ChallengeModeDefinition,
 } from "./challenge-modes";
@@ -199,6 +200,7 @@ function parseModelOutput(
 }
 
 type SchemaRuntime = {
+  legacy: boolean;
   fields: readonly ChallengeFieldDefinition[];
   keyMap: Map<string, string>;
 };
@@ -214,7 +216,7 @@ function createSchemaRuntime(mode: ChallengeModeDefinition): SchemaRuntime {
     }
   }
 
-  return { fields: mode.fields, keyMap };
+  return { fields: mode.fields, keyMap, legacy: isLegacyChallengeMode(mode) };
 }
 
 function normalizeOutputObject(
@@ -287,7 +289,7 @@ function normalizeValue(value: unknown, field: string, schema: SchemaRuntime) {
   const normalized = normalizeValueText(value);
   const fieldDefinition = schema.fields.find((item) => item.key === field);
 
-  if (fieldDefinition?.type !== undefined) return value;
+  if (!schema.legacy) return value;
   if (fieldDefinition?.allowedValues.includes(normalized)) {
     return normalized;
   }
