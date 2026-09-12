@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from "../evaluation-workers";
 import { parseEducationOutput } from "../education-contract";
 import "server-only";
 import { isEducationContest, hideEducationFinal, projectFinalResponse } from "../education-policy";
@@ -683,29 +684,6 @@ async function evaluateWithRealLlm(
       "The evaluation model could not complete this request. Please try again.",
     );
   }
-}
-
-async function mapWithConcurrency<T, R>(
-  values: T[],
-  concurrency: number,
-  mapper: (value: T) => Promise<R>,
-) {
-  const results: R[] = new Array(values.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < values.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      results[currentIndex] = await mapper(values[currentIndex]);
-    }
-  }
-
-  const workerCount = Math.min(concurrency, values.length);
-
-  await Promise.all(Array.from({ length: workerCount }, worker));
-
-  return results;
 }
 
 export async function getActiveChallenge(

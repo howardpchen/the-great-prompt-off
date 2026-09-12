@@ -1,3 +1,4 @@
+import { isApprovedEvaluationModel } from "../model-options";
 import "server-only";
 import { isEducationContest } from "../education-policy";
 import { createHash, randomUUID } from "node:crypto";
@@ -64,7 +65,7 @@ export async function reserveAttempt(
     )
       throw new AttemptAdmissionError("Submissions are not open right now.");
     const education = isEducationContest(challenge.contest_schema);
-    if (education && !challenge.evaluation_model?.trim())
+    if (education && !isApprovedEvaluationModel(challenge.evaluation_model))
       throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this educational contest.');
     if (education && !input.prompt.trim())
       throw new AttemptAdmissionError('Enter instructions before submitting.');

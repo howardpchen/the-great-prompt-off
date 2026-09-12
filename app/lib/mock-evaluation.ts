@@ -33,7 +33,7 @@ export function evaluateSampleReports(
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): MockReportResult[] {
   return reports.map((report) => {
-    const prediction = mode.education ? createEducationalSimulation(prompt, report, mode) : createMockPrediction(prompt, report.answer_key, mode);
+    const prediction = mode.education ? createEducationalSimulation(prompt, report, mode).values : createMockPrediction(prompt, report.answer_key, mode);
 
     return {
       reportId: report.id,
@@ -70,13 +70,14 @@ export function evaluateAnswerKeyReports(
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): MockReportResult[] {
   return answerKeys.map((item) => {
-    const prediction = mode.education ? createEducationalSimulation(prompt, item, mode) : createMockPrediction(prompt, item.answer_key, mode);
+    const simulated = mode.education ? createEducationalSimulation(prompt, item, mode) : null;
+    const prediction = simulated?.values ?? createMockPrediction(prompt, item.answer_key, mode);
 
     return {
       reportId: item.id,
       prediction,
       score: scoreModelOutput(JSON.stringify(prediction), item.answer_key, mode),
-      modelOutput: JSON.stringify(prediction),
+      modelOutput: JSON.stringify(simulated?.decisions ?? prediction),
       error: null,
     };
   });
@@ -199,5 +200,5 @@ function createEducationalSimulation(prompt: string, item: RuntimeAnswerKeyItem,
   const decisions = Object.fromEntries(mode.fields.map((f, i) => [f.key, (hash + i) % 7 === 0
     ? { status: "no_decision", value: null }
     : { status: "decision", value: (hash + i) % 5 === 0 ? differentFieldValue(f, item.answer_key[f.key]) : item.answer_key[f.key] }]));
-  return parseEducationOutput(JSON.stringify(decisions), mode).values;
+  return parseEducationOutput(JSON.stringify(decisions), mode);
 }
