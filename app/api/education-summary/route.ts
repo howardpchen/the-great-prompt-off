@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     if (!mode.education) return Response.json({ error: "Not an educational contest." }, { status: 404 });
     if (challenge.event_phase === "not_started") return Response.json({ baseline: null, revealed: false }, { headers: { "Cache-Control": "no-store" } });
     // This endpoint NEVER initiates model calls. Paid common baselines require organizer calibration.
-    if (shouldUseRealLlm()) return Response.json({ baseline: null, simulated: false, message: "Common real-model baseline has not been calibrated. No score is implied." }, { headers: { "Cache-Control": "no-store" } });
+    if (shouldUseRealLlm() || mode.education.evaluationMode === "real") return Response.json({ baseline: null, simulated: false, message: "Common real-model baseline has not been calibrated. No score is implied." }, { headers: { "Cache-Control": "no-store" } });
     const publicCases = await getSupabaseAnswerKeysForSplit(db, challenge.id, "public", mode);
     const results = evaluateAnswerKeyReports(publicCases, mode.education.baselineInstructions, mode);
     const baseline = summarizeReportResults(results);

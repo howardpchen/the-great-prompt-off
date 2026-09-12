@@ -7,9 +7,9 @@ export function educationOutputSchema(mode: ChallengeModeDefinition) {
   return { type: "object", additionalProperties: false, required: mode.fields.map(f => f.key), properties: Object.fromEntries(mode.fields.map(f => [f.key, {
     anyOf: [
       { type: "object", additionalProperties: false, required: ["status", "value"], properties: {
-        status: { const: "decision" }, value: f.type === "number" ? { type: f.nullable ? ["number", "null"] : "number", ...(f.minimum === undefined ? {} : { minimum: f.minimum }), ...(f.maximum === undefined ? {} : { maximum: f.maximum }) } : { enum: [...f.allowedValues, ...(f.nullable ? [null] : [])] },
+        status: { type: "string", enum: ["decision"] }, value: f.type === "number" ? { type: f.nullable ? ["number", "null"] : "number", ...(f.minimum === undefined ? {} : { minimum: f.minimum }), ...(f.maximum === undefined ? {} : { maximum: f.maximum }) } : { enum: [...f.allowedValues, ...(f.nullable ? [null] : [])] },
       } },
-      { type: "object", additionalProperties: false, required: ["status", "value"], properties: { status: { const: "no_decision" }, value: { type: "null" } } },
+      { type: "object", additionalProperties: false, required: ["status", "value"], properties: { status: { type: "string", enum: ["no_decision"] }, value: { type: "null" } } },
     ],
   }])) };
 }

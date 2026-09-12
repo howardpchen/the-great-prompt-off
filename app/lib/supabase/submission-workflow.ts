@@ -581,6 +581,7 @@ async function evaluateSubmission({
   model: string;
   mode: ChallengeModeDefinition;
 }): Promise<EvaluationResult> {
+  if (mode.education && (mode.education.evaluationMode ?? "simulation") !== (shouldUseRealLlm() ? "real" : "simulation")) throw new RealLlmEvaluationError("Contest evaluator mode does not match this server. Ask the organizer to create the correct contest version; no attempt was charged.");
   if (shouldUseRealLlm()) {
     return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode);
   }

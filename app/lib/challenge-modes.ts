@@ -19,7 +19,7 @@ export type ChallengeModeDefinition = {
   title: string;
   description?: string;
   domain: string;
-  education?: { version: 1; baselineInstructions: string; pipeline: "structured-v1" };
+  education?: { version: 1; baselineInstructions: string; pipeline: "structured-v1"; evaluationMode?: "simulation" | "real" };
   fields: readonly ChallengeFieldDefinition[];
 };
 

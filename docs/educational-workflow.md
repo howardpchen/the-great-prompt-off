@@ -20,3 +20,9 @@ An opt-in, versioned contest workflow. Existing contests and their history retai
 4. Integrated lint/type/unit/build/database/browser evidence and limitations.
 
 No paid calls, production data changes or public publication during implementation. Clinical reference adjudication and paid-model calibration remain prerequisites to a live event.
+
+## Evaluator mode and rollout
+
+The schema records `education.evaluationMode` (default `simulation`). Real evaluation requires a new, appropriately configured contest version and matching server real-model mode; changing an environment variable cannot silently mix synthetic and clinical scores. The first milestone UI creates simulation contests only. Paid-model calibration remains separately authorized.
+
+Common simulation baseline is computed with exactly the same deterministic simulator and public cases as a team attempt. It is explicitly synthetic. A real-mode contest displays no fabricated baseline: organizer calibration and persistent common real baseline are a later gate.
