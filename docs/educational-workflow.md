@@ -26,3 +26,21 @@ No paid calls, production data changes or public publication during implementati
 The schema records `education.evaluationMode` (default `simulation`). Real evaluation requires a new, appropriately configured contest version and matching server real-model mode; changing an environment variable cannot silently mix synthetic and clinical scores. The first milestone UI creates simulation contests only. Paid-model calibration remains separately authorized.
 
 Common simulation baseline is computed with exactly the same deterministic simulator and public cases as a team attempt. It is explicitly synthetic. A real-mode contest displays no fabricated baseline: organizer calibration and persistent common real baseline are a later gate.
+
+## Rehearsal operation
+
+1. Fork a contest version. Choose fields, enable educational workflow, and supply a shared baseline.
+2. Import complete reference labels. Structural validation does not imply clinician adjudication.
+3. Select an explicit fixed model (even simulation records the intended configuration). Open practice.
+4. Share one participant access code per team. Budgets belong to the account, not the browser; drafts are local, not collaborative documents.
+5. Open final submission once teams finish. The first admitted final instruction hash remains locked even if infrastructure fails. Retry the same instructions after recovery.
+6. End the event to reveal finals and the debrief. Educational reveal is irreversible; use a new version for another session.
+
+## Validation scripts
+
+- `test:education-fairness`: migrated, demo-seeded disposable `gpo_test` only; direct database concurrent admission, refunds, freeze and abandoned-worker fencing.
+- `test:education-load`: disposable `gpo_edu_load` cloned from an educational fixture; 50 team practice/final bursts and replay. This is not HTTP or production load benchmarking.
+- `test:education-provider`: disposable `gpo_edu_provider` cloned from an educational fixture; replaces fetch with a stub, proves malformed-output refunds versus valid abstention scoring with zero provider calls.
+- Playwright `tests/e2e/education.pw.ts`: protected fixture credentials, explicit `E2E_ALLOW_MUTATIONS=true`, disposable app only. Forks synthetic contest, validates baseline equality, one editor, final hiding/replay/reveal and debrief.
+
+Keep the server at one app process for the process-wide provider semaphore. Multi-replica provider limits require a distributed queue before scale-out. Provider routing/latency and real-model clinical performance still require separate calibration.
