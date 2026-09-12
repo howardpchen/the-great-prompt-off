@@ -136,6 +136,7 @@ export type SubmitScoreResponse = SubmissionStatusResponse & {
 };
 
 export type SafeSubmissionFeedback = {
+  clinicalComparisons?: Array<{ report: string; fields: Array<{ field: string; expected: string | number | null; actual: string | number | null; noDecision: boolean; correct: boolean }> }>;
   kind: SubmissionKind;
   score: number;
   correctFields: number;
@@ -414,7 +415,7 @@ export async function submitToSupabase({
     totalFields: evaluation.summary.total,
     reportCount: evaluation.reportCount,
     summary: evaluation.summary,
-    feedback: createSafeFeedback(kind, evaluation),
+    feedback: createSafeFeedback(kind, evaluation, challengeMode),
   };
   await supabase.sql("UPDATE attempt_reservations SET status='completed',response=$2::jsonb,completed_at=now() WHERE id=$1",[reservation.id,JSON.stringify(response)]);
   return response;
@@ -656,7 +657,7 @@ async function evaluateWithRealLlm(
           prediction: predictionFromScore(score.per_field),
           score,
           modelOutput,
-          error: validationMessage(score),
+          error: mode.education ? null : validationMessage(score),
         };
       },
     );
@@ -866,6 +867,7 @@ function validationMessage(score: SchemaScoringResult) {
 function createSafeFeedback(
   kind: SubmissionKind,
   evaluation: EvaluationResult,
+  mode?: ChallengeModeDefinition,
 ): SafeSubmissionFeedback {
   const feedback: SafeSubmissionFeedback = {
     kind,
@@ -896,6 +898,7 @@ function createSafeFeedback(
 
   return {
     ...aggregateFeedback,
+    ...(mode?.education ? {clinicalComparisons: items.map(item => ({report: item.filename || item.reportId, fields: item.score.per_field.map(f => ({field: f.field, expected: f.expected, actual: f.actual, noDecision: Boolean(f.missing), correct: f.correct}))}))} : {}),
     reportScores: items.map((item, index) => ({
       reportLabel: reportLabel(item.reportId, index),
       correctFields: countCorrectFields(item.score),

@@ -1,4 +1,6 @@
 export const evaluationModelOptions = [
+  { id: "qwen/qwen3.5-9b", label: "Qwen3.5 9B", difficulty: "Requires calibration", note: "Educational candidate; validate structured output, latency and reference accuracy before enabling paid evaluation." },
+  { id: "qwen/qwen3.5-35b-a3b", label: "Qwen3.5 35B A3B", difficulty: "Requires calibration", note: "Educational candidate; not yet validated for this contest." },
   {
     id: "google/gemini-2.5-flash",
     label: "Gemini 2.5 Flash",

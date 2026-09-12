@@ -80,6 +80,7 @@ export function resolveChallengeMode(
 
 export function createSchemaSnapshot(mode: ChallengeModeDefinition) {
   return {
+    ...(mode.education ? { education: { ...mode.education }, pipelineSettings: { temperature: 0, maxOutputTokens: Math.min(8192, 256 + mode.fields.length * 96), structuredOutput: true } } : {}),
     id: mode.id,
     version: mode.version,
     title: mode.title,

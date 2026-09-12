@@ -60,6 +60,7 @@ type SubmissionPromptDebug = PromptDebug & {
 };
 
 type SafeSubmissionFeedback = {
+  clinicalComparisons?: Array<{ report: string; fields: Array<{ field: string; expected: string | number | null; actual: string | number | null; noDecision: boolean; correct: boolean }> }>;
   kind: SubmissionKind;
   score: number;
   correctFields: number;
@@ -471,7 +472,7 @@ export function ChallengeWorkspace({
       if (parsedV2Draft) {
         timer = window.setTimeout(() => {
           setClinicalInstructions(
-            (current) => current || parsedV2Draft.clinicalInstructions,
+            parsedV2Draft.clinicalInstructions,
           );
           setDraftReadyKey(draftKey);
         }, 0);
@@ -482,7 +483,7 @@ export function ChallengeWorkspace({
 
         if (savedOldDraft) {
           timer = window.setTimeout(() => {
-            setClinicalInstructions((current) => current || savedOldDraft);
+            setClinicalInstructions(savedOldDraft);
             setDraftReadyKey(draftKey);
           }, 0);
         } else {
@@ -1535,6 +1536,7 @@ function SubmissionPanel({
 
 function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
   const isPublic = feedback.kind === "public";
+  if (isPublic && feedback.clinicalComparisons) return <section className="rounded border bg-white p-3 text-slate-900"><h3 className="font-semibold">Practice clinical feedback</h3><p>Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Review the report alongside its reference labels.</p>{feedback.clinicalComparisons.map(r => <details key={r.report}><summary>{r.report}</summary><table className="w-full text-xs"><thead><tr><th>Field</th><th>Extraction</th><th>Reference</th><th>Match</th></tr></thead><tbody>{r.fields.map(f => <tr key={f.field}><td>{f.field}</td><td>{f.noDecision ? "No decision" : String(f.actual)}</td><td>{String(f.expected)}</td><td>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></details>)}</section>;
 
   return (
     <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
