@@ -42,7 +42,7 @@ async function main(){
  assert.equal((await readTeamHistory(db,challenge.id,'P002'))?.final,null,'other team cannot retrieve locked instructions');
  assert.equal(await readTeamHistory(db,challenge.id,'missing-team'),null);
  assert.equal((await readTeamHistory(db,c.id,'P001'))?.final?.instructions===final.prompt,false,'other contest cannot retrieve lock');
- 
+
  await assert.rejects(reserveAttempt(db,{...final,idempotencyKey:'changed-final',prompt:'Changed after failure'}));
  const retry=await reserveAttempt(db,{...final,prompt:recovered!.final!.instructions!});assert.notEqual(retry.id,locked.id);
  await db.sql("UPDATE attempt_reservations SET status='completed',response='{}'::jsonb WHERE id=$1",[retry.id]);
