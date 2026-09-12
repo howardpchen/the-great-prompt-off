@@ -1,3 +1,4 @@
+import { isEducationContest } from "../education-policy";
 import "server-only";
 
 import { safeCsvCell, toCsv } from "@/app/lib/csv";
@@ -273,7 +274,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       testAttemptsUsed: testSubmissions.length,
     });
     const extraPublicAttempts =
-      extraAttemptsByParticipantCode.get(participant.participant_code) ?? 0;
+      isEducationContest(challengeResult.data.contest_schema) ? 0 : extraAttemptsByParticipantCode.get(participant.participant_code) ?? 0;
     const effectivePublicSubmissionLimit =
       challengeResult.data.public_submission_limit + extraPublicAttempts;
 

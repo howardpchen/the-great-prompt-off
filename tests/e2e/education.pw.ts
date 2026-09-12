@@ -43,7 +43,7 @@ test("one-editor team rehearsal: baseline, shared practice, frozen final, reveal
   await expect(page.getByRole("heading",{name:"Clinical definitions and scoring"})).toBeVisible();
   expect((await context.request.post("/api/admin/challenge-phase",{headers,data:{phase:"final_open"}})).ok()).toBe(true);
   const final=await submit("final",baseline,"edu-browser-final");expect(final.ok()).toBe(true);
-  const hidden=await final.json();expect(hidden.resultsHidden).toBe(true);expect(hidden.finalScore).toBe(null);expect(hidden.score).toBe(null);expect(hidden.feedback).toBeUndefined();
+  const hidden=await final.json();expect(hidden.resultsHidden).toBe(true);expect(hidden.finalScore).toBe(null);expect(hidden.score).toBeUndefined();expect(hidden.feedback).toBeUndefined();
   const status=await (await context.request.get(`/api/submissions/status?participantCode=${participantCode}`,{headers:authHeader})).json();expect(status.finalScore).toBe(null);expect(status.finalSubmissionUsed).toBe(true);
   expect((await submit("final",baseline+" changed","edu-browser-final-new")).ok()).toBe(false);
   expect((await context.request.post("/api/admin/challenge-phase",{headers,data:{phase:"ended"}})).ok()).toBe(true);
