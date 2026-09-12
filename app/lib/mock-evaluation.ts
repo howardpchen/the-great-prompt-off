@@ -1,3 +1,4 @@
+import { parseEducationOutput } from "./education-contract";
 import {
   defaultChallengeMode,
   type ChallengeFieldDefinition,
@@ -69,7 +70,7 @@ export function evaluateAnswerKeyReports(
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): MockReportResult[] {
   return answerKeys.map((item) => {
-    const prediction = createMockPrediction(prompt, item.answer_key, mode);
+    const prediction = mode.education ? createEducationalSimulation(prompt, item, mode) : createMockPrediction(prompt, item.answer_key, mode);
 
     return {
       reportId: item.id,
@@ -189,4 +190,14 @@ export function differentFieldValue(field: ChallengeFieldDefinition, expected: s
  if(field.maximum === undefined || expected + delta <= field.maximum) return expected + delta;
  if(field.minimum === undefined || expected - delta >= field.minimum) return expected - delta;
  return null; // Intentionally unsuccessful prediction when no valid wrong number exists.
+}
+
+/** Mechanics-only simulator: stable per case/instruction, deliberately not clinical inference. */
+function createEducationalSimulation(prompt: string, item: RuntimeAnswerKeyItem, mode: ChallengeModeDefinition) {
+  let hash = 2166136261;
+  for (const c of item.id + "\n" + prompt) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619) >>> 0;
+  const decisions = Object.fromEntries(mode.fields.map((f, i) => [f.key, (hash + i) % 7 === 0
+    ? { status: "no_decision", value: null }
+    : { status: "decision", value: (hash + i) % 5 === 0 ? differentFieldValue(f, item.answer_key[f.key]) : item.answer_key[f.key] }]));
+  return parseEducationOutput(JSON.stringify(decisions), mode).values;
 }

@@ -1,3 +1,5 @@
+import { withProviderSlot } from "./provider-concurrency";
+import { educationOutputSchema, parseEducationOutput } from "./education-contract";
 import "server-only";
 
 import type { ChallengeModeDefinition } from "./challenge-modes";
@@ -46,7 +48,7 @@ export function hasOpenRouterApiKey() {
   return Boolean(process.env.OPENROUTER_API_KEY);
 }
 
-export async function extractReportWithOpenRouter({
+async function extractReportRequest({
   prompt,
   reportText,
   model,
@@ -86,7 +88,8 @@ export async function extractReportWithOpenRouter({
         model: model || getOpenRouterModel(),
         messages,
         temperature: 0,
-        max_tokens: 300,
+        max_tokens: mode?.education ? Math.min(8192, 256 + mode.fields.length * 96) : 300,
+        ...(mode?.education ? { response_format: { type: "json_schema", json_schema: { name: "clinical_decisions", strict: true, schema: educationOutputSchema(mode) } }, provider: { require_parameters: true } } : {}),
       }),
     });
   } catch (error) {
@@ -113,5 +116,10 @@ export async function extractReportWithOpenRouter({
     throw new Error("OpenRouter returned an empty model output.");
   }
 
+  if (mode?.education) parseEducationOutput(content, mode);
   return content;
+}
+
+export async function extractReportWithOpenRouter(input: Parameters<typeof extractReportRequest>[0]) {
+  return withProviderSlot(getOpenRouterConcurrency(), () => extractReportRequest(input));
 }

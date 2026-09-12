@@ -19,10 +19,12 @@ export type ChallengeModeDefinition = {
   title: string;
   description?: string;
   domain: string;
+  education?: { version: 1; baselineInstructions: string; pipeline: "structured-v1" };
   fields: readonly ChallengeFieldDefinition[];
 };
 
 export type PublicChallengeModeMetadata = {
+  education?: ChallengeModeDefinition["education"];
   id: string;
   version: number;
   title: string;
@@ -193,6 +195,7 @@ export function getPublicChallengeModeMetadata(
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): PublicChallengeModeMetadata {
   return {
+    ...(mode.education ? { education: mode.education } : {}),
     id: mode.id,
     version: mode.version,
     title: mode.title,

@@ -1,3 +1,4 @@
+import { parseEducationOutput } from "../education-contract";
 import "server-only";
 import { reserveAttempt, failReservation, AttemptAdmissionError } from "../db/attempts";
 
@@ -646,7 +647,7 @@ async function evaluateWithRealLlm(
           model,
           mode,
         });
-        const score = scoreModelOutput(modelOutput, item.answer_key, mode);
+        const score = scoreModelOutput(mode.education ? JSON.stringify(parseEducationOutput(modelOutput, mode).values) : modelOutput, item.answer_key, mode);
 
         return {
           reportId: item.id,
