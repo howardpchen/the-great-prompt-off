@@ -8,6 +8,10 @@ BEGIN
       OR old.locked_model IS DISTINCT FROM new.locked_model) THEN
    RAISE EXCEPTION 'Educational budgets and model are locked. Create a new contest version.' USING ERRCODE='55000';
  END IF;
+ IF old.contest_schema #>> '{education,version}' = '1'
+    AND old.event_phase='ended' AND new.event_phase <> 'ended' THEN
+   RAISE EXCEPTION 'Educational results are already revealed; create a new contest version.' USING ERRCODE='55000';
+ END IF;
  RETURN new;
 END $$;
 CREATE TRIGGER guard_education_budget BEFORE UPDATE ON challenges

@@ -29,10 +29,11 @@ export async function reserveAttempt(
     const [challenge] = await tx.sql<{
       event_phase: string;
       contest_schema: unknown;
+      evaluation_model: string | null;
       public_submission_limit: number;
       final_submission_limit: number;
     }>(
-      "SELECT contest_schema,event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
+      "SELECT evaluation_model,contest_schema,event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
       [input.challengeId],
     );
     const [participant] = await tx.sql<{
@@ -63,6 +64,10 @@ export async function reserveAttempt(
     )
       throw new AttemptAdmissionError("Submissions are not open right now.");
     const education = isEducationContest(challenge.contest_schema);
+    if (education && !challenge.evaluation_model?.trim())
+      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this educational contest.');
+    if (education && !input.prompt.trim())
+      throw new AttemptAdmissionError('Enter instructions before submitting.');
     if (education && input.kind === 'final') {
       const [locked] = await tx.sql<{prompt_hash:string}>(
         "SELECT prompt_hash FROM attempt_reservations WHERE challenge_id=$1 AND participant_id=$2 AND kind='final' ORDER BY created_at LIMIT 1",
