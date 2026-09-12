@@ -1,4 +1,5 @@
 "use client";
+import { TeamHistory } from "./TeamHistory";
 import { EducationSummary } from "./EducationSummary";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -848,6 +849,7 @@ export function ChallengeWorkspace({
               ) : null}
             </div>
             {education && activeParticipantToken ? <EducationSummary token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} /> : null}
+            {education && activeParticipantToken ? <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} /> : null}
             <DataSourceStatus
               error={challengeDataError}
               status={challengeDataStatus}

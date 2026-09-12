@@ -92,7 +92,7 @@ export async function reserveAttempt(
     if (counts.used >= limit)
       throw new AttemptAdmissionError("Submission limit reached.");
     const [reservation] = await tx.sql<Reservation>(
-      `INSERT INTO attempt_reservations(challenge_id,participant_id,kind,idempotency_key,prompt_hash,attempt_number) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(challenge_id,participant_id,kind,idempotency_key) DO UPDATE SET id=gen_random_uuid(),status='pending',attempt_number=EXCLUDED.attempt_number,created_at=now(),completed_at=NULL RETURNING *`,
+      `INSERT INTO attempt_reservations(challenge_id,participant_id,kind,idempotency_key,prompt_hash,attempt_number,prompt_text) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(challenge_id,participant_id,kind,idempotency_key) DO UPDATE SET id=gen_random_uuid(),status='pending',attempt_number=EXCLUDED.attempt_number,created_at=now(),completed_at=NULL,prompt_text=COALESCE(attempt_reservations.prompt_text,EXCLUDED.prompt_text) RETURNING *`,
       [
         input.challengeId,
         input.participantId,
@@ -100,6 +100,7 @@ export async function reserveAttempt(
         key,
         hash,
         counts.next,
+        input.prompt,
       ],
     );
     return reservation;
