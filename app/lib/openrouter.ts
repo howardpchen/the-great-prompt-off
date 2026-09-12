@@ -92,20 +92,9 @@ async function extractReportRequest({
         ...(mode?.education ? { response_format: { type: "json_schema", json_schema: { name: "clinical_decisions", strict: true, schema: educationOutputSchema(mode) } }, provider: { require_parameters: true } } : {}),
       }),
     });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("OpenRouter request timed out. Please try again.");
-    }
-
-    throw new Error("OpenRouter request failed before a response was received.");
-  } finally {
-    clearTimeout(timeout);
-  }
-
   if (!response.ok) {
-    const errorText = await response.text();
     throw new Error(
-      `OpenRouter request failed with status ${response.status}: ${errorText}`,
+      `OpenRouter request failed with status ${response.status}`,
     );
   }
 
@@ -118,6 +107,10 @@ async function extractReportRequest({
 
   if (mode?.education) parseEducationOutput(content, mode);
   return content;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error("OpenRouter request timed out. Please try again.");
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 
 export async function extractReportWithOpenRouter(input: Parameters<typeof extractReportRequest>[0]) {

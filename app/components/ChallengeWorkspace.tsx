@@ -1,4 +1,5 @@
 "use client";
+import { EducationSummary } from "./EducationSummary";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -845,6 +846,7 @@ export function ChallengeWorkspace({
                 </p>
               ) : null}
             </div>
+            {education && activeParticipantToken ? <EducationSummary token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} /> : null}
             <DataSourceStatus
               error={challengeDataError}
               status={challengeDataStatus}

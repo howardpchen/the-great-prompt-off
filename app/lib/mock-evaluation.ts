@@ -33,7 +33,7 @@ export function evaluateSampleReports(
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): MockReportResult[] {
   return reports.map((report) => {
-    const prediction = createMockPrediction(prompt, report.answer_key, mode);
+    const prediction = mode.education ? createEducationalSimulation(prompt, report, mode) : createMockPrediction(prompt, report.answer_key, mode);
 
     return {
       reportId: report.id,

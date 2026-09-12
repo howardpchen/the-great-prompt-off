@@ -1,3 +1,4 @@
+import { evaluateAnswerKeyReports } from "./mock-evaluation";
 import { describe, expect, it } from "vitest";
 import { educationOutputSchema, parseEducationOutput, educationInstruction } from "./education-contract";
 import { mixedTemplate } from "./contest-schema-fixtures";
@@ -27,4 +28,12 @@ describe("educational extraction boundary", () => {
     expect(educationInstruction(mode)).toContain("Do not judge");
   });
   it("rejects malformed opt-in metadata", () => expect(() => validateContestSchema({ ...mode, education: { version: 2 } })).toThrow());
+});
+
+it("simulated educational scores are deterministic with explicit abstentions and use the contract", () => {
+  const reports = [{id:"case-a",filename:"a.txt",split:"public" as const,answer_key:Object.fromEntries(mode.fields.map(f => [f.key, null]))}];
+  const a = evaluateAnswerKeyReports(reports, "brief", mode);
+  expect(evaluateAnswerKeyReports(reports, "brief", mode)).toEqual(a);
+  expect(a[0].score.valid_json).toBe(true);
+  expect(a[0].score.missing_fields.length).toBeGreaterThan(0);
 });
