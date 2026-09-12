@@ -95,6 +95,18 @@ export async function POST(request: Request) {
 }
 
 function toFinalClientResponse(result: SubmitScoreResponse) {
+  if ((result as SubmitScoreResponse & {resultsHidden?: boolean}).resultsHidden) {
+    return {
+      source: result.source, fallbackReason: result.fallbackReason,
+      publicSubmissionLimit: result.publicSubmissionLimit,
+      publicSubmissionsUsed: result.publicSubmissionsUsed,
+      remainingPublicSubmissions: result.remainingPublicSubmissions,
+      latestPublicScore: result.latestPublicScore,
+      finalSubmissionUsed: result.finalSubmissionUsed,
+      finalScore: null, kind: result.kind, evaluationMode: result.evaluationMode,
+      model: result.model, resultsHidden: true,
+    };
+  }
   return {
     source: result.source,
     fallbackReason: result.fallbackReason,

@@ -1,5 +1,6 @@
 import { parseEducationOutput } from "../education-contract";
 import "server-only";
+import { isEducationContest, hideEducationFinal, projectFinalResponse } from "../education-policy";
 import { reserveAttempt, failReservation, AttemptAdmissionError } from "../db/attempts";
 
 import { fallbackChallengeConfig } from "@/app/lib/challenge-config";
@@ -287,7 +288,7 @@ export async function submitToSupabase({
   let reservation;
   try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey});}
   catch(error) {if(error instanceof AttemptAdmissionError) throw new SubmissionLimitError(error.message);throw error;}
-  if(reservation.status === 'completed') return reservation.response as SubmitScoreResponse;
+  if(reservation.status === 'completed') return projectFinalResponse(reservation.response as SubmitScoreResponse, challenge.contest_schema, challenge.event_phase);
   try {
   const refreshedChallenge = await getActiveChallenge(supabase);
   if(refreshedChallenge.id !== challenge.id) throw new EventPhaseError("Active challenge changed; please reload.");
@@ -418,7 +419,7 @@ export async function submitToSupabase({
     feedback: createSafeFeedback(kind, evaluation, challengeMode),
   };
   await supabase.sql("UPDATE attempt_reservations SET status='completed',response=$2::jsonb,completed_at=now() WHERE id=$1",[reservation.id,JSON.stringify(response)]);
-  return response;
+  return projectFinalResponse(response, challenge.contest_schema, challenge.event_phase);
   });
   } catch(error) {await failReservation(supabase,reservation.id);throw error;}
 
@@ -429,6 +430,7 @@ export async function getSupabaseLeaderboard(): Promise<LeaderboardResponse> {
   const challenge = await getActiveChallenge(supabase);
 
   if (
+    (hideEducationFinal(challenge.contest_schema, challenge.event_phase) && challenge.event_phase !== 'practice_open') ||
     !canShowParticipantLeaderboard({
       eventPhase: challenge.event_phase,
       visibility: challenge.leaderboard_visibility,
@@ -749,12 +751,19 @@ async function getSubmissionStatusForParticipant(
   const finalSubmission =
     data.find((submission) => submission.submission_type === "final") ?? null;
   const latestPublic = publicSubmissions[publicSubmissions.length - 1] ?? null;
-  const extraPublicAttempts = await getExtraPublicAttempts(supabase, participantCode);
+  const extraPublicAttempts = isEducationContest(challenge.contest_schema) ? 0 : await getExtraPublicAttempts(supabase, participantCode);
   const publicSubmissionLimit =
     challenge.public_submission_limit + extraPublicAttempts;
+  const [pending] = await supabase.sql<{public_pending:number;final_pending:number}>(
+    `SELECT count(*) FILTER (WHERE kind='public')::integer AS public_pending,
+      count(*) FILTER (WHERE kind='final')::integer AS final_pending
+     FROM attempt_reservations a WHERE challenge_id=$1 AND participant_id=$2 AND status='pending'
+     AND NOT EXISTS(SELECT 1 FROM submissions s WHERE s.challenge_id=a.challenge_id AND s.participant_id=a.participant_id AND s.submission_type=a.kind AND s.attempt_number=a.attempt_number)`,
+    [challenge.id, participantId]);
+  const publicUsed = publicSubmissions.length + (pending?.public_pending || 0);
   const remainingPublicSubmissions = Math.max(
     0,
-    publicSubmissionLimit - publicSubmissions.length,
+    publicSubmissionLimit - publicUsed,
   );
 
   return {
@@ -762,11 +771,11 @@ async function getSubmissionStatusForParticipant(
     fallbackReason: null,
     publicSubmissionLimit,
     extraPublicAttempts,
-    publicSubmissionsUsed: publicSubmissions.length,
+    publicSubmissionsUsed: publicUsed,
     remainingPublicSubmissions,
     latestPublicScore: latestPublic?.score ?? null,
-    finalSubmissionUsed: Boolean(finalSubmission),
-    finalScore: finalSubmission?.score ?? null,
+    finalSubmissionUsed: Boolean(finalSubmission) || Boolean(pending?.final_pending),
+    finalScore: hideEducationFinal(challenge.contest_schema, challenge.event_phase) ? null : finalSubmission?.score ?? null,
   };
 }
 
