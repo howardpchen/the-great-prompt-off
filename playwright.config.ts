@@ -1,5 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
+// Failure accessibility snapshots can include credential input values even when
+// screenshots/traces are off. Disable Playwright copy-prompt page capture.
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: "**/*.pw.ts",

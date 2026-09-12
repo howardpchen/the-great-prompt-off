@@ -1,6 +1,7 @@
 /** Run only in an explicitly disposable, migrated and demo-seeded database. */
 import assert from 'node:assert/strict';
 import {createDatabase} from '../app/lib/db/database';
+import {readTeamHistory} from '../app/lib/db/team-history';
 import {getPool} from '../app/lib/db/pool';
 import {reserveAttempt,failReservation,recoverAbandonedReservation} from '../app/lib/db/attempts';
 async function main(){
@@ -31,14 +32,21 @@ async function main(){
  const [stillHeld]=await db.sql<{status:string}>('SELECT status FROM attempt_reservations WHERE id=$1',[retried.id]);
  assert.equal(stillHeld.status,'pending');
  await db.sql("UPDATE challenges SET event_phase='final_open' WHERE id=$1",[challenge.id]);
- const final={...input,kind:'final' as const,idempotencyKey:'final-first'};
+ const final={...input,prompt:'Exact final instructions\nPreserve whitespace.  ',kind:'final' as const,idempotencyKey:'final-first'};
  const locked=await reserveAttempt(db,final);
  await assert.rejects(reserveAttempt(db,{...final,idempotencyKey:'final-second'}));
  await failReservation(db,locked.id);
+ const recovered=await readTeamHistory(db,challenge.id,'P001');
+ assert.equal(recovered?.final?.instructions,final.prompt,'failed final text is recoverable from another browser');
+ assert.equal(recovered?.final?.status,'failed');
+ assert.equal((await readTeamHistory(db,challenge.id,'P002'))?.final,null,'other team cannot retrieve locked instructions');
+ assert.equal(await readTeamHistory(db,challenge.id,'missing-team'),null);
+ assert.equal((await readTeamHistory(db,c.id,'P001'))?.final?.instructions===final.prompt,false,'other contest cannot retrieve lock');
+ 
  await assert.rejects(reserveAttempt(db,{...final,idempotencyKey:'changed-final',prompt:'Changed after failure'}));
- const retry=await reserveAttempt(db,final);assert.notEqual(retry.id,locked.id);
+ const retry=await reserveAttempt(db,{...final,prompt:recovered!.final!.instructions!});assert.notEqual(retry.id,locked.id);
  await db.sql("UPDATE attempt_reservations SET status='completed',response='{}'::jsonb WHERE id=$1",[retry.id]);
  assert.equal((await reserveAttempt(db,final)).status,'completed');
- console.log('PASS education concurrent budgets, one-time refund, final lock, retry fencing, freeze');
+ console.log('PASS education concurrent budgets, one-time refund, exact failed-final text recovery, team/contest isolation, original-lock retry, retry fencing, freeze');
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>getPool().end());

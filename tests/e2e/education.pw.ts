@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { twelveBinaryTemplate } from "../../app/lib/contest-schema-fixtures";
@@ -42,12 +43,33 @@ test("one-editor team rehearsal: baseline, shared practice, frozen final, reveal
   await expect(page.getByPlaceholder("Write your clinical extraction strategy here...")).toHaveValue(baseline);
   await expect(page.getByRole("heading",{name:"Clinical definitions and scoring"})).toBeVisible();
   expect((await context.request.post("/api/admin/challenge-phase",{headers,data:{phase:"final_open"}})).ok()).toBe(true);
-  const final=await submit("final",baseline,"edu-browser-final");expect(final.ok()).toBe(true);
+  // A teammate/browser can recover final text even when evaluation failed before
+  // any prompt_run was written. Setup touches only the guarded disposable fixture.
+  execFileSync(process.execPath, ["--conditions=react-server", "--import", "tsx", "scripts/fixture-failed-final.ts"], { env: process.env, stdio: "pipe" });
+  const lockedText = "Recover these exact final instructions.\nUse explicit evidence, including negation.";
+  const recovered = await (await context.request.get("/api/team-history", { headers: authHeader })).json();
+  expect(recovered.final.instructions).toBe(lockedText); expect(recovered.final.status).toBe("failed");
+  expect(recovered.practice).toHaveLength(1); expect(recovered.practice[0].instructions).toBe(baseline);
+  expect(recovered.practice[0].score).toBeCloseTo(score.score, 3); expect(recovered.final.score).toBeUndefined();
+  // Fresh browser context emulates loss of all local drafts; token only belongs to this team.
+  const second = await page.context().browser()!.newContext(); const teammate = await second.newPage();
+  await teammate.goto(origin); await teammate.getByLabel("Participant access code", { exact: true }).fill(accessCode);
+  await teammate.getByRole("button", { name: "Enter workspace", exact: true }).click();
+  await expect(teammate.getByRole("heading", { name: "Saved team instructions and practice results" })).toBeVisible();
+  const practiceVersion = teammate.getByText(/^Practice 1 —/); await expect(practiceVersion).toBeVisible(); await practiceVersion.click();
+  await expect(teammate.getByRole("button", { name: "Copy practice 1 instructions to editor" })).toBeVisible();
+  await teammate.getByPlaceholder("Write your clinical extraction strategy here...").fill("Lost/replaced draft");
+  teammate.once("dialog", dialog => dialog.accept());
+  await teammate.getByRole("button", { name: "Restore locked final instructions to editor" }).click();
+  await expect(teammate.getByPlaceholder("Write your clinical extraction strategy here...")).toHaveValue(lockedText);
+  await second.close();
+  expect((await submit("final", "Lost/replaced draft", "bad-recovery")).ok()).toBe(false);
+  const final=await submit("final",lockedText,"edu-browser-final");expect(final.ok()).toBe(true);
   const hidden=await final.json();expect(hidden.resultsHidden).toBe(true);expect(hidden.finalScore).toBe(null);expect(hidden.score).toBeUndefined();expect(hidden.feedback).toBeUndefined();
   const status=await (await context.request.get(`/api/submissions/status?participantCode=${participantCode}`,{headers:authHeader})).json();expect(status.finalScore).toBe(null);expect(status.finalSubmissionUsed).toBe(true);
   expect((await submit("final",baseline+" changed","edu-browser-final-new")).ok()).toBe(false);
   expect((await context.request.post("/api/admin/challenge-phase",{headers,data:{phase:"ended"}})).ok()).toBe(true);
-  const revealed=await (await submit("final",baseline,"edu-browser-final")).json();expect(typeof revealed.score).toBe("number");
+  const revealed=await (await submit("final",lockedText,"edu-browser-final")).json();expect(typeof revealed.score).toBe("number");
   const summary=await (await context.request.get("/api/education-summary",{headers:authHeader})).json();expect(summary.revealed).toBe(true);expect(typeof summary.hiddenBaseline.accuracy).toBe("number");
   await page.reload();await expect(page.getByRole("heading",{name:"Clinical debrief",exact:true})).toBeVisible();
   expect((await context.request.post("/api/admin/challenge-phase",{headers,data:{phase:"practice_open"}})).ok()).toBe(false);
