@@ -37,3 +37,7 @@ it("simulated educational scores are deterministic with explicit abstentions and
   expect(a[0].score.valid_json).toBe(true);
   expect(a[0].score.missing_fields.length).toBeGreaterThan(0);
 });
+
+it("normalizes baseline boundary whitespace like the single instruction editor", () => {
+  expect(validateContestSchema({...mode,education:{...mode.education,baselineInstructions:"  concise rules\n"}}).education?.baselineInstructions).toBe("concise rules");
+});
