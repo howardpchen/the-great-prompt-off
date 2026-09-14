@@ -13,7 +13,10 @@
     "seed:demo": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-demo.ts",
     "test:e2e": "playwright test",
     "test:database": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-database.ts",
-    "test:contest-schema": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-contest-schema.ts"
+    "test:contest-schema": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-contest-schema.ts",
+    "test:education-fairness": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-education-fairness.ts",
+    "test:education-load": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-education-load.ts",
+    "test:education-provider": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-education-provider.ts"
   },
   "dependencies": {
     "next": "^16.3.4",

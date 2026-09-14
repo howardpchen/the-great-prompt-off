@@ -1,4 +1,6 @@
+import { isApprovedEvaluationModel } from "../model-options";
 import "server-only";
+import { isEducationContest } from "../education-policy";
 import { createHash, randomUUID } from "node:crypto";
 import { Database } from "./database";
 export class AttemptAdmissionError extends Error {}
@@ -27,10 +29,12 @@ export async function reserveAttempt(
     // Always lock challenge before participant; serializes admission with phase changes.
     const [challenge] = await tx.sql<{
       event_phase: string;
+      contest_schema: unknown;
+      evaluation_model: string | null;
       public_submission_limit: number;
       final_submission_limit: number;
     }>(
-      "SELECT event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
+      "SELECT evaluation_model,contest_schema,event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
       [input.challengeId],
     );
     const [participant] = await tx.sql<{
@@ -60,6 +64,18 @@ export async function reserveAttempt(
       (input.kind === "public" ? "practice_open" : "final_open")
     )
       throw new AttemptAdmissionError("Submissions are not open right now.");
+    const education = isEducationContest(challenge.contest_schema);
+    if (education && !isApprovedEvaluationModel(challenge.evaluation_model))
+      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this educational contest.');
+    if (education && !input.prompt.trim())
+      throw new AttemptAdmissionError('Enter instructions before submitting.');
+    if (education && input.kind === 'final') {
+      const [locked] = await tx.sql<{prompt_hash:string}>(
+        "SELECT prompt_hash FROM attempt_reservations WHERE challenge_id=$1 AND participant_id=$2 AND kind='final' ORDER BY created_at LIMIT 1",
+        [input.challengeId, input.participantId]);
+      if (locked && locked.prompt_hash !== hash)
+        throw new AttemptAdmissionError('Final instructions are locked. Retry only the original instructions.');
+    }
     const [override] = await tx.sql<{ extra_public_attempts: number }>(
       "SELECT extra_public_attempts FROM participant_attempt_overrides WHERE participant_code=$1",
       [participant.participant_code],
@@ -71,12 +87,12 @@ export async function reserveAttempt(
     const limit =
       input.kind === "public"
         ? challenge.public_submission_limit +
-          (override?.extra_public_attempts || 0)
-        : challenge.final_submission_limit;
+          (education ? 0 : override?.extra_public_attempts || 0)
+        : education ? 1 : challenge.final_submission_limit;
     if (counts.used >= limit)
       throw new AttemptAdmissionError("Submission limit reached.");
     const [reservation] = await tx.sql<Reservation>(
-      `INSERT INTO attempt_reservations(challenge_id,participant_id,kind,idempotency_key,prompt_hash,attempt_number) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(challenge_id,participant_id,kind,idempotency_key) DO UPDATE SET status='pending',attempt_number=EXCLUDED.attempt_number,created_at=now(),completed_at=NULL RETURNING *`,
+      `INSERT INTO attempt_reservations(challenge_id,participant_id,kind,idempotency_key,prompt_hash,attempt_number,prompt_text) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(challenge_id,participant_id,kind,idempotency_key) DO UPDATE SET id=gen_random_uuid(),status='pending',attempt_number=EXCLUDED.attempt_number,created_at=now(),completed_at=NULL,prompt_text=COALESCE(attempt_reservations.prompt_text,EXCLUDED.prompt_text) RETURNING *`,
       [
         input.challengeId,
         input.participantId,
@@ -84,6 +100,7 @@ export async function reserveAttempt(
         key,
         hash,
         counts.next,
+        input.prompt,
       ],
     );
     return reservation;
@@ -94,4 +111,14 @@ export async function failReservation(db: Database, id: string) {
     "UPDATE attempt_reservations SET status='failed',completed_at=now() WHERE id=$1 AND status='pending'",
     [id],
   );
+}
+
+/** Explicit organizer recovery only after the worker is confirmed stopped.
+ * A failed retry gets a new UUID, fencing any late completion from the old worker.
+ */
+export async function recoverAbandonedReservation(db: Database, id: string, workerStopped: boolean) {
+  if (!workerStopped) throw new AttemptAdmissionError('Confirm the original worker has stopped before recovery.');
+  const rows = await db.sql<{id:string}>(
+    "UPDATE attempt_reservations SET status='failed',completed_at=now() WHERE id=$1 AND status='pending' AND created_at < now() - interval '30 minutes' RETURNING id", [id]);
+  return rows.length === 1;
 }

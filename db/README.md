@@ -27,3 +27,29 @@ An application crash can leave a pending reservation. It intentionally does **no
 `npm run test:database` requires a disposable database literally named `gpo_test`, already migrated and seeded. It clears its synthetic run data. It exercises 12-request admission bursts, idempotency replay, SQL failure rollback, 5-public/45-hidden evaluation, concurrent final exclusivity, stored row counts, dashboard/leaderboard and admin clearing. Never point it at a real event.
 
 App rollback alone does not roll schema backward. Take database snapshots/backups before applying migrations to an existing event. Restore into a separate database and validate before switching application connection settings; do not destructively undo additive migrations in place.
+
+## Educational workflow fairness
+
+Opt-in `contest_schema.education.version=1` contests share one participant/team
+budget across browsers; individual extra-attempt overrides do not apply. The
+first final admission locks its instruction hash, even if infrastructure fails.
+Only the same final instructions can be retried. Final scores and aggregates are
+projected away from participant responses and idempotency replay until `ended`;
+ending an educational contest is an irreversible reveal (create a new version
+for another event).
+
+Pending work counts against the available budget. Failed infrastructure work
+releases it without committing partial results. Never expire reservations and
+rerun model calls blindly: inspect the worker and confirm it has stopped first.
+An operator may release a pending reservation older than 30 minutes with:
+
+```
+NODE_OPTIONS=--conditions=react-server npx tsx scripts/recover-education-attempt.ts UUID --worker-confirmed-stopped
+```
+
+This does not rerun evaluation. An explicit subsequent team retry gets a new
+reservation UUID, preventing a late old worker from finalizing or refunding the
+replacement. Keep the original locked final instructions for that retry.
+
+`test-education-fairness.ts` requires a disposable migrated/demo-seeded `gpo_test`
+database. It changes fixtures and must never be run against event data.

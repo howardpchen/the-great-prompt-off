@@ -1,4 +1,7 @@
+import { mapWithConcurrency } from "../evaluation-workers";
+import { parseEducationOutput } from "../education-contract";
 import "server-only";
+import { isEducationContest, hideEducationFinal, projectFinalResponse } from "../education-policy";
 import { reserveAttempt, failReservation, AttemptAdmissionError } from "../db/attempts";
 
 import { fallbackChallengeConfig } from "@/app/lib/challenge-config";
@@ -135,6 +138,7 @@ export type SubmitScoreResponse = SubmissionStatusResponse & {
 };
 
 export type SafeSubmissionFeedback = {
+  clinicalComparisons?: Array<{ report: string; fields: Array<{ field: string; expected: string | number | null; actual: string | number | null; noDecision: boolean; correct: boolean }> }>;
   kind: SubmissionKind;
   score: number;
   correctFields: number;
@@ -285,7 +289,7 @@ export async function submitToSupabase({
   let reservation;
   try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey});}
   catch(error) {if(error instanceof AttemptAdmissionError) throw new SubmissionLimitError(error.message);throw error;}
-  if(reservation.status === 'completed') return reservation.response as SubmitScoreResponse;
+  if(reservation.status === 'completed') return projectFinalResponse(reservation.response as SubmitScoreResponse, challenge.contest_schema, challenge.event_phase);
   try {
   const refreshedChallenge = await getActiveChallenge(supabase);
   if(refreshedChallenge.id !== challenge.id) throw new EventPhaseError("Active challenge changed; please reload.");
@@ -413,10 +417,10 @@ export async function submitToSupabase({
     totalFields: evaluation.summary.total,
     reportCount: evaluation.reportCount,
     summary: evaluation.summary,
-    feedback: createSafeFeedback(kind, evaluation),
+    feedback: createSafeFeedback(kind, evaluation, challengeMode),
   };
   await supabase.sql("UPDATE attempt_reservations SET status='completed',response=$2::jsonb,completed_at=now() WHERE id=$1",[reservation.id,JSON.stringify(response)]);
-  return response;
+  return projectFinalResponse(response, challenge.contest_schema, challenge.event_phase);
   });
   } catch(error) {await failReservation(supabase,reservation.id);throw error;}
 
@@ -427,6 +431,7 @@ export async function getSupabaseLeaderboard(): Promise<LeaderboardResponse> {
   const challenge = await getActiveChallenge(supabase);
 
   if (
+    (hideEducationFinal(challenge.contest_schema, challenge.event_phase) && challenge.event_phase !== 'practice_open') ||
     !canShowParticipantLeaderboard({
       eventPhase: challenge.event_phase,
       visibility: challenge.leaderboard_visibility,
@@ -576,6 +581,7 @@ async function evaluateSubmission({
   model: string;
   mode: ChallengeModeDefinition;
 }): Promise<EvaluationResult> {
+  if (mode.education && (mode.education.evaluationMode ?? "simulation") !== (shouldUseRealLlm() ? "real" : "simulation")) throw new RealLlmEvaluationError("Contest evaluator mode does not match this server. Ask the organizer to create the correct contest version; no attempt was charged.");
   if (shouldUseRealLlm()) {
     return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode);
   }
@@ -646,7 +652,7 @@ async function evaluateWithRealLlm(
           model,
           mode,
         });
-        const score = scoreModelOutput(modelOutput, item.answer_key, mode);
+        const score = scoreModelOutput(mode.education ? JSON.stringify(parseEducationOutput(modelOutput, mode).values) : modelOutput, item.answer_key, mode);
 
         return {
           reportId: item.id,
@@ -655,7 +661,7 @@ async function evaluateWithRealLlm(
           prediction: predictionFromScore(score.per_field),
           score,
           modelOutput,
-          error: validationMessage(score),
+          error: mode.education ? null : validationMessage(score),
         };
       },
     );
@@ -679,29 +685,6 @@ async function evaluateWithRealLlm(
       "The evaluation model could not complete this request. Please try again.",
     );
   }
-}
-
-async function mapWithConcurrency<T, R>(
-  values: T[],
-  concurrency: number,
-  mapper: (value: T) => Promise<R>,
-) {
-  const results: R[] = new Array(values.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < values.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      results[currentIndex] = await mapper(values[currentIndex]);
-    }
-  }
-
-  const workerCount = Math.min(concurrency, values.length);
-
-  await Promise.all(Array.from({ length: workerCount }, worker));
-
-  return results;
 }
 
 export async function getActiveChallenge(
@@ -747,12 +730,19 @@ async function getSubmissionStatusForParticipant(
   const finalSubmission =
     data.find((submission) => submission.submission_type === "final") ?? null;
   const latestPublic = publicSubmissions[publicSubmissions.length - 1] ?? null;
-  const extraPublicAttempts = await getExtraPublicAttempts(supabase, participantCode);
+  const extraPublicAttempts = isEducationContest(challenge.contest_schema) ? 0 : await getExtraPublicAttempts(supabase, participantCode);
   const publicSubmissionLimit =
     challenge.public_submission_limit + extraPublicAttempts;
+  const [pending] = await supabase.sql<{public_pending:number;final_pending:number}>(
+    `SELECT count(*) FILTER (WHERE kind='public')::integer AS public_pending,
+      count(*) FILTER (WHERE kind='final')::integer AS final_pending
+     FROM attempt_reservations a WHERE challenge_id=$1 AND participant_id=$2 AND status='pending'
+     AND NOT EXISTS(SELECT 1 FROM submissions s WHERE s.challenge_id=a.challenge_id AND s.participant_id=a.participant_id AND s.submission_type=a.kind AND s.attempt_number=a.attempt_number)`,
+    [challenge.id, participantId]);
+  const publicUsed = publicSubmissions.length + (pending?.public_pending || 0);
   const remainingPublicSubmissions = Math.max(
     0,
-    publicSubmissionLimit - publicSubmissions.length,
+    publicSubmissionLimit - publicUsed,
   );
 
   return {
@@ -760,11 +750,11 @@ async function getSubmissionStatusForParticipant(
     fallbackReason: null,
     publicSubmissionLimit,
     extraPublicAttempts,
-    publicSubmissionsUsed: publicSubmissions.length,
+    publicSubmissionsUsed: publicUsed,
     remainingPublicSubmissions,
     latestPublicScore: latestPublic?.score ?? null,
-    finalSubmissionUsed: Boolean(finalSubmission),
-    finalScore: finalSubmission?.score ?? null,
+    finalSubmissionUsed: Boolean(finalSubmission) || Boolean(pending?.final_pending),
+    finalScore: hideEducationFinal(challenge.contest_schema, challenge.event_phase) ? null : finalSubmission?.score ?? null,
   };
 }
 
@@ -865,6 +855,7 @@ function validationMessage(score: SchemaScoringResult) {
 function createSafeFeedback(
   kind: SubmissionKind,
   evaluation: EvaluationResult,
+  mode?: ChallengeModeDefinition,
 ): SafeSubmissionFeedback {
   const feedback: SafeSubmissionFeedback = {
     kind,
@@ -895,6 +886,7 @@ function createSafeFeedback(
 
   return {
     ...aggregateFeedback,
+    ...(mode?.education ? {clinicalComparisons: items.map(item => ({report: item.filename || item.reportId, fields: item.score.per_field.map(f => ({field: f.field, expected: f.expected, actual: f.actual, noDecision: Boolean(f.missing), correct: f.correct}))}))} : {}),
     reportScores: items.map((item, index) => ({
       reportLabel: reportLabel(item.reportId, index),
       correctFields: countCorrectFields(item.score),

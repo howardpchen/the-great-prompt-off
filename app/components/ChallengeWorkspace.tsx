@@ -1,4 +1,6 @@
 "use client";
+import { TeamHistory } from "./TeamHistory";
+import { EducationSummary } from "./EducationSummary";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -59,6 +61,7 @@ type SubmissionPromptDebug = PromptDebug & {
 };
 
 type SafeSubmissionFeedback = {
+  clinicalComparisons?: Array<{ report: string; fields: Array<{ field: string; expected: string | number | null; actual: string | number | null; noDecision: boolean; correct: boolean }> }>;
   kind: SubmissionKind;
   score: number;
   correctFields: number;
@@ -237,6 +240,7 @@ export function ChallengeWorkspace({
     privateReportCount !== null && privateReportCount > 0
       ? `${privateReportCount} hidden report${privateReportCount === 1 ? "" : "s"}`
       : "the hidden final reports";
+  const education = challengeDataStatus?.mode.education;
   const challengeId = challengeDataStatus?.challenge?.id ?? "pending-challenge";
   const oldDraftKey = activeParticipantId
     ? `great-prompt-off-draft:${challengeId}:${activeParticipantId}`
@@ -455,7 +459,7 @@ export function ChallengeWorkspace({
   ]);
 
   useEffect(() => {
-    if (!draftKey || loadedDraftKeyRef.current === draftKey) {
+    if (!challengeDataStatus || !draftKey || loadedDraftKeyRef.current === draftKey) {
       return;
     }
 
@@ -469,7 +473,7 @@ export function ChallengeWorkspace({
       if (parsedV2Draft) {
         timer = window.setTimeout(() => {
           setClinicalInstructions(
-            (current) => current || parsedV2Draft.clinicalInstructions,
+            parsedV2Draft.clinicalInstructions,
           );
           setDraftReadyKey(draftKey);
         }, 0);
@@ -480,11 +484,12 @@ export function ChallengeWorkspace({
 
         if (savedOldDraft) {
           timer = window.setTimeout(() => {
-            setClinicalInstructions((current) => current || savedOldDraft);
+            setClinicalInstructions(savedOldDraft);
             setDraftReadyKey(draftKey);
           }, 0);
         } else {
           timer = window.setTimeout(() => {
+            setClinicalInstructions(education?.baselineInstructions ?? "");
             setDraftReadyKey(draftKey);
           }, 0);
         }
@@ -501,7 +506,7 @@ export function ChallengeWorkspace({
         window.clearTimeout(timer);
       }
     };
-  }, [draftKey, oldDraftKey]);
+  }, [draftKey, oldDraftKey, education, challengeDataStatus]);
 
   useEffect(() => {
     if (!draftKey || draftReadyKey !== draftKey) {
@@ -602,6 +607,7 @@ export function ChallengeWorkspace({
         activeParticipantId,
         activeParticipantToken,
         participantPrompt,
+        challengeId,
       );
 
       if (score.source === "supabase") {
@@ -661,7 +667,7 @@ export function ChallengeWorkspace({
             : "";
 
         setSubmissionMessage(
-          `Final submission saved: ${Math.round(score.score)}%${fieldDetail}.`,
+          score.resultsHidden ? "Final instructions locked and evaluation saved. Results will be revealed when the organizer ends the event." : `Final submission saved: ${Math.round(score.score)}%${fieldDetail}.`,
         );
       }
     } catch (error) {
@@ -842,6 +848,8 @@ export function ChallengeWorkspace({
                 </p>
               ) : null}
             </div>
+            {education && activeParticipantToken ? <EducationSummary token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} /> : null}
+            {education && activeParticipantToken ? <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} /> : null}
             <DataSourceStatus
               error={challengeDataError}
               status={challengeDataStatus}
@@ -1112,12 +1120,11 @@ function TaskSidebar({
         Structured extraction task
       </h2>
       <p className="mt-3 text-sm leading-6 text-slate-600">
-        Write a prompt that converts each report into a JSON
-        object. Each field is handled by the platform&apos;s output contract.
+        Write instructions that make clinical assumptions explicit. The platform handles output formatting; you decide how evidence maps to the clinical definitions.
       </p>
 
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-slate-800">Output schema</h3>
+        <h3 className="text-sm font-semibold text-slate-800">Clinical definitions and scoring</h3>
         <div className="mt-3 grid gap-2">
           {fields.map((field) => (
             <div
@@ -1231,7 +1238,7 @@ function PromptEditor({
             Prompt editor
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Build your prompt
+            Write your team instructions
           </h2>
         </div>
         <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
@@ -1245,7 +1252,7 @@ function PromptEditor({
           {publicSubmissionLimit === 1 ? "" : "s"} on {publicReportDescription}.
         </p>
         <p>
-          Use each test score to refine your prompt. Do not click repeatedly;
+          Each team code shares one practice budget across devices. This draft is local to this browser. Use each test score to refine your instructions;
           AI evaluation may take a little time.
         </p>
         <p>
@@ -1531,6 +1538,7 @@ function SubmissionPanel({
 
 function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
   const isPublic = feedback.kind === "public";
+  if (isPublic && feedback.clinicalComparisons) return <section className="rounded border bg-white p-3 text-slate-900"><h3 className="font-semibold">Practice clinical feedback</h3><p>Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Review the report alongside its reference labels.</p>{feedback.clinicalComparisons.map(r => <details key={r.report}><summary>{r.report}</summary><table className="w-full text-xs"><thead><tr><th>Field</th><th>Extraction</th><th>Reference</th><th>Match</th></tr></thead><tbody>{r.fields.map(f => <tr key={f.field}><td>{f.field}</td><td>{f.noDecision ? "No decision" : String(f.actual)}</td><td>{String(f.expected)}</td><td>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></details>)}</section>;
 
   return (
     <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
@@ -1893,11 +1901,17 @@ async function postSubmission(
   participantCode: string,
   participantToken: string,
   prompt: string,
+  challengeId: string,
 ) {
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(prompt)))).map(x => x.toString(16).padStart(2, "0")).join("");
+  const storageKey = `gpo-request:${challengeId}:${participantCode}:${url}:${digest}`;
+  let requestId = window.localStorage.getItem(storageKey);
+  if (!requestId) { requestId = crypto.randomUUID(); window.localStorage.setItem(storageKey, requestId); }
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Idempotency-Key": requestId,
     },
     body: JSON.stringify({ participantCode, participantToken, prompt }),
   });
@@ -1912,10 +1926,13 @@ async function postSubmission(
     );
   }
 
-  return (await response.json()) as SubmitScoreResponse;
+  const result = (await response.json()) as SubmitScoreResponse;
+  window.localStorage.removeItem(storageKey);
+  return result;
 }
 
 type SubmitScoreResponse = SubmissionStatus & {
+  resultsHidden?: boolean;
   kind: SubmissionKind;
   evaluationMode: "mock" | "real_llm";
   model: string | null;

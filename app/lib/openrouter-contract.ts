@@ -1,3 +1,4 @@
+import { educationInstruction } from "./education-contract";
 import { buildOutputSchema } from "./schema-storage";
 import {
   defaultChallengeMode,
@@ -13,6 +14,7 @@ export type OpenRouterMessage = {
 export function buildOpenRouterSystemInstruction(
   mode: ChallengeModeDefinition = defaultChallengeMode,
 ): string {
+  if (mode.education) return educationInstruction(mode);
   if (!isLegacyChallengeMode(mode)) return [
     "You are evaluating a participant-provided extraction strategy, not your own ability to extract findings.",
     "First, silently evaluate whether the participant strategy is usable. The participant strategy is required and must supply extraction and evidence-to-label or evidence-to-measurement mapping logic.",

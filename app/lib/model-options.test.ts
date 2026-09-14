@@ -7,8 +7,10 @@ import {
 } from "./model-options";
 
 describe("approved evaluation models", () => {
-  it("keeps the live-tested models in the intended order", () => {
+  it("includes educational candidates without calling them live-tested", () => {
     expect(evaluationModelOptions.map((option) => option.id)).toEqual([
+      "qwen/qwen3.5-9b",
+      "qwen/qwen3.5-35b-a3b",
       "google/gemini-2.5-flash",
       "qwen/qwen-2.5-7b-instruct",
       "mistralai/mistral-small-3.2-24b-instruct",

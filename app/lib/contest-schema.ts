@@ -116,7 +116,11 @@ export function validateContestSchema(input: unknown): ChallengeModeDefinition {
         throw new Error("Invalid classification labels.");
     }
   }
+  if (s.education !== undefined && (!s.education || s.education.version !== 1 || s.education.pipeline !== "structured-v1" || !text(s.education.baselineInstructions, 12000)))
+    throw new Error("Education v1 requires baseline instructions and structured-v1 pipeline.");
+  if (s.education?.evaluationMode !== undefined && !["simulation", "real"].includes(s.education.evaluationMode)) throw new Error("Invalid educational evaluation mode.");
   const normalized = JSON.parse(JSON.stringify(s)) as ChallengeModeDefinition;
+  if (normalized.education) normalized.education = { version: 1, pipeline: "structured-v1", baselineInstructions: normalized.education.baselineInstructions.trim(), evaluationMode: normalized.education.evaluationMode ?? "simulation" };
   if (!isLegacyChallengeMode(normalized)) {
     normalized.fields = normalized.fields.map(f => ({ ...f, type: f.type ?? "multiclass" }));
   }
