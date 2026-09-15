@@ -275,7 +275,7 @@ export async function submitToSupabase({
 }): Promise<SubmitScoreResponse> {
   const supabase = createDatabase();
   let challenge = await getActiveChallenge(supabase);
-  if ((expectedContestId && expectedContestId !== challenge.id) || (expectedSchemaVersion !== undefined && expectedSchemaVersion !== challenge.schema_version)) throw new SubmissionLimitError("Contest changed; reload before submitting.");
+  if ((expectedContestId !== undefined && expectedContestId !== challenge.id) || (expectedSchemaVersion !== undefined && expectedSchemaVersion !== challenge.schema_version)) throw new SubmissionLimitError("Contest changed; reload before submitting.");
   const participant = await getParticipantByCode(
     supabase,
     normalizeParticipantCode(participantCode),

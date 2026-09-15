@@ -4,7 +4,7 @@ import {
   mixedTemplate,
 } from "../lib/contest-schema-fixtures";
 import { evaluationModelOptions } from "../lib/model-options";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ChallengeModeDefinition,
   ChallengeFieldDefinition,
@@ -28,50 +28,61 @@ export function ContestSchemaEditor() {
   const [title, setTitle] = useState("");
   const [model, setModel] = useState<string>(evaluationModelOptions[0].id);
   const [budget, setBudget] = useState(5);
+  const generation = useRef(0);
+  const listGeneration = useRef(0);
+  const writing = useRef(false);
   async function refreshList() {
+    const token = ++listGeneration.current;
     const r = await fetch("/api/admin/contests"); const b = await r.json();
-    if (r.ok) setContests(b.contests); else throw new Error(b.error);
+    if (!r.ok) throw new Error(b.error);
+    if (token === listGeneration.current) setContests(b.contests);
+    return b.contests;
   }
   async function library(action: string) {
-    if (!state) return;
+    if (!state || state.contestId !== selected || writing.current) return;
+    writing.current = true;
     setBusy(true);
     try {
       const r=await fetch("/api/admin/contests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,contestId:state.contestId,expectedVersion:state.schema.version,expectedRevision:state.revision,title,schema:state.schema,evaluationModel:action==='settings'?state.evaluationModel:model,practiceBudget:action==='settings'?state.practiceBudget:budget})});
       const b=await r.json(); if(!r.ok) throw new Error(b.error);
-      await refreshList(); if(b.contestId===state.contestId) await load(); else setSelected(b.contestId);
       setMessage(action==='activate'?"Contest selected. Open practice separately in the active-contest controls.":"Saved. Existing contest data preserved.");
+      await refreshList(); if(b.contestId===state.contestId) await load(state.contestId); else setSelected(b.contestId);
     } catch(e) { setMessage(e instanceof Error?e.message:"Request failed."); }
-    finally { setBusy(false); }
+    finally { writing.current = false; setBusy(false); }
   }
   const [answers, setAnswers] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  async function load() {
-    const r = await fetch(`/api/admin/contest-schema${selected ? `?contestId=${encodeURIComponent(selected)}` : ""}`);
-    const b = await r.json();
-    if (r.ok) setState(b);
-    else setMessage(b.error);
-  }
+  const load = useCallback(async (target: string) => {
+    const token = ++generation.current;
+    setState(null);
+    try {
+      const r = await fetch(`/api/admin/contest-schema?contestId=${encodeURIComponent(target)}`);
+      const b = await r.json();
+      if (token !== generation.current) return;
+      if (!r.ok) throw new Error(b.error);
+      if (b.contestId !== target) throw new Error("Contest response did not match selection. Select again to reload.");
+      setState(b);
+    } catch (e) {
+      if (token === generation.current) setMessage(e instanceof Error ? e.message : "Could not load schema.");
+    }
+  }, []);
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/contests").then(r=>r.json()).then(b=>{if(!cancelled && b.contests) setContests(b.contests);}).catch(e=>{if(!cancelled) setMessage(String(e));});
-    fetch(`/api/admin/contest-schema${selected ? `?contestId=${encodeURIComponent(selected)}` : ""}`)
-      .then(async (r) => {
-        const b = await r.json();
-        if (!cancelled) {
-          if (r.ok) setState(b);
-          else setMessage(b.error);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setMessage("Could not load schema.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selected]);
+    const requests = listGeneration;
+    void refreshList().then(list => {
+      if (!cancelled) setSelected(list.find((c: {is_active: boolean}) => c.is_active)?.id || list[0]?.id || "");
+    }).catch(e => { if (!cancelled) setMessage(String(e)); });
+    return () => { cancelled = true; ++requests.current; };
+  }, []);
+  useEffect(() => {
+    const requests = generation;
+    if (selected) void load(selected);
+    return () => { ++requests.current; };
+  }, [selected, load]);
   async function save(action: string) {
-    if (!state) return;
+    if (!state || state.contestId !== selected || writing.current) return;
+    writing.current = true;
     setBusy(true);
     try {
       const payload = {
@@ -95,10 +106,11 @@ export function ContestSchemaEditor() {
       );
       await refreshList();
       if (b.contestId && b.contestId!==state.contestId) setSelected(b.contestId);
-      else await load();
+      else await load(state.contestId);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed.");
     } finally {
+      writing.current = false;
       setBusy(false);
     }
   }
@@ -114,16 +126,16 @@ export function ContestSchemaEditor() {
       },
     });
   }
-  if (!state) return <p>{message || "Loading contest schema…"}</p>;
   return (
     <section className="space-y-4 rounded border bg-white p-5 text-slate-900">
       <h2 className="text-xl font-bold">Contest Library</h2>
       <label className="grid gap-2">Selected contest (does not change the active contest)
-        <select aria-label="Selected contest" value={selected || state.contestId} onChange={e=>setSelected(e.target.value)} className="border p-2">
+        <select aria-label="Selected contest" disabled={busy} value={selected} onChange={e=>{if(writing.current) return; ++generation.current; setState(null); setMessage(""); setSelected(e.target.value);}} className="border p-2">
           {contests.map(c=><option key={c.id} value={c.id}>{c.title} — {c.is_active?'ACTIVE':c.archived_at?'archived':'inactive'} · {c.report_count} reports · {c.submission_count} submissions</option>)}
         </select>
       </label>
       <p>Other organizer controls apply to the active contest only. This library edits the explicitly selected contest. Import readiness is structural, not clinical reference approval.</p>
+      {state && state.contestId === selected ? <>
       <button disabled={busy || !state.ready} onClick={()=>{if(window.confirm("Switch to this contest and pause submissions? Confirm reference review is complete. In-flight work blocks switching.")) void library('activate');}}>Activate selected contest (paused)</button>{' '}
       <button disabled={busy} onClick={()=>{if(window.confirm("Archive selection without deleting its reports, results or team history?")) void library('archive');}}>Archive selected contest</button>
       <details><summary>Create empty inactive contest from this configuration</summary>
@@ -426,6 +438,7 @@ export function ContestSchemaEditor() {
       <details><summary>Selected contest results (organizer only; latest 200)</summary>
         {state.history?.length ? <table><thead><tr><th>Team</th><th>Type</th><th>Attempt</th><th>Score</th></tr></thead><tbody>{state.history.map((h,i)=><tr key={i}><td>{h.participant_code}</td><td>{h.submission_type}</td><td>{h.attempt_number}</td><td>{h.score}</td></tr>)}</tbody></table> : <p>No recorded submissions for this contest.</p>}
       </details>
+      </> : <p>{message || "Loading contest schema…"}</p>}
       <p role="status">{message}</p>
     </section>
   );

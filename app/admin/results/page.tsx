@@ -1,3 +1,4 @@
+import {readAdminPageSnapshot} from "@/app/lib/db/admin-page-snapshot";
 import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { AdminLoginForm } from "../../components/AdminLoginForm";
 import { AdminAutoRefresh } from "../../components/AdminAutoRefresh";
@@ -23,10 +24,10 @@ export default async function AdminResultsPage() {
     );
   }
 
-  const data = await getAdminDashboardData();
+  const { data: data, contestContext } = await readAdminPageSnapshot(getAdminDashboardData);
 
   return (
-    <AdminPageFrame>
+    <AdminPageFrame contestContext={contestContext}>
       <AdminHeader
         backHref="/admin"
         title="Results"

@@ -17,6 +17,7 @@
     "test:education-fairness": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-education-fairness.ts",
     "test:education-load": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-education-load.ts",
     "test:education-provider": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-education-provider.ts",
+    "test:admin-page-snapshot": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-admin-page-snapshot.ts",
     "test:contest-library": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-contest-library.ts"
   },
   "dependencies": {

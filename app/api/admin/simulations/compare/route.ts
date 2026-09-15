@@ -1,3 +1,4 @@
+import {withAdminReadContext} from "@/app/lib/db/admin-page-snapshot";
 import { createDatabase } from "@/app/lib/supabase/admin";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { compareAdminSimulationBatches } from "@/app/lib/supabase/admin-simulation-analytics";
@@ -7,7 +8,7 @@ import {
   SimulationNotFoundError,
 } from "@/app/lib/supabase/admin-simulations";
 
-export async function GET(request: Request) {
+async function scopedGet(request: Request) {
   try {
     await requireAdminSession();
   } catch {
@@ -43,3 +44,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = (request: Request) => withAdminReadContext(request, scopedGet);

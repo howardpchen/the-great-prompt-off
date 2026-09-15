@@ -1,8 +1,7 @@
 import "server-only";
 import type {ReactNode} from "react";
-import {createDatabase} from "../lib/db/database";
+import type {AdminContestContext} from "../lib/db/admin-page-snapshot";
 import {AdminPageFrame} from "./AdminLayout";
-export async function ScopedAdminPageFrame({children}:{children:ReactNode}) {
- const [active]=await createDatabase().sql<{id:string;schema_version:number}>("SELECT id,schema_version FROM challenges WHERE is_active");
+export function ScopedAdminPageFrame({children, contestContext: active}:{children:ReactNode; contestContext:AdminContestContext}) {
  return <div key={`${active?.id}:${active?.schema_version}`} data-active-contest={active?.id || ""} data-contest-version={active?.schema_version || 0}><AdminPageFrame>{children}</AdminPageFrame></div>;
 }

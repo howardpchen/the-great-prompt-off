@@ -1,3 +1,4 @@
+import {readAdminPageSnapshot} from "@/app/lib/db/admin-page-snapshot";
 import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { AdminLoginForm } from "../../components/AdminLoginForm";
 import {
@@ -119,8 +120,10 @@ export default async function AdminHelpPage() {
     );
   }
 
+  const { contestContext } = await readAdminPageSnapshot(async () => null);
+
   return (
-    <AdminPageFrame>
+    <AdminPageFrame contestContext={contestContext}>
       <AdminHeader
         backHref="/admin"
         title="Organizer Help"

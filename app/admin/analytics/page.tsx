@@ -1,3 +1,4 @@
+import {readAdminPageSnapshot} from "@/app/lib/db/admin-page-snapshot";
 import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import type { ReactNode } from "react";
 
@@ -28,10 +29,10 @@ export default async function AdminAnalyticsPage() {
     );
   }
 
-  const data = await getAdminAnalyticsData();
+  const { data: data, contestContext } = await readAdminPageSnapshot(getAdminAnalyticsData);
 
   return (
-    <AdminPageFrame>
+    <AdminPageFrame contestContext={contestContext}>
       <AdminHeader
         backHref="/admin"
         title="Analytics"

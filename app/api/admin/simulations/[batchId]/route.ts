@@ -1,3 +1,5 @@
+import {withAdminReadContext} from "@/app/lib/db/admin-page-snapshot";
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { createDatabase } from "@/app/lib/supabase/admin";
 import {
@@ -11,7 +13,7 @@ import {
 
 type RouteContext = { params: Promise<{ batchId: string }> };
 
-export async function GET(_request: Request, { params }: RouteContext) {
+async function scopedGet(_request: Request, { params }: RouteContext) {
   try {
     await requireAdminSession();
   } catch {
@@ -28,7 +30,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   }
 }
 
-export async function DELETE(request: Request, { params }: RouteContext) {
+async function scopedDelete(request: Request, { params }: RouteContext) {
   try {
     await requireAdminSession();
   } catch {
@@ -74,3 +76,7 @@ function simulationReadError(error: unknown) {
     { status: 500 },
   );
 }
+
+export const DELETE = (request: Request, context: RouteContext) => withActiveContest(request, req => scopedDelete(req, context));
+
+export const GET = (request: Request, context: RouteContext) => withAdminReadContext(request, req => scopedGet(req, context));

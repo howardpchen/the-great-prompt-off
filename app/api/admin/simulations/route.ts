@@ -1,3 +1,5 @@
+import {withAdminReadContext} from "@/app/lib/db/admin-page-snapshot";
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { createDatabase } from "@/app/lib/supabase/admin";
 import {
@@ -7,7 +9,7 @@ import {
   SimulationPersistenceError,
 } from "@/app/lib/supabase/admin-simulations";
 
-export async function GET() {
+async function scopedGet() {
   try {
     await requireAdminSession();
   } catch {
@@ -26,7 +28,7 @@ export async function GET() {
   }
 }
 
-export async function DELETE(request: Request) {
+async function scopedDelete(request: Request) {
   try {
     await requireAdminSession();
   } catch {
@@ -54,3 +56,7 @@ export async function DELETE(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const DELETE = (request: Request) => withActiveContest(request, scopedDelete);
+
+export const GET = (request: Request) => withAdminReadContext(request, () => scopedGet());

@@ -1,3 +1,4 @@
+import { isContestId } from "@/app/lib/contest-context";
 import { finalFeedback } from "@/app/lib/final-feedback";
 import {
   fallbackStatus,
@@ -136,7 +137,7 @@ function isSubmissionRequest(
     value !== null &&
     "participantCode" in value &&
     "participantToken" in value &&
-    "contestId" in value && typeof value.contestId === "string" &&
+    "contestId" in value && isContestId(value.contestId) &&
     "schemaVersion" in value && Number.isInteger(value.schemaVersion) &&
     "prompt" in value &&
     typeof value.participantCode === "string" &&
