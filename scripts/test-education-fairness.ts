@@ -14,7 +14,7 @@ async function main(){
  SELECT 'fairness-' || gen_random_uuid()::text,title || ' fairness test',locked_model,'qwen/qwen3.5-9b',mode_id,schema_version,output_schema,
  jsonb_build_object('education',jsonb_build_object('version',1)),2,5,'practice_open',true,true FROM challenges WHERE id=$1 RETURNING id`,[c.id]);
  const input={challengeId:challenge.id,participantId:p.id,kind:'public' as const,prompt:'Use evidence'};
- await db.sql("INSERT INTO participant_attempt_overrides(participant_code,extra_public_attempts) VALUES('P001',20) ON CONFLICT(participant_code) DO UPDATE SET extra_public_attempts=20");
+ await db.sql("INSERT INTO participant_attempt_overrides(challenge_id,participant_code,extra_public_attempts) SELECT id,'P001',20 FROM challenges WHERE is_active ON CONFLICT(challenge_id,participant_code) DO UPDATE SET extra_public_attempts=20");
  const burst=await Promise.allSettled(Array.from({length:8},(_,i)=>reserveAttempt(db,{...input,idempotencyKey:`edu-${i}`})));
  const held=burst.flatMap(r=>r.status==='fulfilled'?[r.value]:[]);
  assert.equal(held.length,2,'team budget ignores overrides under concurrency');

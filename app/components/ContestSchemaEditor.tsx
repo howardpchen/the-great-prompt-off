@@ -20,7 +20,7 @@ type State = {
 export function ContestSchemaEditor() {
   const [state, setState] = useState<State | null>(null);
   const [selected, setSelected] = useState("");
-  const [contests, setContests] = useState<{id:string;title:string;is_active:boolean;schema_ready:boolean;schema_locked:boolean;schema_version:number;report_count:number;submission_count:number}[]>([]);
+  const [contests, setContests] = useState<{id:string;title:string;is_active:boolean;schema_ready:boolean;schema_locked:boolean;schema_version:number;report_count:number;submission_count:number;archived_at:string|null}[]>([]);
   const [reportImport, setReportImport] = useState("");
   const [title, setTitle] = useState("");
   const [model, setModel] = useState<string>(evaluationModelOptions[0].id);
@@ -116,7 +116,7 @@ export function ContestSchemaEditor() {
       <h2 className="text-xl font-bold">Contest Library</h2>
       <label className="grid gap-2">Selected contest (does not change the active contest)
         <select aria-label="Selected contest" value={selected || state.contestId} onChange={e=>setSelected(e.target.value)} className="border p-2">
-          {contests.map(c=><option key={c.id} value={c.id}>{c.title} — {c.is_active?'ACTIVE':'inactive'} · {c.report_count} reports · {c.submission_count} submissions</option>)}
+          {contests.map(c=><option key={c.id} value={c.id}>{c.title} — {c.is_active?'ACTIVE':c.archived_at?'archived':'inactive'} · {c.report_count} reports · {c.submission_count} submissions</option>)}
         </select>
       </label>
       <p>Other organizer controls apply to the active contest only. This library edits the explicitly selected contest. Import readiness is structural, not clinical reference approval.</p>

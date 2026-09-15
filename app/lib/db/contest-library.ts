@@ -6,7 +6,7 @@ import { buildOutputSchema, resolveChallengeMode } from "../schema-storage";
 import { isApprovedEvaluationModel } from "../model-options";
 
 export async function listContests(db: Database) {
-  return db.sql(`SELECT c.id,c.title,c.is_active,c.event_phase,c.schema_version,c.schema_ready,c.schema_locked,
+  return db.sql(`SELECT c.id,c.title,c.is_active,c.event_phase,c.schema_version,c.schema_ready,c.schema_locked,c.archived_at,
     c.evaluation_model,c.public_submission_limit,c.final_submission_limit,
     (SELECT count(*)::int FROM reports r WHERE r.challenge_id=c.id) report_count,
     (SELECT count(*)::int FROM submissions s WHERE s.challenge_id=c.id) submission_count
@@ -45,9 +45,10 @@ export async function mutateContestLibrary(db: Database, input: unknown) {
       if(missing.n) throw new Error('Complete reference answers required.');
       await tx.sql('UPDATE challenges SET is_active=false WHERE is_active AND id<>$1',[c.id]);
       // Revealed results must never become hidden again. All other selections begin paused.
-      await tx.sql("UPDATE challenges SET is_active=true,event_phase=CASE WHEN event_phase='ended' THEN 'ended' ELSE 'not_started' END,updated_at=now() WHERE id=$1",[c.id]);
+      await tx.sql("UPDATE challenges SET is_active=true,archived_at=NULL,event_phase=CASE WHEN event_phase='ended' THEN 'ended' ELSE 'not_started' END,updated_at=now() WHERE id=$1",[c.id]);
     } else {
-      await tx.sql("UPDATE challenges SET is_active=false,event_phase=CASE WHEN event_phase='ended' THEN 'ended' ELSE 'not_started' END,updated_at=now() WHERE id=$1",[c.id]);
+      if(c.is_active) throw new Error('Activate another contest before archiving the current contest.');
+      await tx.sql("UPDATE challenges SET archived_at=now(),updated_at=now() WHERE id=$1",[c.id]);
     }
     return {ok:true,contestId:c.id};
   });

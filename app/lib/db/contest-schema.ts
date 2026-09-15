@@ -15,10 +15,11 @@ type ContestRow = {
   contest_schema: unknown;
   schema_locked: boolean;
   schema_ready: boolean;
+  archived_at: string|null;
 };
 export async function contestSchemaState(db: Database, contestId?: string) {
   const [c] = await db.sql<ContestRow>(
-    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
+    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
     [contestId ?? null],
   );
   if (!c) {
@@ -35,7 +36,7 @@ export async function contestSchemaState(db: Database, contestId?: string) {
     history,
     contestId: c.id,
     schema: resolveChallengeMode(c.mode_id, c.schema_version, c.contest_schema),
-    locked: c.schema_locked,
+    locked: c.schema_locked || Boolean(c.archived_at),
     ready: c.schema_ready,
     reports,
   };
@@ -54,7 +55,7 @@ export async function saveContestSchema(db: Database, payload: unknown) {
   return db.transaction(async (tx) => {
     await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
     const [c] = await tx.sql<ContestRow>(
-      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE id=$1 FOR UPDATE",
+      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at FROM challenges WHERE id=$1 FOR UPDATE",
       [p.contestId],
     );
     if (!c || c.id !== p.contestId || c.schema_version !== p.expectedVersion)
@@ -86,7 +87,7 @@ export async function saveContestSchema(db: Database, payload: unknown) {
 
       return { ok: true, contestId: created.id, schema: next };
     }
-    if (c.schema_locked)
+    if (c.schema_locked || c.archived_at)
       throw new Error(
         "Contest is locked. Create a new contest version before editing.",
       );

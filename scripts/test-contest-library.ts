@@ -6,6 +6,7 @@ import { contestSchemaState, saveContestSchema } from "../app/lib/db/contest-sch
 import { twelveBinaryTemplate } from "../app/lib/contest-schema-fixtures";
 import { reserveAttempt, failReservation } from "../app/lib/db/attempts";
 import { readTeamHistory } from "../app/lib/db/team-history";
+import {grantExtraPublicAttempt} from "../app/lib/supabase/admin-dashboard";
 import { submitToSupabase } from "../app/lib/supabase/submission-workflow";
 async function main() {
  if(process.env.PGDATABASE!=="gpo_library_test" || process.env.USE_REAL_LLM==="true") throw new Error("Disposable fixture only.");
@@ -31,6 +32,13 @@ async function main() {
  const reservation=await reserveAttempt(db,{challengeId:old.contestId,participantId:participant.id,kind:'public',prompt:'Synthetic test',idempotencyKey:'old-worker'});
  await assert.rejects(mutateContestLibrary(db,{action:'activate',contestId:state.contestId,expectedVersion:state.schema.version}),/in-flight/);
  await failReservation(db,reservation.id);
+ await submitToSupabase({kind:'public',participantCode:'P001',prompt:'Use explicit report evidence.',idempotencyKey:'old-completed'});
+ await grantExtraPublicAttempt('P001');
+ const races=await Promise.allSettled([
+  reserveAttempt(db,{challengeId:old.contestId,participantId:participant.id,kind:'public',prompt:'Admission race',idempotencyKey:'race'}),
+  mutateContestLibrary(db,{action:'activate',contestId:state.contestId,expectedVersion:state.schema.version})
+ ]);
+ if(races[0].status==='fulfilled') {assert.equal(races[1].status,'rejected');await failReservation(db,races[0].value.id);} else assert.equal(races[1].status,'fulfilled');
  await mutateContestLibrary(db,{action:'activate',contestId:state.contestId,expectedVersion:state.schema.version});
  await assert.rejects(submitToSupabase({kind:'public',participantCode:'P001',prompt:'Stale tab',expectedContestId:old.contestId,expectedSchemaVersion:old.schema.version}),/Contest changed/);
  await db.sql("UPDATE challenges SET event_phase='practice_open' WHERE id=$1",[state.contestId]);
@@ -38,7 +46,9 @@ async function main() {
  const own=await reserveAttempt(db,{challengeId:state.contestId,participantId:participant.id,kind:'public',prompt:'New contest',expectedSchemaVersion:state.schema.version});
  assert.equal(own.attempt_number,1);await failReservation(db,own.id);
  assert.equal((await readTeamHistory(db,state.contestId,'P001'))!.practice.length,0);
- assert.equal((await readTeamHistory(db,old.contestId,'P001'))!.practice.length,0);
+ assert.equal((await readTeamHistory(db,old.contestId,'P001'))!.practice.length,1);
+ assert.equal((await db.sql<{n:number}>("SELECT count(*)::int n FROM participant_attempt_overrides WHERE challenge_id=$1",[state.contestId]))[0].n,0);
+ assert.equal((await db.sql<{n:number}>("SELECT extra_public_attempts n FROM participant_attempt_overrides WHERE challenge_id=$1 AND participant_code='P001'",[old.contestId]))[0].n,1);
  await assert.rejects(saveContestSchema(db,{action:'schema',contestId:state.contestId,expectedVersion:state.schema.version,schema}),/locked/);
  await assert.rejects(db.sql("UPDATE challenges SET is_active=true WHERE id=$1",[old.contestId]),/unique/);
  await Promise.all([mutateContestLibrary(db,{action:'activate',contestId:old.contestId,expectedVersion:old.schema.version}),mutateContestLibrary(db,{action:'activate',contestId:state.contestId,expectedVersion:state.schema.version})]);
@@ -46,8 +56,8 @@ async function main() {
  assert.deepEqual(await db.sql("SELECT id,participant_code,access_code FROM participants ORDER BY id"),before);
  assert.equal((await listContests(db)).length,2);
  await assert.rejects(mutateContestLibrary(db,{action:'archive',contestId:state.contestId,expectedVersion:999}),/changed/);
- await mutateContestLibrary(db,{action:'archive',contestId:state.contestId,expectedVersion:state.schema.version});
  await mutateContestLibrary(db,{action:'activate',contestId:old.contestId,expectedVersion:old.schema.version});
+ await mutateContestLibrary(db,{action:'archive',contestId:state.contestId,expectedVersion:state.schema.version});
  console.log('PASS 100x12 atomic import, invalid rollback, inactive preservation, pending admission switching, single-active race/constraint, stale tabs/versions, scoped reservations/history, immutable attempted schema, accounts preserved.');
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>getPool().end());

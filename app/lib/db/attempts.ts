@@ -81,8 +81,8 @@ export async function reserveAttempt(
         throw new AttemptAdmissionError('Final instructions are locked. Retry only the original instructions.');
     }
     const [override] = await tx.sql<{ extra_public_attempts: number }>(
-      "SELECT extra_public_attempts FROM participant_attempt_overrides WHERE participant_code=$1",
-      [participant.participant_code],
+      "SELECT extra_public_attempts FROM participant_attempt_overrides WHERE participant_code=$1 AND challenge_id=$2",
+      [participant.participant_code,input.challengeId],
     );
     const [counts] = await tx.sql<{ used: number; next: number }>(
       `SELECT count(*)::integer AS used, COALESCE(max(attempt_number),0)::integer+1 AS next FROM (SELECT attempt_number FROM submissions WHERE challenge_id=$1 AND participant_id=$2 AND submission_type=$3 UNION ALL SELECT attempt_number FROM attempt_reservations WHERE challenge_id=$1 AND participant_id=$2 AND kind=$3 AND status='pending') attempts`,

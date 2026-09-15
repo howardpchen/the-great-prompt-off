@@ -34,6 +34,9 @@ test('Contest Library creates/imports inactive and activates explicitly without 
  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Activate selected contest (paused)',exact:true}).click();
  await expect(page.getByRole('status')).toContainText('Contest selected');
  expect((await (await api.get('/api/admin/contest-schema')).json()).contestId).toBe(id);
+ const stale=await api.post('/api/admin/challenge-phase',{headers:{...headers,'X-Contest-Id':old.contestId,'X-Contest-Version':String(old.schema.version)},data:{phase:'practice_open'}});expect(stale.status()).toBe(409);
+ const missing=await api.post('/api/admin/challenge-phase',{headers,data:{phase:'practice_open'}});expect(missing.status()).toBe(409);
+ const current=await api.post('/api/admin/challenge-phase',{headers:{...headers,'X-Contest-Id':id,'X-Contest-Version':String(state.schema.version)},data:{phase:'practice_open'}});expect(current.ok()).toBe(true);
  const library=await (await api.get('/api/admin/contests')).json();expect(library.contests.filter((c:{is_active:boolean})=>c.is_active)).toHaveLength(1);
  expect(library.contests.find((c:{id:string})=>c.id===old.contestId)).toBeTruthy();
  await page.getByLabel('Selected contest').selectOption(old.contestId);
