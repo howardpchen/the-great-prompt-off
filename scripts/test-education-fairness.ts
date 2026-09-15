@@ -10,6 +10,7 @@ async function main(){
  const [c]=await db.sql<{id:string}>("SELECT id FROM challenges WHERE is_active");
  const [p]=await db.sql<{id:string}>("SELECT id FROM participants WHERE participant_code='P001'");
  // Fresh child contest avoids editing frozen legacy fixtures.
+ await db.sql("UPDATE challenges SET is_active=false WHERE id=$1",[c.id]);
  const [challenge]=await db.sql<{id:string}>(`INSERT INTO challenges(slug,title,locked_model,evaluation_model,mode_id,schema_version,output_schema,contest_schema,public_submission_limit,final_submission_limit,event_phase,is_active,schema_ready)
  SELECT 'fairness-' || gen_random_uuid()::text,title || ' fairness test',locked_model,'qwen/qwen3.5-9b',mode_id,schema_version,output_schema,
  jsonb_build_object('education',jsonb_build_object('version',1)),2,5,'practice_open',true,true FROM challenges WHERE id=$1 RETURNING id`,[c.id]);

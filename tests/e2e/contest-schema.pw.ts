@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { test, expect } from "@playwright/test";
+import { test, expect, request } from "@playwright/test";
 test("administrator configures mixed fields and imports answers; participant sees typed contract", async ({
   page,
   context,
@@ -25,12 +25,13 @@ test("administrator configures mixed fields and imports answers; participant see
   await page.getByLabel("Admin secret").fill(readFileSync(file, "utf8").trim());
   await page.getByRole("button", { name: "Enter admin", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Contest fields and answer keys" }),
+    page.getByRole("heading", { name: "Contest Library" }),
   ).toBeVisible();
   page.on("dialog", (d) => d.accept());
+  const api=await request.newContext({baseURL:origin,extraHTTPHeaders:{...headers,Cookie:(await context.cookies()).map(c=>`${c.name}=${c.value}`).join("; ")}});
   await page
     .getByRole("button", {
-      name: "Create new contest version (preserve old scores)",
+      name: "Duplicate configuration and reports (inactive; no answers)",
     })
     .click();
   await expect(
@@ -63,8 +64,9 @@ test("administrator configures mixed fields and imports answers; participant see
     .getByRole("button", { name: "Save schema as new draft version" })
     .click();
   expect((await saved).ok()).toBe(true);
+  const selectedId=await page.getByLabel("Selected contest",{exact:true}).inputValue();
   const state = await (
-    await context.request.get("/api/admin/contest-schema")
+    await api.get(`/api/admin/contest-schema?contestId=${selectedId}`)
   ).json();
   expect(state.schema.fields[10].tolerance).toBe(1.25);
   expect(state.ready).toBe(false);
@@ -92,10 +94,12 @@ test("administrator configures mixed fields and imports answers; participant see
     .click();
   expect((await imported).ok()).toBe(true);
   expect(
-    (await (await context.request.get("/api/admin/contest-schema")).json())
+    (await (await api.get(`/api/admin/contest-schema?contestId=${selectedId}`)).json())
       .ready,
   ).toBe(true);
-  const pub = await (await context.request.get("/api/challenge-data")).json();
+  await page.getByRole("button",{name:"Activate selected contest (paused)",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("Contest selected");
+  const pub = await (await api.get("/api/challenge-data")).json();
   expect(pub.mode.fields).toHaveLength(12);
   expect(JSON.stringify(pub)).not.toContain("answer_values");
   expect(JSON.stringify(pub)).not.toContain("report_text");
@@ -115,15 +119,17 @@ test("administrator configures mixed fields and imports answers; participant see
   ).toBeVisible();
   expect(
     (
-      await context.request.post("/api/admin/contest-schema", {
+      await api.post("/api/admin/contest-schema", {
         headers,
         data: {
           action: "schema",
           contestId: state.contestId,
           expectedVersion: 0,
+          expectedRevision: state.revision,
           schema: state.schema,
         },
       })
     ).status(),
   ).toBe(400);
+  await api.dispose();
 });
