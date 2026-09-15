@@ -1,3 +1,4 @@
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import type { ReactNode } from "react";
 
 import { AdminLoginForm } from "../../components/AdminLoginForm";
@@ -5,7 +6,6 @@ import { AdminAutoRefresh } from "../../components/AdminAutoRefresh";
 import { AdminCalibrationPanel } from "../../components/AdminCalibrationPanel";
 import {
   AdminHeader,
-  AdminPageFrame,
   AdminSectionNav,
   AdminTable,
   MetricCard,

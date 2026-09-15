@@ -16,15 +16,18 @@ type ContestRow = {
   schema_locked: boolean;
   schema_ready: boolean;
   archived_at: string|null;
+  management_revision:number;
+  evaluation_model:string|null;
+  public_submission_limit:number;
 };
 export async function contestSchemaState(db: Database, contestId?: string) {
   const [c] = await db.sql<ContestRow>(
-    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
+    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
     [contestId ?? null],
   );
   if (!c) {
     if (contestId) throw new Error("Contest not found.");
-    return {contestId:"",schema:defaultChallengeMode as ChallengeModeDefinition,locked:false,ready:false,reports:[],history:[]};
+    return {contestId:"",schema:defaultChallengeMode as ChallengeModeDefinition,locked:false,ready:false,reports:[],history:[],revision:0,evaluationModel:null,practiceBudget:5};
   }
   const reports = await db.sql<{ id: string; filename: string; split: string }>(
     "SELECT id,filename,split FROM reports WHERE challenge_id=$1 AND split IN ('public','private') ORDER BY filename",
@@ -34,6 +37,9 @@ export async function contestSchemaState(db: Database, contestId?: string) {
     "SELECT p.participant_code,s.submission_type,s.attempt_number,s.score,s.submitted_at FROM submissions s JOIN participants p ON p.id=s.participant_id WHERE s.challenge_id=$1 ORDER BY s.submitted_at DESC LIMIT 200",[c.id]);
   return {
     history,
+    revision:c.management_revision,
+    evaluationModel:c.evaluation_model,
+    practiceBudget:c.public_submission_limit,
     contestId: c.id,
     schema: resolveChallengeMode(c.mode_id, c.schema_version, c.contest_schema),
     locked: c.schema_locked || Boolean(c.archived_at),
@@ -49,16 +55,17 @@ export async function saveContestSchema(db: Database, payload: unknown) {
     answers?: unknown;
     action?: string;
     expectedVersion?: number;
+    expectedRevision?: number;
     contestId?: string;
     reports?: unknown;
   };
   return db.transaction(async (tx) => {
     await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
     const [c] = await tx.sql<ContestRow>(
-      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at FROM challenges WHERE id=$1 FOR UPDATE",
+      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit FROM challenges WHERE id=$1 FOR UPDATE",
       [p.contestId],
     );
-    if (!c || c.id !== p.contestId || c.schema_version !== p.expectedVersion)
+    if (!c || c.id !== p.contestId || c.schema_version !== p.expectedVersion || (p.expectedRevision !== undefined && p.expectedRevision !== c.management_revision))
       throw new Error("Contest changed; reload before saving.");
     if (p.action === "fork") {
       const current = resolveChallengeMode(

@@ -1,7 +1,7 @@
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { AdminLoginForm } from "@/app/components/AdminLoginForm";
 import {
   AdminHeader,
-  AdminPageFrame,
   AdminSectionNav,
 } from "@/app/components/AdminLayout";
 import { AdminSimulationDashboard } from "@/app/components/AdminSimulationDashboard";

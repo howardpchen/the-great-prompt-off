@@ -1,8 +1,8 @@
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { AdminLoginForm } from "../../components/AdminLoginForm";
 import { AdminAutoRefresh } from "../../components/AdminAutoRefresh";
 import {
   AdminHeader,
-  AdminPageFrame,
   AdminSectionNav,
   AdminTable,
   formatDate,

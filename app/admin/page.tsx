@@ -1,3 +1,4 @@
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { ContestSchemaEditor } from "../components/ContestSchemaEditor";
 import { AdminLoginForm } from "../components/AdminLoginForm";
 import { AdminAutoRefresh } from "../components/AdminAutoRefresh";
@@ -15,7 +16,6 @@ import {
 import {
   AdminHeader,
   AdminNavigationCards,
-  AdminPageFrame,
   AdminSectionNav,
   formatDate,
   HealthItem,

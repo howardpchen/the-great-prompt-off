@@ -9,6 +9,6 @@ export async function POST(request: Request) {
   try { await requireAdminSession(); } catch { return Response.json({error:'Admin session required.'},{status:401}); }
   const text=await request.text();
   if(text.length>2000000) return Response.json({error:'Request too large.'},{status:413});
-  try { return Response.json(await mutateContestLibrary(createDatabase(),JSON.parse(text))); }
+  try { const payload=JSON.parse(text); if(payload.action!=="create" && !Number.isInteger(payload.expectedRevision)) throw new Error("Contest revision required; reload before saving."); return Response.json(await mutateContestLibrary(createDatabase(),payload)); }
   catch(e) { return Response.json({error:e instanceof Error?e.message:'Invalid request.'},{status:400}); }
 }

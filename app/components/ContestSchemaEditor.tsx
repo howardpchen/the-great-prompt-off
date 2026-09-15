@@ -11,6 +11,9 @@ import type {
 } from "../lib/challenge-modes";
 type State = {
   contestId: string;
+  revision:number;
+  evaluationModel:string|null;
+  practiceBudget:number;
   schema: ChallengeModeDefinition;
   locked: boolean;
   ready: boolean;
@@ -33,9 +36,9 @@ export function ContestSchemaEditor() {
     if (!state) return;
     setBusy(true);
     try {
-      const r=await fetch("/api/admin/contests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,contestId:state.contestId,expectedVersion:state.schema.version,title,schema:state.schema,evaluationModel:model,practiceBudget:budget})});
+      const r=await fetch("/api/admin/contests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,contestId:state.contestId,expectedVersion:state.schema.version,expectedRevision:state.revision,title,schema:state.schema,evaluationModel:action==='settings'?state.evaluationModel:model,practiceBudget:action==='settings'?state.practiceBudget:budget})});
       const b=await r.json(); if(!r.ok) throw new Error(b.error);
-      await refreshList(); setSelected(b.contestId);
+      await refreshList(); if(b.contestId===state.contestId) await load(); else setSelected(b.contestId);
       setMessage(action==='activate'?"Contest selected. Open practice separately in the active-contest controls.":"Saved. Existing contest data preserved.");
     } catch(e) { setMessage(e instanceof Error?e.message:"Request failed."); }
     finally { setBusy(false); }
@@ -75,6 +78,7 @@ export function ContestSchemaEditor() {
         action,
         contestId: state.contestId,
         expectedVersion: state.schema.version,
+        expectedRevision: state.revision,
         schema: state.schema,
         ...(action === "answers" ? { answers: JSON.parse(answers) } : {}),
         ...(action === "reports" ? { reports: JSON.parse(reportImport) } : {}),
@@ -128,6 +132,11 @@ export function ContestSchemaEditor() {
         <label>Practice budget<input aria-label="New contest budget" type="number" min={1} max={100} value={budget} onChange={e=>setBudget(Number(e.target.value))} /></label>
         <button disabled={busy} onClick={()=>void library('create')}>Create inactive draft</button>
       </details>
+      <fieldset disabled={busy || state.locked}><legend>Selected contest settings</legend>
+        <label>Fixed model<select aria-label="Selected contest model" value={state.evaluationModel||''} onChange={e=>setState({...state,evaluationModel:e.target.value})}><option value="" disabled>Select explicit model</option>{evaluationModelOptions.map(m=><option key={m.id} value={m.id}>{m.id}</option>)}</select></label>
+        <label>Practice budget<input aria-label="Selected contest budget" type="number" value={state.practiceBudget} onChange={e=>setState({...state,practiceBudget:Number(e.target.value)})} /></label>
+        <button onClick={()=>void library('settings')}>Save selected contest settings (paused)</button>
+      </fieldset>
       <h3>Selected contest fields and answer keys</h3>
       <p>
         Version {state.schema.version} · {state.schema.fields.length} fields ·{" "}

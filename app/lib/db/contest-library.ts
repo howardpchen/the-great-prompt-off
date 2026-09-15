@@ -15,7 +15,7 @@ export async function listContests(db: Database) {
 
 export async function mutateContestLibrary(db: Database, input: unknown) {
   if (!input || typeof input !== 'object') throw new Error('Invalid contest request.');
-  const p = input as {action:string; contestId:string; expectedVersion:number; schema:unknown; title:string; evaluationModel:string; practiceBudget:number};
+  const p = input as {action:string; contestId:string; expectedVersion:number; expectedRevision?:number; schema:unknown; title:string; evaluationModel:string; practiceBudget:number};
   return db.transaction(async tx => {
     // Same lock as participant admission. Check pending work only after taking it.
     await tx.sql('SELECT pg_advisory_xact_lock(718204,1)');
@@ -30,10 +30,16 @@ export async function mutateContestLibrary(db: Database, input: unknown) {
         [id,`contest-${id}`,p.title,schema.description??'',JSON.stringify(buildOutputSchema(schema)),p.evaluationModel,schema.id,JSON.stringify(schema),p.practiceBudget]);
       return {ok:true,contestId:id};
     }
-    const [c]=await tx.sql<{id:string;mode_id:string;contest_schema:unknown;schema_version:number;schema_ready:boolean;is_active:boolean;event_phase:string}>(
-      'SELECT id,mode_id,contest_schema,schema_version,schema_ready,is_active,event_phase FROM challenges WHERE id=$1 FOR UPDATE',[p.contestId]);
-    if (!c || c.schema_version!==p.expectedVersion) throw new Error('Contest changed; reload before saving.');
-    if (p.action!=='activate' && p.action!=='archive') throw new Error('Unsupported library action.');
+    const [c]=await tx.sql<{id:string;mode_id:string;contest_schema:unknown;schema_version:number;schema_ready:boolean;is_active:boolean;event_phase:string;management_revision:number;schema_locked:boolean;archived_at:string|null}>(
+      'SELECT id,mode_id,contest_schema,schema_version,schema_ready,is_active,event_phase,management_revision,schema_locked,archived_at FROM challenges WHERE id=$1 FOR UPDATE',[p.contestId]);
+    if (!c || c.schema_version!==p.expectedVersion || (p.expectedRevision!==undefined && p.expectedRevision!==c.management_revision)) throw new Error('Contest changed; reload before saving.');
+    if(p.action==='settings') {
+      if(c.schema_locked || c.archived_at) throw new Error('Locked/archived contest settings cannot change.');
+      if(!isApprovedEvaluationModel(p.evaluationModel) || !Number.isInteger(p.practiceBudget) || p.practiceBudget<1 || p.practiceBudget>100) throw new Error('Select approved model and practice budget 1–100.');
+      await tx.sql("UPDATE challenges SET evaluation_model=$2,locked_model=$2,public_submission_limit=$3,event_phase='not_started',updated_at=now() WHERE id=$1",[c.id,p.evaluationModel,p.practiceBudget]);
+      return {ok:true,contestId:c.id};
+    }
+    if (p.action!=='activate'  && p.action!=='archive') throw new Error('Unsupported library action.');
     const pending=await tx.sql("SELECT id FROM attempt_reservations WHERE status='pending' LIMIT 1");
     if (pending.length) throw new Error('Wait for in-flight evaluations to finish before switching contests.');
     if (p.action==='activate') {

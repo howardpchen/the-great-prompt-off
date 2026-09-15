@@ -1,7 +1,7 @@
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { AdminLoginForm } from "../../components/AdminLoginForm";
 import {
   AdminHeader,
-  AdminPageFrame,
   AdminSectionNav,
 } from "../../components/AdminLayout";
 import { hasAdminSession } from "../../lib/supabase/admin-auth";
