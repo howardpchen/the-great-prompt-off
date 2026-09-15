@@ -16,9 +16,10 @@ type ContestRow = {
   schema_locked: boolean;
   schema_ready: boolean;
 };
-export async function contestSchemaState(db: Database) {
+export async function contestSchemaState(db: Database, contestId?: string) {
   const [c] = await db.sql<ContestRow>(
-    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1",
+    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE ($1::uuid IS NULL AND is_active) OR id=$1 ORDER BY created_at DESC LIMIT 1",
+    [contestId ?? null],
   );
   if (!c) throw new Error("No active contest.");
   const reports = await db.sql<{ id: string; filename: string; split: string }>(
@@ -42,10 +43,13 @@ export async function saveContestSchema(db: Database, payload: unknown) {
     action?: string;
     expectedVersion?: number;
     contestId?: string;
+    reports?: unknown;
   };
   return db.transaction(async (tx) => {
+    await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
     const [c] = await tx.sql<ContestRow>(
-      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE id=$1 FOR UPDATE",
+      [p.contestId],
     );
     if (!c || c.id !== p.contestId || c.schema_version !== p.expectedVersion)
       throw new Error("Contest changed; reload before saving.");
@@ -73,10 +77,7 @@ export async function saveContestSchema(db: Database, payload: unknown) {
         "INSERT INTO reports(challenge_id,external_id,filename,split,report_text,synthetic) SELECT $2,external_id,filename,split,report_text,synthetic FROM reports WHERE challenge_id=$1",
         [c.id, created.id],
       );
-      await tx.sql("UPDATE challenges SET is_active=false WHERE id=$1", [c.id]);
-      await tx.sql("UPDATE challenges SET is_active=true WHERE id=$1", [
-        created.id,
-      ]);
+
       return { ok: true, contestId: created.id, schema: next };
     }
     if (c.schema_locked)
@@ -89,7 +90,24 @@ export async function saveContestSchema(db: Database, payload: unknown) {
       c.contest_schema,
     );
     let schema: ChallengeModeDefinition = current;
-    if (p.action === "schema") {
+    if (p.action === "reports") {
+      if (!Array.isArray(p.reports) || p.reports.length < 2 || p.reports.length > 1000)
+        throw new Error("Import 2–1000 reports, including practice and held-out cases.");
+      const rows = p.reports as {external_id: string; filename: string; split: string; report_text: string}[];
+      const ids = new Set<string>();
+      const names = new Set<string>();
+      for (const row of rows) {
+        if (!row || typeof row.external_id !== "string" || !row.external_id.trim() || typeof row.filename !== "string" || !row.filename.trim() || typeof row.report_text !== "string" || !row.report_text.trim() || row.report_text.length > 100000 || !["public","private"].includes(row.split) || ids.has(row.external_id) || names.has(row.filename))
+          throw new Error("Invalid or duplicate report. No import saved.");
+        ids.add(row.external_id); names.add(row.filename);
+      }
+      if (!rows.some(r => r.split === 'public') || !rows.some(r => r.split === 'private'))
+        throw new Error("Both practice and held-out reports required.");
+      const existing = await tx.sql("SELECT id FROM reports WHERE challenge_id=$1 LIMIT 1", [c.id]);
+      if (existing.length) throw new Error("Bulk report import requires an empty draft; duplicate a configuration or create an empty contest.");
+      for (const row of rows) await tx.sql("INSERT INTO reports(challenge_id,external_id,filename,split,report_text,synthetic) VALUES($1,$2,$3,$4,$5,false)", [c.id,row.external_id,row.filename,row.split,row.report_text]);
+      await tx.sql("UPDATE challenges SET schema_ready=false,event_phase='not_started',updated_at=now() WHERE id=$1", [c.id]);
+    } else if (p.action === "schema") {
       const proposed = validateContestSchema(p.schema);
       // Custom identity is server-generated, never overwrites the legacy template's v1.
       schema = validateContestSchema({

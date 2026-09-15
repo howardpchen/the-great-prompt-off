@@ -608,6 +608,7 @@ export function ChallengeWorkspace({
         activeParticipantToken,
         participantPrompt,
         challengeId,
+        activeMode.version,
       );
 
       if (score.source === "supabase") {
@@ -1902,6 +1903,7 @@ async function postSubmission(
   participantToken: string,
   prompt: string,
   challengeId: string,
+  schemaVersion: number,
 ) {
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(prompt)))).map(x => x.toString(16).padStart(2, "0")).join("");
   const storageKey = `gpo-request:${challengeId}:${participantCode}:${url}:${digest}`;
@@ -1913,7 +1915,7 @@ async function postSubmission(
       "Content-Type": "application/json",
       "Idempotency-Key": requestId,
     },
-    body: JSON.stringify({ participantCode, participantToken, prompt }),
+    body: JSON.stringify({ participantCode, participantToken, prompt, contestId: challengeId, schemaVersion }),
   });
 
   if (!response.ok) {

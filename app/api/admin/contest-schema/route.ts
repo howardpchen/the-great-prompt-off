@@ -4,14 +4,14 @@ import {
   contestSchemaState,
   saveContestSchema,
 } from "@/app/lib/db/contest-schema";
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireAdminSession();
   } catch {
     return Response.json({ error: "Admin session required." }, { status: 401 });
   }
   try {
-    return Response.json(await contestSchemaState(createDatabase()));
+    return Response.json(await contestSchemaState(createDatabase(), new URL(request.url).searchParams.get("contestId") || undefined));
   } catch {
     return Response.json(
       { error: "Could not load contest schema." },

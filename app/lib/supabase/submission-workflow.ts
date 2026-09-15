@@ -263,14 +263,19 @@ export async function submitToSupabase({
   participantCode,
   prompt,
   idempotencyKey,
+  expectedContestId,
+  expectedSchemaVersion,
 }: {
   kind: SubmissionKind;
   participantCode: string;
   prompt: string;
   idempotencyKey?: string;
+  expectedContestId?: string;
+  expectedSchemaVersion?: number;
 }): Promise<SubmitScoreResponse> {
   const supabase = createDatabase();
   let challenge = await getActiveChallenge(supabase);
+  if ((expectedContestId && expectedContestId !== challenge.id) || (expectedSchemaVersion !== undefined && expectedSchemaVersion !== challenge.schema_version)) throw new SubmissionLimitError("Contest changed; reload before submitting.");
   const participant = await getParticipantByCode(
     supabase,
     normalizeParticipantCode(participantCode),
@@ -287,7 +292,7 @@ export async function submitToSupabase({
   }
 
   let reservation;
-  try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey});}
+  try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey, expectedSchemaVersion});}
   catch(error) {if(error instanceof AttemptAdmissionError) throw new SubmissionLimitError(error.message);throw error;}
   if(reservation.status === 'completed') return projectFinalResponse(reservation.response as SubmitScoreResponse, challenge.contest_schema, challenge.event_phase);
   try {

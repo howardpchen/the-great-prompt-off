@@ -45,6 +45,8 @@ export async function POST(request: Request) {
         participantCode: verifiedSession.participantCode,
         prompt: body.prompt,
         idempotencyKey,
+        expectedContestId: body.contestId,
+        expectedSchemaVersion: body.schemaVersion,
       }),
     );
   } catch (error) {
@@ -92,12 +94,14 @@ export async function POST(request: Request) {
 
 function isSubmissionRequest(
   value: unknown,
-): value is { participantCode: string; participantToken: string; prompt: string } {
+): value is { participantCode: string; participantToken: string; prompt: string; contestId: string; schemaVersion: number } {
   return (
     typeof value === "object" &&
     value !== null &&
     "participantCode" in value &&
     "participantToken" in value &&
+    "contestId" in value && typeof value.contestId === "string" &&
+    "schemaVersion" in value && Number.isInteger(value.schemaVersion) &&
     "prompt" in value &&
     typeof value.participantCode === "string" &&
     value.participantCode.trim().length > 0 &&

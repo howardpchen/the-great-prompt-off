@@ -19,6 +19,7 @@ export async function reserveAttempt(
     kind: "public" | "final";
     prompt: string;
     idempotencyKey?: string;
+    expectedSchemaVersion?: number;
   },
 ) {
   const key = input.idempotencyKey || randomUUID();
@@ -26,17 +27,20 @@ export async function reserveAttempt(
     throw new AttemptAdmissionError("Invalid idempotency key");
   const hash = createHash("sha256").update(input.prompt).digest("hex");
   return db.transaction(async (tx) => {
+    await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
     // Always lock challenge before participant; serializes admission with phase changes.
     const [challenge] = await tx.sql<{
       event_phase: string;
+      schema_version: number;
       contest_schema: unknown;
       evaluation_model: string | null;
       public_submission_limit: number;
       final_submission_limit: number;
     }>(
-      "SELECT evaluation_model,contest_schema,event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
+      "SELECT schema_version,evaluation_model,contest_schema,event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
       [input.challengeId],
     );
+    if (input.expectedSchemaVersion !== undefined && challenge?.schema_version !== input.expectedSchemaVersion) throw new AttemptAdmissionError("Contest changed; reload before submitting.");
     const [participant] = await tx.sql<{
       is_active: boolean;
       participant_code: string;

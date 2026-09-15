@@ -3,6 +3,7 @@ import {
   twelveBinaryTemplate,
   mixedTemplate,
 } from "../lib/contest-schema-fixtures";
+import { evaluationModelOptions } from "../lib/model-options";
 import { useEffect, useState } from "react";
 import type {
   ChallengeModeDefinition,
@@ -17,18 +18,40 @@ type State = {
 };
 export function ContestSchemaEditor() {
   const [state, setState] = useState<State | null>(null);
+  const [selected, setSelected] = useState("");
+  const [contests, setContests] = useState<{id:string;title:string;is_active:boolean;schema_ready:boolean;schema_locked:boolean;schema_version:number;report_count:number;submission_count:number}[]>([]);
+  const [reportImport, setReportImport] = useState("");
+  const [title, setTitle] = useState("");
+  const [model, setModel] = useState<string>(evaluationModelOptions[0].id);
+  const [budget, setBudget] = useState(5);
+  async function refreshList() {
+    const r = await fetch("/api/admin/contests"); const b = await r.json();
+    if (r.ok) setContests(b.contests); else throw new Error(b.error);
+  }
+  async function library(action: string) {
+    if (!state) return;
+    setBusy(true);
+    try {
+      const r=await fetch("/api/admin/contests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,contestId:state.contestId,expectedVersion:state.schema.version,title,schema:state.schema,evaluationModel:model,practiceBudget:budget})});
+      const b=await r.json(); if(!r.ok) throw new Error(b.error);
+      await refreshList(); setSelected(b.contestId);
+      setMessage(action==='activate'?"Contest selected. Open practice separately in the active-contest controls.":"Saved. Existing contest data preserved.");
+    } catch(e) { setMessage(e instanceof Error?e.message:"Request failed."); }
+    finally { setBusy(false); }
+  }
   const [answers, setAnswers] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   async function load() {
-    const r = await fetch("/api/admin/contest-schema");
+    const r = await fetch(`/api/admin/contest-schema${selected ? `?contestId=${encodeURIComponent(selected)}` : ""}`);
     const b = await r.json();
     if (r.ok) setState(b);
     else setMessage(b.error);
   }
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/contest-schema")
+    fetch("/api/admin/contests").then(r=>r.json()).then(b=>{if(!cancelled && b.contests) setContests(b.contests);}).catch(e=>{if(!cancelled) setMessage(String(e));});
+    fetch(`/api/admin/contest-schema${selected ? `?contestId=${encodeURIComponent(selected)}` : ""}`)
       .then(async (r) => {
         const b = await r.json();
         if (!cancelled) {
@@ -42,7 +65,7 @@ export function ContestSchemaEditor() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selected]);
   async function save(action: string) {
     if (!state) return;
     setBusy(true);
@@ -53,6 +76,7 @@ export function ContestSchemaEditor() {
         expectedVersion: state.schema.version,
         schema: state.schema,
         ...(action === "answers" ? { answers: JSON.parse(answers) } : {}),
+        ...(action === "reports" ? { reports: JSON.parse(reportImport) } : {}),
       };
       const r = await fetch("/api/admin/contest-schema", {
         method: "POST",
@@ -64,6 +88,8 @@ export function ContestSchemaEditor() {
       setMessage(
         "Saved. Reload the participant page to see the active contract.",
       );
+      if (b.contestId && b.contestId!==state.contestId) setSelected(b.contestId);
+      await refreshList();
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed.");
@@ -86,7 +112,22 @@ export function ContestSchemaEditor() {
   if (!state) return <p>{message || "Loading contest schema…"}</p>;
   return (
     <section className="space-y-4 rounded border bg-white p-5 text-slate-900">
-      <h2 className="text-xl font-bold">Contest fields and answer keys</h2>
+      <h2 className="text-xl font-bold">Contest Library</h2>
+      <label className="grid gap-2">Selected contest (does not change the active contest)
+        <select aria-label="Selected contest" value={selected || state.contestId} onChange={e=>setSelected(e.target.value)} className="border p-2">
+          {contests.map(c=><option key={c.id} value={c.id}>{c.title} — {c.is_active?'ACTIVE':'inactive'} · {c.report_count} reports · {c.submission_count} submissions</option>)}
+        </select>
+      </label>
+      <p>Other organizer controls apply to the active contest only. This library edits the explicitly selected contest. Import readiness is structural, not clinical reference approval.</p>
+      <button disabled={busy || !state.ready} onClick={()=>{if(window.confirm("Switch to this contest and pause submissions? Confirm reference review is complete. In-flight work blocks switching.")) void library('activate');}}>Activate selected contest (paused)</button>{' '}
+      <button disabled={busy} onClick={()=>{if(window.confirm("Archive selection without deleting its reports, results or team history?")) void library('archive');}}>Archive selected contest</button>
+      <details><summary>Create empty inactive contest from this configuration</summary>
+        <label>New title<input aria-label="New contest title" value={title} onChange={e=>setTitle(e.target.value)} className="border p-2" /></label>
+        <label>Fixed model<select aria-label="New contest model" value={model} onChange={e=>setModel(e.target.value)}>{evaluationModelOptions.map(m=><option key={m.id} value={m.id}>{m.id}</option>)}</select></label>
+        <label>Practice budget<input aria-label="New contest budget" type="number" min={1} max={100} value={budget} onChange={e=>setBudget(Number(e.target.value))} /></label>
+        <button disabled={busy} onClick={()=>void library('create')}>Create inactive draft</button>
+      </details>
+      <h3>Selected contest fields and answer keys</h3>
       <p>
         Version {state.schema.version} · {state.schema.fields.length} fields ·{" "}
         {state.locked
@@ -105,6 +146,11 @@ export function ContestSchemaEditor() {
         Answer import verifies structure, not clinical correctness.
         Independently review reference answers and dataset permissions.
       </p>
+      <fieldset disabled={state.locked || busy} className="space-y-3">
+        <label className="grid gap-2">Bulk reports for empty draft (JSON array: external_id, filename, split public/private, report_text)
+          <textarea aria-label="Report import" value={reportImport} onChange={e=>setReportImport(e.target.value)} className="border p-2" />
+        </label><button onClick={()=>void save('reports')}>Import reports into selected empty draft</button>
+      </fieldset>
       <fieldset disabled={state.locked || busy} className="space-y-3">
         <label className="block"><input type="checkbox" checked={Boolean(state.schema.education)} onChange={e => setState({ ...state, schema: { ...state.schema, education: e.target.checked ? { version: 1, pipeline: "structured-v1", baselineInstructions: "Use the organizer definitions. Base each finding on explicit report evidence; distinguish negation and uncertainty. If a decision cannot be made, abstain." } : undefined } })} /> Enable Team Challenge mode</label>
         {state.schema.education ? <label className="grid gap-2">Shared baseline instructions<textarea aria-label="Shared baseline instructions" className="border p-2" value={state.schema.education.baselineInstructions} onChange={e => setState({ ...state, schema: { ...state.schema, education: { ...state.schema.education!, baselineInstructions: e.target.value } } })} /><span>One team code shares one budget. One fixed extraction model; automatic formatting. Select an explicit evaluation model in the organizer controls before opening practice. Ending the event reveals final results. Baseline scores must be evaluated on the same cases; simulated scores are not clinical accuracy.</span></label> : null}
@@ -359,13 +405,13 @@ export function ContestSchemaEditor() {
         onClick={() => {
           if (
             window.confirm(
-              "Create and activate a new draft contest? Existing scores remain in the previous contest. Reports are copied; answers must be imported again.",
+              "Duplicate as an inactive draft contest? Existing scores remain in the previous contest. Reports are copied; answers must be imported again.",
             )
           )
             void save("fork");
         }}
       >
-        Create new contest version (preserve old scores)
+        Duplicate configuration and reports (inactive; no answers)
       </button>
       <p role="status">{message}</p>
     </section>
