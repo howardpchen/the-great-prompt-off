@@ -66,7 +66,7 @@ export async function reserveAttempt(
       throw new AttemptAdmissionError("Submissions are not open right now.");
     const education = isEducationContest(challenge.contest_schema);
     if (education && !isApprovedEvaluationModel(challenge.evaluation_model))
-      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this educational contest.');
+      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this Team Challenge contest.');
     if (education && !input.prompt.trim())
       throw new AttemptAdmissionError('Enter instructions before submitting.');
     if (education && input.kind === 'final') {

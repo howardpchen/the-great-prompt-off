@@ -618,7 +618,7 @@ export async function clearParticipantRunData(participantCode: string) {
 export async function grantExtraPublicAttempt(participantCode: string) {
   const supabase = createDatabase();
   const [education] = await supabase.sql<{educational:boolean}>("SELECT contest_schema #>> '{education,version}' = '1' AS educational FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1");
-  if (education?.educational) throw new Error('Educational practice budgets are equal across teams. Recover failed infrastructure attempts instead.');
+  if (education?.educational) throw new Error('Team Challenge practice budgets are equal across teams. Recover failed infrastructure attempts instead.');
   const normalizedParticipantCode = participantCode.trim().toUpperCase();
   const { data: participant, error: participantError } = await supabase.execute<{ participant_code: string; is_active: boolean }>({ table: "participants", columns: "participant_code, is_active", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", normalizedParticipantCode]] });
 
