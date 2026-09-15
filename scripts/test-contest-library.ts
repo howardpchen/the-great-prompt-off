@@ -26,7 +26,7 @@ async function main() {
  await assert.rejects(saveContestSchema(db,{action:'answers',contestId:state.contestId,expectedVersion:state.schema.version,answers:answers.slice(1)}));
  assert.equal((await db.sql<{n:number}>("SELECT count(*)::int n FROM answer_keys k JOIN reports r ON r.id=k.report_id WHERE r.challenge_id=$1",[state.contestId]))[0].n,0);
  await saveContestSchema(db,{action:'answers',contestId:state.contestId,expectedVersion:state.schema.version,answers});
- assert.equal((await db.sql<{n:number}>("SELECT sum(jsonb_object_length_placeholder)::int n FROM (SELECT count(*)*12 AS jsonb_object_length_placeholder FROM answer_keys k JOIN reports r ON r.id=k.report_id WHERE r.challenge_id=$1) q",[state.contestId]))[0].n,1200);
+ assert.equal((await db.sql<{n:number}>("SELECT count(*)::int n FROM answer_keys k JOIN reports r ON r.id=k.report_id CROSS JOIN LATERAL jsonb_object_keys(k.answer_values) field WHERE r.challenge_id=$1",[state.contestId]))[0].n,1200);
  const [participant]=await db.sql<{id:string}>("SELECT id FROM participants WHERE participant_code='P001'");
  await db.sql("UPDATE challenges SET event_phase='practice_open' WHERE id=$1",[old.contestId]);
  const reservation=await reserveAttempt(db,{challengeId:old.contestId,participantId:participant.id,kind:'public',prompt:'Synthetic test',idempotencyKey:'old-worker'});
