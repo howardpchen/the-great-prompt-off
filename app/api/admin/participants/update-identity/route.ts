@@ -1,3 +1,4 @@
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { updateParticipantIdentity } from "@/app/lib/supabase/admin-dashboard";
 
@@ -5,7 +6,7 @@ const maxDisplayNameLength = 80;
 const maxEmailLength = 254;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function POST(request: Request) {
+async function scopedPost(request: Request) {
   try {
     await requireAdminSession();
     const body = (await request.json().catch(() => null)) as {
@@ -70,3 +71,5 @@ function normalizeOptionalString(value: unknown) {
 
   return trimmed || null;
 }
+
+export const POST = (request: Request) => withActiveContest(request, scopedPost);

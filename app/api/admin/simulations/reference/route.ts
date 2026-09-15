@@ -1,3 +1,4 @@
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { createDatabase } from "@/app/lib/supabase/admin";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import {
@@ -28,7 +29,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function scopedPost(request: Request) {
   try {
     await requireAdminSession();
   } catch {
@@ -93,3 +94,5 @@ function referenceError(error: unknown) {
     { status: 500 },
   );
 }
+
+export const POST = (request: Request) => withActiveContest(request, scopedPost);

@@ -1,11 +1,13 @@
+import {createDatabase} from "../lib/db/database";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 export const adminBuildMarker = "admin-health-v1";
 
-export function AdminPageFrame({ children }: { children: ReactNode }) {
+export async function AdminPageFrame({ children }: { children: ReactNode }) {
+  const [active]=await createDatabase().sql<{id:string;schema_version:number}>("SELECT id,schema_version FROM challenges WHERE is_active");
   return (
-    <main className="min-h-screen bg-[#f7f9f8] px-6 py-6 text-slate-950">
+    <main key={`${active?.id}:${active?.schema_version}`} data-active-contest={active?.id || ""} data-contest-version={active?.schema_version || 0} className="min-h-screen bg-[#f7f9f8] px-6 py-6 text-slate-950">
       <div className="mx-auto grid w-full max-w-[1500px] gap-5">{children}</div>
     </main>
   );

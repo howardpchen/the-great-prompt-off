@@ -1,8 +1,9 @@
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { createDatabase } from "@/app/lib/supabase/admin";
 import { prepareAdminAnswerKeyImport } from "@/app/lib/supabase/admin-challenge-schema-route";
 
-export async function POST(request: Request) {
+async function scopedPost(request: Request) {
   try {
     await requireAdminSession();
   } catch {
@@ -44,3 +45,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = (request: Request) => withActiveContest(request, scopedPost);

@@ -55,11 +55,7 @@ async function main() {
   assert.equal(resolveChallengeMode(participantChallenge.mode_id, participantChallenge.schema_version, participantChallenge.contest_schema).fields.length, 12);
   state = beforeRejectedActivation;
   const archivedDraft = state.reports[0];
-  await saveContestSchema(db, {
-    action: "fork",
-    contestId: state.contestId,
-    expectedVersion: state.schema.version,
-  });
+  await forkAndSelectFixture(db,state);
   state = await contestSchemaState(db);
   await assert.rejects(
     deleteAdminCase({
@@ -192,11 +188,7 @@ async function main() {
       [oldId],
     )
   )[0].n;
-  await saveContestSchema(db, {
-    action: "fork",
-    contestId: state.contestId,
-    expectedVersion: state.schema.version,
-  });
+  await forkAndSelectFixture(db,state);
   state = await contestSchemaState(db);
   assert.notEqual(state.contestId, oldId);
   assert.equal(state.ready, false);
@@ -329,11 +321,7 @@ async function main() {
   const dashboard = await getAdminDashboardData();
   assert.equal(dashboard.overview.testSubmissionsCount, 2); // Excludes archived binary contest.
   // Concurrent schema save and admission cannot both succeed with different schemas.
-  await saveContestSchema(db, {
-    action: "fork",
-    contestId: state.contestId,
-    expectedVersion: state.schema.version,
-  });
+  await forkAndSelectFixture(db,state);
   state = await contestSchemaState(db);
   await saveContestSchema(db, {
     action: "answers",
@@ -385,3 +373,10 @@ main().catch((e) => {
   process.exitCode = 1;
   void getPool().end();
 });
+
+// Legacy regression fixture requires an active unready draft to exercise low-level guards.
+// Production forks stay inactive; production activation is readiness-gated (test-contest-library).
+async function forkAndSelectFixture(db: ReturnType<typeof createDatabase>, state: Awaited<ReturnType<typeof contestSchemaState>>) {
+ const created=await saveContestSchema(db,{action:"fork",contestId:state.contestId,expectedVersion:state.schema.version});
+ await db.transaction(async tx=>{await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");await tx.sql("UPDATE challenges SET is_active=false WHERE is_active");await tx.sql("UPDATE challenges SET is_active=true WHERE id=$1",[created.contestId]);});
+}

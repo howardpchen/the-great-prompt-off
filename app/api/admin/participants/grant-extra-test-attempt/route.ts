@@ -1,7 +1,8 @@
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { grantExtraPublicAttempt } from "@/app/lib/supabase/admin-dashboard";
 
-export async function POST(request: Request) {
+async function scopedPost(request: Request) {
   try {
     await requireAdminSession();
     const body = (await request.json().catch(() => null)) as {
@@ -35,3 +36,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = (request: Request) => withActiveContest(request, scopedPost);

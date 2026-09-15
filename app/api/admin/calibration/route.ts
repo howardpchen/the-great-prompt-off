@@ -1,7 +1,8 @@
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { runBaselineCalibration } from "@/app/lib/supabase/calibration";
 
-export async function POST() {
+async function scopedPost() {
   try {
     await requireAdminSession();
   } catch {
@@ -25,3 +26,5 @@ export async function POST() {
     );
   }
 }
+
+export const POST = (request: Request) => withActiveContest(request, scopedPost);

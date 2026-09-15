@@ -7,7 +7,7 @@ import {
   resolveChallengeMode,
   validateAnswerValues,
 } from "../schema-storage";
-import type { ChallengeModeDefinition } from "../challenge-modes";
+import { defaultChallengeMode, type ChallengeModeDefinition } from "../challenge-modes";
 type ContestRow = {
   id: string;
   mode_id: string;
@@ -18,15 +18,21 @@ type ContestRow = {
 };
 export async function contestSchemaState(db: Database, contestId?: string) {
   const [c] = await db.sql<ContestRow>(
-    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE ($1::uuid IS NULL AND is_active) OR id=$1 ORDER BY created_at DESC LIMIT 1",
+    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
     [contestId ?? null],
   );
-  if (!c) throw new Error("No active contest.");
+  if (!c) {
+    if (contestId) throw new Error("Contest not found.");
+    return {contestId:"",schema:defaultChallengeMode as ChallengeModeDefinition,locked:false,ready:false,reports:[],history:[]};
+  }
   const reports = await db.sql<{ id: string; filename: string; split: string }>(
     "SELECT id,filename,split FROM reports WHERE challenge_id=$1 AND split IN ('public','private') ORDER BY filename",
     [c.id],
   );
+  const history = await db.sql<{participant_code:string;submission_type:string;attempt_number:number;score:number;submitted_at:string}>(
+    "SELECT p.participant_code,s.submission_type,s.attempt_number,s.score,s.submitted_at FROM submissions s JOIN participants p ON p.id=s.participant_id WHERE s.challenge_id=$1 ORDER BY s.submitted_at DESC LIMIT 200",[c.id]);
   return {
+    history,
     contestId: c.id,
     schema: resolveChallengeMode(c.mode_id, c.schema_version, c.contest_schema),
     locked: c.schema_locked,

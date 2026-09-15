@@ -16,7 +16,7 @@ async function main() {
     throw new Error("Requires fresh disposable gpo_edu_provider_burst; DATABASE_URL forbidden.");
   const db = createDatabase();
   let state = await contestSchemaState(db);
-  await saveContestSchema(db, { action: "fork", contestId: state.contestId, expectedVersion: state.schema.version });
+  await forkAndSelectFixture(db,state);
   state = await contestSchemaState(db);
   await saveContestSchema(db, { action: "schema", contestId: state.contestId, expectedVersion: state.schema.version,
     schema: { ...twelveBinaryTemplate, education: { version: 1, pipeline: "structured-v1", evaluationMode: "real", baselineInstructions: "Use explicit report evidence." } } });
@@ -108,3 +108,10 @@ async function main() {
   } finally { globalThis.fetch = originalFetch; }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => getPool().end());
+
+// Legacy regression fixture requires an active unready draft to exercise low-level guards.
+// Production forks stay inactive; production activation is readiness-gated (test-contest-library).
+async function forkAndSelectFixture(db: ReturnType<typeof createDatabase>, state: Awaited<ReturnType<typeof contestSchemaState>>) {
+ const created=await saveContestSchema(db,{action:"fork",contestId:state.contestId,expectedVersion:state.schema.version});
+ await db.transaction(async tx=>{await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");await tx.sql("UPDATE challenges SET is_active=false WHERE is_active");await tx.sql("UPDATE challenges SET is_active=true WHERE id=$1",[created.contestId]);});
+}

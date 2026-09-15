@@ -14,6 +14,7 @@ type State = {
   schema: ChallengeModeDefinition;
   locked: boolean;
   ready: boolean;
+  history?: {participant_code:string;submission_type:string;attempt_number:number;score:number;submitted_at:string}[];
   reports: { id: string; filename: string; split: string }[];
 };
 export function ContestSchemaEditor() {
@@ -88,9 +89,9 @@ export function ContestSchemaEditor() {
       setMessage(
         "Saved. Reload the participant page to see the active contract.",
       );
-      if (b.contestId && b.contestId!==state.contestId) setSelected(b.contestId);
       await refreshList();
-      await load();
+      if (b.contestId && b.contestId!==state.contestId) setSelected(b.contestId);
+      else await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed.");
     } finally {
@@ -413,6 +414,9 @@ export function ContestSchemaEditor() {
       >
         Duplicate configuration and reports (inactive; no answers)
       </button>
+      <details><summary>Selected contest results (organizer only; latest 200)</summary>
+        {state.history?.length ? <table><thead><tr><th>Team</th><th>Type</th><th>Attempt</th><th>Score</th></tr></thead><tbody>{state.history.map((h,i)=><tr key={i}><td>{h.participant_code}</td><td>{h.submission_type}</td><td>{h.attempt_number}</td><td>{h.score}</td></tr>)}</tbody></table> : <p>No recorded submissions for this contest.</p>}
+      </details>
       <p role="status">{message}</p>
     </section>
   );

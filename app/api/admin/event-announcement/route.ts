@@ -1,9 +1,10 @@
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { updateActiveChallengeAnnouncement } from "@/app/lib/supabase/admin-dashboard";
 
 const maxAnnouncementLength = 240;
 
-export async function POST(request: Request) {
+async function scopedPost(request: Request) {
   try {
     await requireAdminSession();
   } catch {
@@ -39,3 +40,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = (request: Request) => withActiveContest(request, scopedPost);
