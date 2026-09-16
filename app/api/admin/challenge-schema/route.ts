@@ -1,8 +1,9 @@
+import {withActiveContest} from "@/app/lib/db/admin-contest-fence";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { createDatabase } from "@/app/lib/supabase/admin";
 import { callAdminChallengeSchemaUpdate } from "@/app/lib/supabase/admin-challenge-schema-route";
 
-export async function POST(request: Request) {
+async function scopedPost(request: Request) {
   try {
     await requireAdminSession();
   } catch {
@@ -34,3 +35,5 @@ export async function POST(request: Request) {
     return Response.json({ error: status === 500 ? "Could not update the challenge schema. Please try again." : message }, { status });
   }
 }
+
+export const POST = (request: Request) => withActiveContest(request, scopedPost);

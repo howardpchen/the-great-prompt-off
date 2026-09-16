@@ -1,4 +1,5 @@
 "use client";
+import {adminFetch as fetch} from "../lib/admin-fetch";
 
 import { useState } from "react";
 import type { AdminModeReadiness as AdminModeReadinessRow } from "@/app/lib/supabase/admin-challenge-schema";

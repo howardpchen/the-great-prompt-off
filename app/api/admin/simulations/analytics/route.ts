@@ -1,3 +1,4 @@
+import {withAdminReadContext} from "@/app/lib/db/admin-page-snapshot";
 import { createDatabase } from "@/app/lib/supabase/admin";
 import { requireAdminSession } from "@/app/lib/supabase/admin-auth";
 import { getAdminSimulationAnalytics } from "@/app/lib/supabase/admin-simulation-analytics";
@@ -5,7 +6,7 @@ import {
   SimulationDataUnavailableError,
 } from "@/app/lib/supabase/admin-simulations";
 
-export async function GET() {
+async function scopedGet() {
   try {
     await requireAdminSession();
   } catch {
@@ -23,3 +24,5 @@ export async function GET() {
     return Response.json({ error: message }, { status: 503 });
   }
 }
+
+export const GET = (request: Request) => withAdminReadContext(request, () => scopedGet());

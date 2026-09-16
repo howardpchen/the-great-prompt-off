@@ -1,3 +1,5 @@
+import {readAdminPageSnapshot} from "@/app/lib/db/admin-page-snapshot";
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { ContestSchemaEditor } from "../components/ContestSchemaEditor";
 import { AdminLoginForm } from "../components/AdminLoginForm";
 import { AdminAutoRefresh } from "../components/AdminAutoRefresh";
@@ -15,7 +17,6 @@ import {
 import {
   AdminHeader,
   AdminNavigationCards,
-  AdminPageFrame,
   AdminSectionNav,
   formatDate,
   HealthItem,
@@ -35,10 +36,10 @@ export default async function AdminPage() {
     );
   }
 
-  const data = await getAdminDashboardData();
+  const { data: data, contestContext } = await readAdminPageSnapshot(getAdminDashboardData);
 
   return (
-    <AdminPageFrame>
+    <AdminPageFrame contestContext={contestContext}>
       <AdminHeader
         title="Organizer dashboard"
         subtitle="Command center for event readiness, exports, and admin tools."

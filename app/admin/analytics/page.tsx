@@ -1,3 +1,5 @@
+import {readAdminPageSnapshot} from "@/app/lib/db/admin-page-snapshot";
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import type { ReactNode } from "react";
 
 import { AdminLoginForm } from "../../components/AdminLoginForm";
@@ -5,7 +7,6 @@ import { AdminAutoRefresh } from "../../components/AdminAutoRefresh";
 import { AdminCalibrationPanel } from "../../components/AdminCalibrationPanel";
 import {
   AdminHeader,
-  AdminPageFrame,
   AdminSectionNav,
   AdminTable,
   MetricCard,
@@ -28,10 +29,10 @@ export default async function AdminAnalyticsPage() {
     );
   }
 
-  const data = await getAdminAnalyticsData();
+  const { data: data, contestContext } = await readAdminPageSnapshot(getAdminAnalyticsData);
 
   return (
-    <AdminPageFrame>
+    <AdminPageFrame contestContext={contestContext}>
       <AdminHeader
         backHref="/admin"
         title="Analytics"

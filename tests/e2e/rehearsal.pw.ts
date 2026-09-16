@@ -12,7 +12,7 @@ test("private deterministic participant and organizer rehearsal", async ({ page,
   const adminSecret = readFileSync(secretFile, "utf8").trim();
   const accessCode = readFileSync(accessFile, "utf8").trim();
   const origin = process.env.E2E_BASE_URL || "http://localhost:3000";
-  const writeHeaders = { Origin: origin };
+  const writeHeaders: Record<string,string> = { Origin: origin };
   page.on("dialog", dialog => dialog.accept());
   const health = await context.request.get("/api/health");
   expect(health.ok()).toBe(true);
@@ -40,6 +40,9 @@ test("private deterministic participant and organizer rehearsal", async ({ page,
   expect(adminCookie?.httpOnly).toBe(true);
   expect(adminCookie?.sameSite).toBe("Strict");
   await expect(page.getByLabel("Admin secret", { exact: true })).toHaveCount(0);
+  const activeState = await (await context.request.get("/api/admin/contest-schema",{headers:{Cookie:`${adminCookie!.name}=${adminCookie!.value}`}})).json();
+  writeHeaders.Cookie=`${adminCookie!.name}=${adminCookie!.value}`;
+  Object.assign(writeHeaders,{"X-Contest-Id":activeState.contestId,"X-Contest-Version":String(activeState.schema.version)});
   const phase = await context.request.post("/api/admin/challenge-phase", {
     headers: writeHeaders, data: { phase: "practice_open" },
   });

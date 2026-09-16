@@ -7,7 +7,7 @@ import {
   resolveChallengeMode,
   validateAnswerValues,
 } from "../schema-storage";
-import type { ChallengeModeDefinition } from "../challenge-modes";
+import { defaultChallengeMode, type ChallengeModeDefinition } from "../challenge-modes";
 type ContestRow = {
   id: string;
   mode_id: string;
@@ -15,20 +15,34 @@ type ContestRow = {
   contest_schema: unknown;
   schema_locked: boolean;
   schema_ready: boolean;
+  archived_at: string|null;
+  management_revision:number;
+  evaluation_model:string|null;
+  public_submission_limit:number;
 };
-export async function contestSchemaState(db: Database) {
+export async function contestSchemaState(db: Database, contestId?: string) {
   const [c] = await db.sql<ContestRow>(
-    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1",
+    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
+    [contestId ?? null],
   );
-  if (!c) throw new Error("No active contest.");
+  if (!c) {
+    if (contestId) throw new Error("Contest not found.");
+    return {contestId:"",schema:defaultChallengeMode as ChallengeModeDefinition,locked:false,ready:false,reports:[],history:[],revision:0,evaluationModel:null,practiceBudget:5};
+  }
   const reports = await db.sql<{ id: string; filename: string; split: string }>(
     "SELECT id,filename,split FROM reports WHERE challenge_id=$1 AND split IN ('public','private') ORDER BY filename",
     [c.id],
   );
+  const history = await db.sql<{participant_code:string;submission_type:string;attempt_number:number;score:number;submitted_at:string}>(
+    "SELECT p.participant_code,s.submission_type,s.attempt_number,s.score,s.submitted_at FROM submissions s JOIN participants p ON p.id=s.participant_id WHERE s.challenge_id=$1 ORDER BY s.submitted_at DESC LIMIT 200",[c.id]);
   return {
+    history,
+    revision:c.management_revision,
+    evaluationModel:c.evaluation_model,
+    practiceBudget:c.public_submission_limit,
     contestId: c.id,
     schema: resolveChallengeMode(c.mode_id, c.schema_version, c.contest_schema),
-    locked: c.schema_locked,
+    locked: c.schema_locked || Boolean(c.archived_at),
     ready: c.schema_ready,
     reports,
   };
@@ -41,13 +55,17 @@ export async function saveContestSchema(db: Database, payload: unknown) {
     answers?: unknown;
     action?: string;
     expectedVersion?: number;
+    expectedRevision?: number;
     contestId?: string;
+    reports?: unknown;
   };
   return db.transaction(async (tx) => {
+    await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
     const [c] = await tx.sql<ContestRow>(
-      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit FROM challenges WHERE id=$1 FOR UPDATE",
+      [p.contestId],
     );
-    if (!c || c.id !== p.contestId || c.schema_version !== p.expectedVersion)
+    if (!c || c.id !== p.contestId || c.schema_version !== p.expectedVersion || (p.expectedRevision !== undefined && p.expectedRevision !== c.management_revision))
       throw new Error("Contest changed; reload before saving.");
     if (p.action === "fork") {
       const current = resolveChallengeMode(
@@ -73,13 +91,10 @@ export async function saveContestSchema(db: Database, payload: unknown) {
         "INSERT INTO reports(challenge_id,external_id,filename,split,report_text,synthetic) SELECT $2,external_id,filename,split,report_text,synthetic FROM reports WHERE challenge_id=$1",
         [c.id, created.id],
       );
-      await tx.sql("UPDATE challenges SET is_active=false WHERE id=$1", [c.id]);
-      await tx.sql("UPDATE challenges SET is_active=true WHERE id=$1", [
-        created.id,
-      ]);
+
       return { ok: true, contestId: created.id, schema: next };
     }
-    if (c.schema_locked)
+    if (c.schema_locked || c.archived_at)
       throw new Error(
         "Contest is locked. Create a new contest version before editing.",
       );
@@ -89,7 +104,24 @@ export async function saveContestSchema(db: Database, payload: unknown) {
       c.contest_schema,
     );
     let schema: ChallengeModeDefinition = current;
-    if (p.action === "schema") {
+    if (p.action === "reports") {
+      if (!Array.isArray(p.reports) || p.reports.length < 2 || p.reports.length > 1000)
+        throw new Error("Import 2–1000 reports, including practice and held-out cases.");
+      const rows = p.reports as {external_id: string; filename: string; split: string; report_text: string}[];
+      const ids = new Set<string>();
+      const names = new Set<string>();
+      for (const row of rows) {
+        if (!row || typeof row.external_id !== "string" || !row.external_id.trim() || typeof row.filename !== "string" || !row.filename.trim() || typeof row.report_text !== "string" || !row.report_text.trim() || row.report_text.length > 100000 || !["public","private"].includes(row.split) || ids.has(row.external_id) || names.has(row.filename))
+          throw new Error("Invalid or duplicate report. No import saved.");
+        ids.add(row.external_id); names.add(row.filename);
+      }
+      if (!rows.some(r => r.split === 'public') || !rows.some(r => r.split === 'private'))
+        throw new Error("Both practice and held-out reports required.");
+      const existing = await tx.sql("SELECT id FROM reports WHERE challenge_id=$1 LIMIT 1", [c.id]);
+      if (existing.length) throw new Error("Bulk report import requires an empty draft; duplicate a configuration or create an empty contest.");
+      for (const row of rows) await tx.sql("INSERT INTO reports(challenge_id,external_id,filename,split,report_text,synthetic) VALUES($1,$2,$3,$4,$5,false)", [c.id,row.external_id,row.filename,row.split,row.report_text]);
+      await tx.sql("UPDATE challenges SET schema_ready=false,event_phase='not_started',updated_at=now() WHERE id=$1", [c.id]);
+    } else if (p.action === "schema") {
       const proposed = validateContestSchema(p.schema);
       // Custom identity is server-generated, never overwrites the legacy template's v1.
       schema = validateContestSchema({
@@ -165,7 +197,9 @@ export async function saveContestSchema(db: Database, payload: unknown) {
         throw new Error(
           "Every practice and held-out report requires an answer key. No partial import was saved.",
         );
-      await tx.sql("UPDATE challenges SET schema_ready=true WHERE id=$1", [
+      // Legacy NULL-schema keys do not toggle readiness. Always change updated_at
+      // so the management-revision trigger fences stale editors, even on reimport.
+      await tx.sql("UPDATE challenges SET schema_ready=true,updated_at=GREATEST(clock_timestamp(),updated_at + interval '1 microsecond') WHERE id=$1", [
         c.id,
       ]);
     } else throw new Error("Unsupported action.");

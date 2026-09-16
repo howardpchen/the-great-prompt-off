@@ -1,9 +1,10 @@
+import {readAdminPageSnapshot} from "@/app/lib/db/admin-page-snapshot";
+import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
 import { AdminCaseManager } from "../../components/AdminCaseManager";
 import { AdminAutoRefresh } from "../../components/AdminAutoRefresh";
 import { AdminLoginForm } from "../../components/AdminLoginForm";
 import {
   AdminHeader,
-  AdminPageFrame,
   AdminSectionNav,
 } from "../../components/AdminLayout";
 import { hasAdminSession } from "../../lib/supabase/admin-auth";
@@ -20,10 +21,10 @@ export default async function AdminCasesPage() {
     );
   }
 
-  const caseData = await getAdminCaseManagerData();
+  const { data: caseData, contestContext } = await readAdminPageSnapshot(getAdminCaseManagerData);
 
   return (
-    <AdminPageFrame>
+    <AdminPageFrame contestContext={contestContext}>
       <AdminHeader
         backHref="/admin"
         title="Case Manager"

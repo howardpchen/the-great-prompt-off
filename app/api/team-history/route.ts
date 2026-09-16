@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   try {
     const db = createDatabase();
     const challenge = await getActiveChallenge(db);
-    if (!isEducationContest(challenge.contest_schema)) return Response.json({ error: "Not an educational contest." }, { status: 404, headers });
+    if (!isEducationContest(challenge.contest_schema)) return Response.json({ error: "Team Challenge mode is not enabled for this contest." }, { status: 404, headers });
     // Identity comes only from the signed session, never query parameters or body.
     const result = await readTeamHistory(db, challenge.id, session.participantCode);
     if (!result) return Response.json({ error: "Team is inactive or unavailable." }, { status: 403, headers });

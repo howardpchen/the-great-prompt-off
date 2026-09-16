@@ -35,6 +35,13 @@ test -s secrets/e2e_access_code
 "${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
   -e PGDATABASE=gpo_schema_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \
   migrate npm run test:contest-schema
+"${compose[@]}" exec -T db createdb -U postgres -T prompt_off gpo_library_test
+"${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
+  -e PGDATABASE=gpo_library_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \
+  migrate npm run test:contest-library
+"${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
+  -e PGDATABASE=gpo_library_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password -e TEST_ALLOW_MUTATIONS=true \
+  migrate npm run test:admin-page-snapshot
 "${compose[@]}" up -d --wait app
 curl --fail --silent http://localhost:3000/api/health/ready
 export ADMIN_SECRET_FILE="$PWD/secrets/admin_secret"
@@ -58,3 +65,9 @@ npm run test:e2e -- tests/e2e/rehearsal.pw.ts
 # Schema edits fork the active contest. Run only after legacy restore checks so
 # their fixed six-field expectations never depend on another test's mutations.
 npm run test:e2e -- tests/e2e/contest-schema.pw.ts
+
+npm run test:e2e -- tests/e2e/contest-library.pw.ts
+
+# Controlled-network selection race needs no host database access. The full
+# DELETE fingerprint suite also supports a separately provisioned local fixture.
+npm run test:e2e -- tests/e2e/contest-targeting.pw.ts --grep "selection failures"

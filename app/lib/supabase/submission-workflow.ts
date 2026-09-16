@@ -263,14 +263,19 @@ export async function submitToSupabase({
   participantCode,
   prompt,
   idempotencyKey,
+  expectedContestId,
+  expectedSchemaVersion,
 }: {
   kind: SubmissionKind;
   participantCode: string;
   prompt: string;
   idempotencyKey?: string;
+  expectedContestId?: string;
+  expectedSchemaVersion?: number;
 }): Promise<SubmitScoreResponse> {
   const supabase = createDatabase();
   let challenge = await getActiveChallenge(supabase);
+  if ((expectedContestId !== undefined && expectedContestId !== challenge.id) || (expectedSchemaVersion !== undefined && expectedSchemaVersion !== challenge.schema_version)) throw new SubmissionLimitError("Contest changed; reload before submitting.");
   const participant = await getParticipantByCode(
     supabase,
     normalizeParticipantCode(participantCode),
@@ -287,7 +292,7 @@ export async function submitToSupabase({
   }
 
   let reservation;
-  try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey});}
+  try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey, expectedSchemaVersion});}
   catch(error) {if(error instanceof AttemptAdmissionError) throw new SubmissionLimitError(error.message);throw error;}
   if(reservation.status === 'completed') return projectFinalResponse(reservation.response as SubmitScoreResponse, challenge.contest_schema, challenge.event_phase);
   try {
@@ -730,7 +735,7 @@ async function getSubmissionStatusForParticipant(
   const finalSubmission =
     data.find((submission) => submission.submission_type === "final") ?? null;
   const latestPublic = publicSubmissions[publicSubmissions.length - 1] ?? null;
-  const extraPublicAttempts = isEducationContest(challenge.contest_schema) ? 0 : await getExtraPublicAttempts(supabase, participantCode);
+  const extraPublicAttempts = isEducationContest(challenge.contest_schema) ? 0 : await getExtraPublicAttempts(supabase, participantCode, challenge.id);
   const publicSubmissionLimit =
     challenge.public_submission_limit + extraPublicAttempts;
   const [pending] = await supabase.sql<{public_pending:number;final_pending:number}>(
@@ -761,8 +766,9 @@ async function getSubmissionStatusForParticipant(
 async function getExtraPublicAttempts(
   supabase: ReturnType<typeof createDatabase>,
   participantCode: string,
+  challengeId: string,
 ) {
-  const { data, error } = await supabase.execute<{ extra_public_attempts: number }>({ table: "participant_attempt_overrides", columns: "extra_public_attempts", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", participantCode]] });
+  const { data, error } = await supabase.execute<{ extra_public_attempts: number }>({ table: "participant_attempt_overrides", columns: "extra_public_attempts", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", participantCode],["challenge_id","eq",challengeId]] });
 
   if (error) {
     throw new Error(`Failed to load participant attempt overrides: ${error.message}`);

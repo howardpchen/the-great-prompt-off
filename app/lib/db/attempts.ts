@@ -19,6 +19,7 @@ export async function reserveAttempt(
     kind: "public" | "final";
     prompt: string;
     idempotencyKey?: string;
+    expectedSchemaVersion?: number;
   },
 ) {
   const key = input.idempotencyKey || randomUUID();
@@ -26,17 +27,20 @@ export async function reserveAttempt(
     throw new AttemptAdmissionError("Invalid idempotency key");
   const hash = createHash("sha256").update(input.prompt).digest("hex");
   return db.transaction(async (tx) => {
+    await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
     // Always lock challenge before participant; serializes admission with phase changes.
     const [challenge] = await tx.sql<{
       event_phase: string;
+      schema_version: number;
       contest_schema: unknown;
       evaluation_model: string | null;
       public_submission_limit: number;
       final_submission_limit: number;
     }>(
-      "SELECT evaluation_model,contest_schema,event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
+      "SELECT schema_version,evaluation_model,contest_schema,event_phase,public_submission_limit,final_submission_limit FROM challenges WHERE id=$1 AND is_active FOR UPDATE",
       [input.challengeId],
     );
+    if (input.expectedSchemaVersion !== undefined && challenge?.schema_version !== input.expectedSchemaVersion) throw new AttemptAdmissionError("Contest changed; reload before submitting.");
     const [participant] = await tx.sql<{
       is_active: boolean;
       participant_code: string;
@@ -66,7 +70,7 @@ export async function reserveAttempt(
       throw new AttemptAdmissionError("Submissions are not open right now.");
     const education = isEducationContest(challenge.contest_schema);
     if (education && !isApprovedEvaluationModel(challenge.evaluation_model))
-      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this educational contest.');
+      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this Team Challenge contest.');
     if (education && !input.prompt.trim())
       throw new AttemptAdmissionError('Enter instructions before submitting.');
     if (education && input.kind === 'final') {
@@ -77,8 +81,8 @@ export async function reserveAttempt(
         throw new AttemptAdmissionError('Final instructions are locked. Retry only the original instructions.');
     }
     const [override] = await tx.sql<{ extra_public_attempts: number }>(
-      "SELECT extra_public_attempts FROM participant_attempt_overrides WHERE participant_code=$1",
-      [participant.participant_code],
+      "SELECT extra_public_attempts FROM participant_attempt_overrides WHERE participant_code=$1 AND challenge_id=$2",
+      [participant.participant_code,input.challengeId],
     );
     const [counts] = await tx.sql<{ used: number; next: number }>(
       `SELECT count(*)::integer AS used, COALESCE(max(attempt_number),0)::integer+1 AS next FROM (SELECT attempt_number FROM submissions WHERE challenge_id=$1 AND participant_id=$2 AND submission_type=$3 UNION ALL SELECT attempt_number FROM attempt_reservations WHERE challenge_id=$1 AND participant_id=$2 AND kind=$3 AND status='pending') attempts`,

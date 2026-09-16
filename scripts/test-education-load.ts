@@ -7,7 +7,7 @@ import { submitToSupabase } from "../app/lib/supabase/submission-workflow";
 async function main() {
   if (process.env.PGDATABASE !== "gpo_edu_load" || process.env.USE_REAL_LLM !== "false") throw new Error("Requires disposable gpo_edu_load and explicit mock mode.");
   const db=createDatabase(); let state=await contestSchemaState(db);
-  await saveContestSchema(db,{action:"fork",contestId:state.contestId,expectedVersion:state.schema.version});
+  await forkAndSelectFixture(db,state);
   state=await contestSchemaState(db);
   assert.equal(state.schema.education?.version,1);
   const answers=state.reports.map(r=>({report_id_or_filename:r.id,answer_values:Object.fromEntries(state.schema.fields.map(f=>[f.key,f.type==="number"?f.minimum??0:f.allowedValues[0]]))}));
@@ -31,3 +31,10 @@ async function main() {
   console.log(JSON.stringify({result:"PASS",teams:50,fields:state.schema.fields.length,reports:state.reports.length,practiceMs,finalMs,submissions:counts.submissions,pending:counts.pending,scope:"local simulated application/database burst; not HTTP or production capacity"}));
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>getPool().end());
+
+// Legacy regression fixture requires an active unready draft to exercise low-level guards.
+// Production forks stay inactive; production activation is readiness-gated (test-contest-library).
+async function forkAndSelectFixture(db: ReturnType<typeof createDatabase>, state: Awaited<ReturnType<typeof contestSchemaState>>) {
+ const created=await saveContestSchema(db,{action:"fork",contestId:state.contestId,expectedVersion:state.schema.version});
+ await db.transaction(async tx=>{await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");await tx.sql("UPDATE challenges SET is_active=false WHERE is_active");await tx.sql("UPDATE challenges SET is_active=true WHERE id=$1",[created.contestId]);});
+}

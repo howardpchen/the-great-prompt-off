@@ -152,6 +152,7 @@ type ChallengeControlRow = {
 };
 
 type ParticipantAttemptOverrideRow = {
+  challenge_id: string;
   participant_code: string;
   extra_public_attempts: number;
 };
@@ -169,7 +170,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     await Promise.all([
     supabase.execute<ChallengeControlRow>({ table: "challenges", columns: "id, evaluation_model, mode_id, schema_version, contest_schema, schema_locked, event_phase, leaderboard_visibility, event_announcement, event_timer_ends_at, event_timer_label, public_submission_limit", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] }),
     supabase.execute<ParticipantRow[]>({ table: "participants", columns: "id, participant_code, display_name, email, access_code, is_active", operation: "select", order: [["participant_code", { ascending: true }]] }),
-    supabase.execute<ParticipantAttemptOverrideRow[]>({ table: "participant_attempt_overrides", columns: "participant_code, extra_public_attempts", operation: "select" }),
+    supabase.execute<ParticipantAttemptOverrideRow[]>({ table: "participant_attempt_overrides", columns: "challenge_id, participant_code, extra_public_attempts", operation: "select" }),
     supabase.execute<SubmissionRow[]>({ table: "submissions", columns: "challenge_id, participant_id, submission_type, score, submitted_at, prompt_run_id", operation: "select", order: [["submitted_at", { ascending: true }]] }),
     supabase.execute<PromptRunRow[]>({ table: "prompt_runs", columns: "id, challenge_id, participant_id, model, completed_at, created_at", operation: "select", order: [["created_at", { ascending: false }]] }),
     supabase.execute<ReportCountRow[]>({ table: "reports", columns: "id, challenge_id, split", operation: "select" }),
@@ -226,7 +227,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   const runsById = new Map(runsResult.data.map((run) => [run.id, run]));
   const extraAttemptsByParticipantCode = new Map(
-    attemptOverridesResult.data.map((override) => [
+    attemptOverridesResult.data.filter(override=>override.challenge_id===challengeResult.data.id).map((override) => [
       override.participant_code,
       override.extra_public_attempts,
     ]),
@@ -617,8 +618,8 @@ export async function clearParticipantRunData(participantCode: string) {
 
 export async function grantExtraPublicAttempt(participantCode: string) {
   const supabase = createDatabase();
-  const [education] = await supabase.sql<{educational:boolean}>("SELECT contest_schema #>> '{education,version}' = '1' AS educational FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1");
-  if (education?.educational) throw new Error('Educational practice budgets are equal across teams. Recover failed infrastructure attempts instead.');
+  const [education] = await supabase.sql<{id:string;educational:boolean}>("SELECT id,contest_schema #>> '{education,version}' = '1' AS educational FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1");
+  if (education?.educational) throw new Error('Team Challenge practice budgets are equal across teams. Recover failed infrastructure attempts instead.');
   const normalizedParticipantCode = participantCode.trim().toUpperCase();
   const { data: participant, error: participantError } = await supabase.execute<{ participant_code: string; is_active: boolean }>({ table: "participants", columns: "participant_code, is_active", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", normalizedParticipantCode]] });
 
@@ -635,17 +636,17 @@ export async function grantExtraPublicAttempt(participantCode: string) {
   }
 
   // Increment inside PostgreSQL so concurrent organizer grants cannot overwrite
-  // each other. This table is keyed by participant_code, not id.
+  // each other. Grants are scoped to the active contest and team.
   try {
     const [override] = await supabase.sql<{ extra_public_attempts: number }>(
       `INSERT INTO participant_attempt_overrides
-         (participant_code, extra_public_attempts, updated_at)
-       VALUES ($1, 1, now())
-       ON CONFLICT (participant_code) DO UPDATE
+         (challenge_id, participant_code, extra_public_attempts, updated_at)
+       VALUES ($2,$1, 1, now())
+       ON CONFLICT (challenge_id,participant_code) DO UPDATE
          SET extra_public_attempts = participant_attempt_overrides.extra_public_attempts + 1,
              updated_at = now()
        RETURNING extra_public_attempts`,
-      [normalizedParticipantCode],
+      [normalizedParticipantCode,education?.id],
     );
 
     return override.extra_public_attempts;

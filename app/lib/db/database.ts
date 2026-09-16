@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { PoolClient } from "pg";
 import { getPool } from "./pool";
 type Filter = readonly [
@@ -213,6 +214,7 @@ export class Database {
     }
   }
 }
+export const transactionContext = new AsyncLocalStorage<Database>();
 export function createDatabase() {
-  return new Database();
+  return transactionContext.getStore() || new Database();
 }
