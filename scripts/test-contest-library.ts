@@ -13,6 +13,37 @@ async function main() {
  const db=createDatabase();
  const old=await contestSchemaState(db);
  const before=await db.sql("SELECT id,participant_code,access_code FROM participants ORDER BY id");
+ // Two organizer tabs editing an already-ready legacy contest must not lose updates.
+ const [legacy] = await db.sql<{contest_schema: unknown; schema_ready: boolean; schema_locked: boolean}>(
+  "SELECT contest_schema,schema_ready,schema_locked FROM challenges WHERE id=$1", [old.contestId]);
+ assert.equal(legacy.contest_schema, null);
+ assert.equal(legacy.schema_ready, true);
+ assert.equal(legacy.schema_locked, false);
+ const legacyAnswers = (value: string) => old.reports.map(r => ({
+  report_id_or_filename: r.id,
+  answer_values: Object.fromEntries(old.schema.fields.map(f => [f.key, value])),
+ }));
+ const legacyImport = {action:'answers',contestId:old.contestId,expectedVersion:old.schema.version,expectedRevision:old.revision};
+ const keysSnapshot = () => db.sql(
+  "SELECT k.* FROM answer_keys k JOIN reports r ON r.id=k.report_id WHERE r.challenge_id=$1 ORDER BY k.id", [old.contestId]);
+ await saveContestSchema(db,{...legacyImport,answers:legacyAnswers('absent')});
+ const afterFirstImport = await contestSchemaState(db,old.contestId);
+ assert.ok(afterFirstImport.revision > old.revision, 'Ready legacy answer import must advance revision');
+ assert.equal(afterFirstImport.ready, true);
+ const firstKeys = await keysSnapshot();
+ await assert.rejects(saveContestSchema(db,{...legacyImport,answers:legacyAnswers('present')}), /Contest changed/);
+ assert.deepEqual(await keysSnapshot(), firstKeys, 'Stale import must preserve every first-import answer');
+ assert.deepEqual(await contestSchemaState(db,old.contestId), afterFirstImport);
+ // A refreshed tab can save again; an invalid import rolls back keys AND revision.
+ await saveContestSchema(db,{...legacyImport,expectedRevision:afterFirstImport.revision,answers:legacyAnswers('present')});
+ const afterSecondImport = await contestSchemaState(db,old.contestId);
+ assert.ok(afterSecondImport.revision > afterFirstImport.revision);
+ const secondKeys = await keysSnapshot();
+ await assert.rejects(saveContestSchema(db,{...legacyImport,expectedRevision:afterSecondImport.revision,answers:legacyAnswers('absent').slice(1)}), /Every practice/);
+ assert.deepEqual(await keysSnapshot(), secondKeys);
+ assert.deepEqual(await contestSchemaState(db,old.contestId), afterSecondImport);
+ console.log('PASS legacy ready/null-schema import revision, stale overwrite rejection, fresh retry, invalid-import rollback.');
+
  const schema={...twelveBinaryTemplate,fields:twelveBinaryTemplate.fields.map(f=>({...f,type:'multiclass',allowedValues:['not_mentioned','absent','present'],allowNull:false})),education:{version:1,pipeline:'structured-v1',baselineInstructions:'Use report evidence; output the approved categorical decisions.'}};
  const created=await mutateContestLibrary(db,{action:'create',schema,title:'Synthetic 100 x 12',evaluationModel:'qwen/qwen3.5-9b',practiceBudget:3});
  let state=await contestSchemaState(db,created.contestId);

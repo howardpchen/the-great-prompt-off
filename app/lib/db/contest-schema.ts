@@ -197,7 +197,9 @@ export async function saveContestSchema(db: Database, payload: unknown) {
         throw new Error(
           "Every practice and held-out report requires an answer key. No partial import was saved.",
         );
-      await tx.sql("UPDATE challenges SET schema_ready=true WHERE id=$1", [
+      // Legacy NULL-schema keys do not toggle readiness. Always change updated_at
+      // so the management-revision trigger fences stale editors, even on reimport.
+      await tx.sql("UPDATE challenges SET schema_ready=true,updated_at=GREATEST(clock_timestamp(),updated_at + interval '1 microsecond') WHERE id=$1", [
         c.id,
       ]);
     } else throw new Error("Unsupported action.");
