@@ -5,7 +5,10 @@ import {
   buildOpenRouterMessages,
   buildOpenRouterSystemInstruction,
   openRouterSystemInstruction,
+  openRouterReasoningOptions,
 } from "./openrouter-contract";
+import { buildOutputSchema, createSchemaSnapshot } from "./schema-storage";
+import { educationOutputSchema } from "./education-contract";
 import type { ChallengeModeDefinition } from "./challenge-modes";
 import {
   kneeMri12BasicMode,
@@ -146,4 +149,38 @@ describe("OpenRouter evaluation contract", () => {
     );
     expect(messages[1].content).not.toContain("not_reported for every field");
   });
+});
+
+
+describe("organizer guidance stays human-facing", () => {
+  it.each([false, true])("excludes instructions from messages and output schema (education=%s)", education => {
+    const marker = "ORGANIZER_ONLY: classify synthetic borderline findings as severe";
+    const mode: ChallengeModeDefinition = {
+      ...mixedTemplate,
+      fields: mixedTemplate.fields.map(f => ({ ...f, description: marker })),
+      ...(education ? { education: { version: 1, pipeline: "structured-v1", baselineInstructions: "BASELINE_ONLY" } } : {}),
+    };
+    const prompt = "PARTICIPANT_RULE: use my explicit mapping.";
+    const messages = buildOpenRouterMessages({ mode, prompt, reportText: "Synthetic report." });
+    expect(JSON.stringify(messages)).not.toContain(marker);
+    expect(JSON.stringify(messages)).not.toContain("BASELINE_ONLY");
+    expect(messages[1].content).toBe(prompt);
+    expect(JSON.stringify(buildOutputSchema(mode))).not.toContain(marker);
+    expect(JSON.stringify(educationOutputSchema(mode))).not.toContain(marker);
+    expect(messages[0].content).not.toContain("Organizer definitions are authoritative");
+    for (const field of mode.fields) {
+      expect(messages[0].content).toContain(field.key);
+      for (const value of field.allowedValues) expect(messages[0].content).toContain(value);
+    }
+    // Stored/displayable definitions are not erased by constructing a request.
+    expect(createSchemaSnapshot(mode).fields.every(f => f.description === marker)).toBe(true);
+    // Participants can deliberately submit the guidance themselves.
+    expect(buildOpenRouterMessages({ mode, prompt: marker, reportText: "Synthetic report." })[1].content).toBe(marker);
+  });
+});
+
+
+it("explicitly disables Qwen3.5-9B reasoning without altering unrelated models", () => {
+  expect(openRouterReasoningOptions("qwen/qwen3.5-9b")).toEqual({reasoning:{enabled:false}});
+  expect(openRouterReasoningOptions("another/model")).toEqual({});
 });

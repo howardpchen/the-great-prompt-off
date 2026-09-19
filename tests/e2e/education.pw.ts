@@ -44,9 +44,10 @@ test("one-editor team rehearsal: baseline, shared practice, frozen final, reveal
   const replay=await (await submit("public",baseline,"edu-browser-practice")).json();expect(replay.publicSubmissionsUsed).toBe(1);
   expect((await context.request.post("/api/admin/evaluation-model",{headers,data:{model:"google/gemini-2.5-flash"}})).ok()).toBe(false);
   await page.goto("/");await page.getByLabel("Participant access code",{exact:true}).fill(accessCode);await page.getByRole("button",{name:"Enter workspace",exact:true}).click();
+  await page.getByText("Shared baseline and scoring", {exact:true}).click();
   await expect(page.getByText("SIMULATION — workflow rehearsal only.",{exact:false})).toBeVisible();
   await expect(page.getByPlaceholder("Write your clinical extraction strategy here...")).toHaveValue(baseline);
-  await expect(page.getByRole("heading",{name:"Clinical definitions and scoring"})).toBeVisible();
+  await expect(page.getByText("Field names and allowed values", {exact:true})).toBeVisible();
   expect((await context.request.post("/api/admin/challenge-phase",{headers,data:{phase:"final_open"}})).ok()).toBe(true);
   // A teammate/browser can recover final text even when evaluation failed before
   // any prompt_run was written. Setup touches only the guarded disposable fixture.
@@ -60,6 +61,7 @@ test("one-editor team rehearsal: baseline, shared practice, frozen final, reveal
   const second = await page.context().browser()!.newContext(); const teammate = await second.newPage();
   await teammate.goto(origin); await teammate.getByLabel("Participant access code", { exact: true }).fill(accessCode);
   await teammate.getByRole("button", { name: "Enter workspace", exact: true }).click();
+  await teammate.getByText("Team instruction history", {exact:true}).click();
   await expect(teammate.getByRole("heading", { name: "Saved team instructions and practice results" })).toBeVisible();
   const practiceVersion = teammate.getByText(/^Practice 1 —/); await expect(practiceVersion).toBeVisible(); await practiceVersion.click();
   await expect(teammate.getByRole("button", { name: "Copy practice 1 instructions to editor" })).toBeVisible();

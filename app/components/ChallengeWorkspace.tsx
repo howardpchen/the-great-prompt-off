@@ -1,4 +1,5 @@
 "use client";
+import { PromptSandbox } from "./PromptSandbox";
 import { TeamHistory } from "./TeamHistory";
 import { EducationSummary } from "./EducationSummary";
 
@@ -163,9 +164,10 @@ type PromptDraftV2 = {
 
 export function ChallengeWorkspace({
   initialParticipantId,
-  reports,
+  reports: initialReports,
 }: ChallengeWorkspaceProps) {
   const router = useRouter();
+  const [reports, setReports] = useState(initialReports);
   const [participantId, setParticipantId] = useState(
     normalizeParticipantCode(initialParticipantId),
   );
@@ -312,6 +314,29 @@ export function ChallengeWorkspace({
       ignore = true;
     };
   }, [activeParticipantId, activeParticipantToken]);
+
+  useEffect(() => {
+    if (!activeParticipantToken || !participantValidation?.valid) return;
+    let ignore = false;
+    async function loadReports() {
+      try {
+        const response = await fetch("/api/challenge-reports", {
+          headers: { Authorization: `Bearer ${activeParticipantToken}` },
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Could not load practice reports. Return home and sign in again.");
+        const data = await response.json() as { reports: PublicChallengeReport[] };
+        if (!ignore) {
+          setReports(data.reports);
+          setActiveReportId(data.reports[0]?.id ?? "");
+        }
+      } catch (error) {
+        if (!ignore) setParticipantValidationError(error instanceof Error ? error.message : "Could not load practice reports.");
+      }
+    }
+    void loadReports();
+    return () => { ignore = true; };
+  }, [activeParticipantToken, participantValidation?.valid]);
 
   useEffect(() => {
     let ignore = false;
@@ -799,48 +824,18 @@ export function ChallengeWorkspace({
 
   return (
     <main className="min-h-screen bg-[#f7f9f8] text-slate-950">
-      <section className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-6 py-10 lg:hidden">
-        <Link href="/" className="text-sm font-semibold text-teal-700 hover:text-teal-800">
-          The Great Prompt-Off
-        </Link>
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-            Laptop recommended
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold text-slate-950">
-            This workshop platform is designed for desktop use.
-          </h1>
-          <p className="mt-4 text-sm leading-6 text-slate-600">
-            Radiology reports, prompt editing, result comparisons, and
-            leaderboard panels need more horizontal space than most mobile
-            screens can comfortably provide.
-          </p>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Please switch to a laptop or desktop browser for the full challenge
-            workspace.
-          </p>
-          <button
-            type="button"
-            onClick={exitToHome}
-            className="mt-5 h-11 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"
-          >
-            Exit to home
-          </button>
-        </div>
-      </section>
-
-      <div className="mx-auto hidden w-full max-w-[1500px] flex-col gap-4 px-4 py-4 lg:flex lg:px-6">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-5 sm:px-6">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <Link href="/" className="text-sm font-semibold text-teal-700 hover:text-teal-800">
               The Great Prompt-Off
             </Link>
             <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-              {challenge.title}
+              {challengeDataStatus?.challenge?.title || challenge.title}
             </h1>
             <div className="mt-2 flex flex-wrap gap-2">
               <p className="w-fit rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
-                Test attempts and final submissions are evaluated by an AI model
+                Write instructions · Test on practice reports · Refine
               </p>
               {challengeDataStatus?.challenge?.evaluationModelDisplayName ? (
                 <p className="w-fit rounded-md border border-teal-100 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
@@ -848,9 +843,8 @@ export function ChallengeWorkspace({
                   {challengeDataStatus.challenge.evaluationModelDisplayName}
                 </p>
               ) : null}
+              {education?.evaluationMode === "simulation" ? <p className="rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">Simulation — scores are synthetic, not clinical performance</p> : null}
             </div>
-            {education && activeParticipantToken ? <EducationSummary token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} /> : null}
-            {education && activeParticipantToken ? <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} /> : null}
             <DataSourceStatus
               error={challengeDataError}
               status={challengeDataStatus}
@@ -896,15 +890,8 @@ export function ChallengeWorkspace({
           warning={statusRefreshWarning}
         />
 
-        <div className="grid min-h-0 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_360px]">
-          <TaskSidebar
-            fields={activeMode.fields}
-            privateReportDescription={privateReportDescription}
-            publicReportDescription={publicReportDescription}
-            publicSubmissionLimit={publicSubmissionLimit}
-          />
-
-          <section className="grid min-h-0 min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="grid min-w-0 gap-5">
+          <section className="grid min-h-0 min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <PromptEditor
               fieldCount={activeMode.fields.length}
               clinicalInstructions={clinicalInstructions}
@@ -934,7 +921,8 @@ export function ChallengeWorkspace({
             ) : null}
           </section>
 
-          <aside className="grid gap-4">
+          {education && <PromptSandbox key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} participantId={activeParticipantId} contestId={challengeId} version={activeMode.version} prompt={clinicalInstructions} fields={activeMode.fields}/> }
+          <aside className="grid min-w-0 gap-5">
             <SubmissionPanel
               finalSubmissionUsed={finalSubmissionUsed}
               finalScore={finalScore}
@@ -942,14 +930,7 @@ export function ChallengeWorkspace({
               message={submissionMessage}
               promptDebug={lastSubmissionPromptDebug}
               feedback={lastSubmissionFeedback}
-              onSubmitFinal={submitFinal}
-              onSubmitPublic={submitPublic}
               pendingAction={pendingAction}
-              participantReady={Boolean(activeParticipantId)}
-              promptLength={participantPromptLength}
-              promptOverLimit={promptOverLimit}
-              canSubmitFinal={canSubmitFinal}
-              canSubmitPublic={canSubmitPublic}
               privateReportDescription={privateReportDescription}
               publicReportDescription={publicReportDescription}
               publicSubmissionLimit={publicSubmissionLimit}
@@ -960,11 +941,34 @@ export function ChallengeWorkspace({
               }
               remainingPublicSubmissions={remainingPublicSubmissions}
             />
+            <div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
+              <details className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
+                <summary className="cursor-pointer font-semibold text-slate-800">Field names and allowed values</summary>
+          <TaskSidebar
+            fields={activeMode.fields}
+            privateReportDescription={privateReportDescription}
+            publicReportDescription={publicReportDescription}
+            publicSubmissionLimit={publicSubmissionLimit}
+          />
+
+              </details>
+              <details className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
+                <summary className="cursor-pointer font-semibold text-slate-800">Leaderboard</summary>
             <Leaderboard
               participantId={activeParticipantId}
               rows={currentRows}
               visible={participantLeaderboardVisible}
             />
+              </details>
+            </div>
+            {education && activeParticipantToken ? <details open={eventPhase === "ended" || undefined} className="rounded-xl border border-slate-200 bg-white p-4">
+              <summary className="cursor-pointer font-semibold text-slate-800">Shared baseline and scoring</summary>
+            <EducationSummary token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} />
+            </details> : null}
+            {education && activeParticipantToken ? <details className="rounded-xl border border-slate-200 bg-white p-4">
+              <summary className="cursor-pointer font-semibold text-slate-800">Team instruction history</summary>
+            <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} />
+            </details> : null}
           </aside>
         </div>
       </div>
@@ -1101,59 +1105,23 @@ function LiveUpdateStatus({
   );
 }
 
-function TaskSidebar({
-  fields,
-  privateReportDescription,
-  publicReportDescription,
-  publicSubmissionLimit,
-}: {
+function TaskSidebar({ fields, privateReportDescription, publicReportDescription, publicSubmissionLimit }: {
   fields: PublicChallengeModeMetadata["fields"];
   privateReportDescription: string;
   publicReportDescription: string;
   publicSubmissionLimit: number;
 }) {
-  return (
-    <aside className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-        Active task
-      </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">
-        Structured extraction task
-      </h2>
-      <p className="mt-3 text-sm leading-6 text-slate-600">
-        Write instructions that make clinical assumptions explicit. The platform handles output formatting; you decide how evidence maps to the clinical definitions.
-      </p>
-
-      <div className="mt-6">
-        <h3 className="text-sm font-semibold text-slate-800">Clinical definitions and scoring</h3>
-        <div className="mt-3 grid gap-2">
-          {fields.map((field) => (
-            <div
-              key={field.key}
-              className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2"
-            >
-              <span className="font-mono text-xs text-slate-700">
-                {field.key}
-              </span>
-              <span className="text-xs text-slate-500">{field.label}<br/>{field.description}<br/>{field.type === 'number' ? `Number in ${field.unit}; tolerance ±${field.tolerance}${field.minimum !== undefined ? `; min ${field.minimum}` : ''}${field.maximum !== undefined ? `; max ${field.maximum}` : ''}` : `Exact labels: ${field.allowedValues.join(', ')}`}<br/>Weight {field.weight ?? 1}; {field.nullable ? 'null allowed for missing/uncertain' : 'non-null value required'}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6 border-t border-slate-200 pt-5">
-        <h3 className="text-sm font-semibold text-slate-800">Workflow</h3>
-        <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-          <li>
-            Test Attempts: {publicSubmissionLimit} counted attempt
-            {publicSubmissionLimit === 1 ? "" : "s"} on {publicReportDescription}.
-          </li>
-          <li>Use test scores to refine your prompt.</li>
-          <li>Final: one locked submission on {privateReportDescription}.</li>
-        </ul>
-      </div>
-    </aside>
-  );
+  return <div className="mt-4 space-y-4 text-sm text-slate-600">
+    <p>The model receives these field names and allowed values, not separate field-level clinical instructions. Put the interpretation rules you want it to follow in your team instructions. JSON formatting is automatic.</p>
+    <dl className="grid gap-3 sm:grid-cols-2">
+      {fields.map(field => <div key={field.key} className="min-w-0 rounded-lg bg-slate-50 p-3">
+        <dt className="font-semibold text-slate-900">{field.label}</dt>
+        <dd className="mt-1 break-words leading-6">{field.type === "number" ? `Number in ${field.unit}; tolerance ±${field.tolerance}${field.minimum !== undefined ? `; minimum ${field.minimum}` : ""}${field.maximum !== undefined ? `; maximum ${field.maximum}` : ""}` : field.allowedValues.map(value => value.replaceAll("_", " ")).join(" · ")}</dd>
+        <dd className="mt-2 text-xs text-slate-500">Weight {field.weight ?? 1}{field.nullable ? " · Clinical null permitted" : ""}</dd>
+      </div>)}
+    </dl>
+    <p>{publicSubmissionLimit} counted test attempts on {publicReportDescription}. One locked final submission on {privateReportDescription}.</p>
+  </div>;
 }
 
 function DataSourceStatus({
@@ -1246,20 +1214,12 @@ function PromptEditor({
           Clinical strategy
         </span>
       </div>
-      <div className="mt-4 grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-600">
-        <p>
-          <span className="font-semibold text-slate-800">Test Attempts</span> are
-          counted: {publicSubmissionLimit} attempt
-          {publicSubmissionLimit === 1 ? "" : "s"} on {publicReportDescription}.
-        </p>
-        <p>
-          Each team code shares one practice budget across devices. This draft is local to this browser. Use each test score to refine your instructions;
-          AI evaluation may take a little time.
-        </p>
-        <p>
-          <span className="font-semibold text-slate-800">Final</span> can only be
-          used once and runs on {privateReportDescription}.
-        </p>
+      <p className="mt-3 text-sm leading-6 text-slate-600">
+        Make your clinical rules explicit. Only your instructions are submitted as the team strategy; formatting is automatic.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+        <span><strong className="text-teal-800">{remainingPublicSubmissions} of {publicSubmissionLimit}</strong> test attempts left</span>
+        <span>Draft saved in this browser · Budget shared with your team</span>
       </div>
       <div className="mt-4 grid gap-4">
         <label className="grid gap-2">
@@ -1275,16 +1235,9 @@ function PromptEditor({
             onChange={(event) => setClinicalInstructions(event.target.value)}
             placeholder="Write your clinical extraction strategy here..."
             spellCheck={false}
-            className="h-[250px] w-full resize-none rounded-md border border-slate-300 bg-slate-950 p-4 font-mono text-sm leading-6 text-slate-50 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+            className="min-h-[320px] w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-base leading-7 text-slate-900 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 lg:min-h-[380px]"
           />
         </label>
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-600">
-          <p className="font-semibold text-slate-800">Output formatting</p>
-          <p className="mt-1">
-            Output formatting is handled automatically by the platform. Focus
-            your prompt on the clinical extraction strategy.
-          </p>
-        </div>
       </div>
       <div
         className={`mt-3 text-xs ${
@@ -1295,18 +1248,20 @@ function PromptEditor({
         {MAX_PROMPT_CHARS.toLocaleString()} characters
         {promptOverLimit ? `. ${promptTooLongMessage}` : ""}
       </div>
+      <p className="mt-2 text-xs leading-5 text-slate-500">Test attempts evaluate {publicReportDescription}. The final runs once on {privateReportDescription} and opens when the organizer starts the final phase.</p>
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
           onClick={onSubmitPublic}
           disabled={
             !participantReady ||
+            !clinicalInstructions.trim() ||
             !canSubmitPublic ||
             remainingPublicSubmissions === 0 ||
             promptOverLimit ||
             pendingAction !== null
           }
-          className="h-11 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+          className="min-h-11 rounded-lg bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
         >
           {pendingAction === "public" ? "Submitting..." : "Use test attempt"}
         </button>
@@ -1315,6 +1270,7 @@ function PromptEditor({
           onClick={onSubmitFinal}
           disabled={
             !participantReady ||
+            !clinicalInstructions.trim() ||
             !canSubmitFinal ||
             finalSubmissionUsed ||
             promptOverLimit ||
@@ -1362,6 +1318,8 @@ function ReportViewer({
             key={report.id}
             type="button"
             onClick={() => setActiveReportId(report.id)}
+            aria-label={`Read practice report ${index + 1}`}
+            aria-pressed={report.id === activeReport.id}
             className={`h-10 rounded-md border text-sm font-semibold ${
               activeReport.id === report.id
                 ? "border-teal-700 bg-teal-50 text-teal-800"
@@ -1372,7 +1330,7 @@ function ReportViewer({
           </button>
         ))}
       </div>
-      <article className="mt-4 min-h-[360px] flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-4 font-mono text-sm leading-6 text-slate-800">
+      <article className="mt-4 min-h-[260px] max-h-[560px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-5 text-base leading-7 text-slate-800">
         {activeReport.text}
       </article>
         </>
@@ -1381,165 +1339,35 @@ function ReportViewer({
   );
 }
 
-function SubmissionPanel({
-  canSubmitFinal,
-  canSubmitPublic,
-  finalSubmissionUsed,
-  finalScore,
-  latestPublicScore,
-  message,
-  onSubmitFinal,
-  onSubmitPublic,
-  pendingAction,
-  participantReady,
-  promptLength,
-  promptOverLimit,
-  privateReportDescription,
-  promptDebug,
-  feedback,
-  publicSubmissionLimit,
-  publicReportDescription,
-  publicSubmissionsUsed,
-  remainingPublicSubmissions,
+function SubmissionPanel({ finalSubmissionUsed, finalScore, latestPublicScore, message, pendingAction,
+  privateReportDescription, promptDebug, feedback, publicSubmissionLimit, publicReportDescription,
+  publicSubmissionsUsed, remainingPublicSubmissions,
 }: {
-  canSubmitFinal: boolean;
-  canSubmitPublic: boolean;
-  finalSubmissionUsed: boolean;
-  finalScore: number | null;
-  latestPublicScore: number | null;
-  message: string;
-  onSubmitFinal: () => void;
-  onSubmitPublic: () => void;
-  pendingAction: "public" | "final" | null;
-  participantReady: boolean;
-  promptLength: number;
-  promptOverLimit: boolean;
-  privateReportDescription: string;
-  promptDebug: SubmissionPromptDebug | null;
-  feedback: SafeSubmissionFeedback | null;
-  publicSubmissionLimit: number;
-  publicReportDescription: string;
-  publicSubmissionsUsed: number;
-  remainingPublicSubmissions: number;
+  finalSubmissionUsed: boolean; finalScore: number | null; latestPublicScore: number | null;
+  message: string; pendingAction: "public" | "final" | null;
+  privateReportDescription: string; promptDebug: SubmissionPromptDebug | null;
+  feedback: SafeSubmissionFeedback | null; publicSubmissionLimit: number;
+  publicReportDescription: string; publicSubmissionsUsed: number; remainingPublicSubmissions: number;
 }) {
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-        Submissions
-      </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">
-        Test attempts and final
-      </h2>
-      <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
-        Test attempts are counted and use {publicReportDescription}. Final
-        submission can only be used once and runs on {privateReportDescription}.
-        Please wait for each submission to finish before trying again.
-      </div>
-      <p
-        className={`mt-3 text-xs ${
-          promptOverLimit ? "text-red-700" : "text-slate-500"
-        }`}
-      >
-        Clinical prompt length: {promptLength.toLocaleString()} /{" "}
-        {MAX_PROMPT_CHARS.toLocaleString()} characters
-        {promptOverLimit ? `. ${promptTooLongMessage}` : ""}
-      </p>
-      {finalSubmissionUsed ? (
-        <div className="mt-4 rounded-md border border-teal-200 bg-teal-50 p-3 text-sm leading-6 text-teal-950">
-          <p className="font-semibold">
-            Final submitted. Your final prompt has been recorded.
-          </p>
-          <p>Final submissions can only be made once.</p>
-          {finalScore !== null ? (
-            <p className="mt-1 font-semibold">
-              Final score: {Math.round(finalScore)}%
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="mt-4 grid gap-3">
-        <div className="rounded-md border border-slate-200 px-3 py-3">
-          <p className="text-sm font-semibold text-slate-700">
-            Test attempts remaining
-          </p>
-          <p className="mt-1 text-2xl font-semibold text-slate-950">
-            {remainingPublicSubmissions}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            {publicSubmissionsUsed} of {publicSubmissionLimit} attempts used
-          </p>
-          {latestPublicScore !== null ? (
-            <p className="mt-2 text-sm text-slate-600">
-              Latest test score: {Math.round(latestPublicScore)}%
-            </p>
-          ) : null}
-          <button
-            type="button"
-            onClick={onSubmitPublic}
-            disabled={
-              !participantReady ||
-              !canSubmitPublic ||
-              remainingPublicSubmissions === 0 ||
-              promptOverLimit ||
-              pendingAction !== null
-            }
-            className="mt-3 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-        >
-            {pendingAction === "public" ? "Submitting..." : "Use test attempt"}
-          </button>
-        </div>
-        <div className="rounded-md border border-slate-200 px-3 py-3">
-          <p className="text-sm font-semibold text-slate-700">
-            Final submission
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            {finalSubmissionUsed ? "Already used" : "Available"}
-          </p>
-          {finalScore !== null ? (
-            <p className="mt-2 text-sm text-slate-600">
-              Final score: {Math.round(finalScore)}%
-            </p>
-          ) : null}
-          <button
-            type="button"
-            onClick={onSubmitFinal}
-            disabled={
-              !participantReady ||
-              !canSubmitFinal ||
-              finalSubmissionUsed ||
-              promptOverLimit ||
-              pendingAction !== null
-            }
-            className="mt-3 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-          >
-            {pendingAction === "final" ? "Submitting final..." : "Submit final"}
-          </button>
-        </div>
-      </div>
-      {message ? (
-        <p className="mt-4 rounded-md bg-teal-50 p-3 text-sm leading-6 text-teal-900">
-          {message}
-        </p>
-      ) : null}
-      {feedback ? <SafeFeedbackPanel feedback={feedback} /> : null}
-      {promptDebug ? (
-        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-          <p className="font-semibold text-slate-800">
-            Last {promptDebug.kind === "public" ? "test attempt" : "final"} prompt
-          </p>
-          <p className="mt-1 break-words">{promptDebug.promptPreview}</p>
-          <p className="mt-1 font-mono">
-            {promptDebug.promptLength} chars
-          </p>
-        </div>
-      ) : null}
-    </section>
-  );
+  return <section aria-label="Practice and final results" className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 className="text-xl font-semibold text-slate-950">Results and feedback</h2>
+    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="rounded-lg bg-slate-50 p-3"><p className="text-sm text-slate-600">Test attempts remaining</p><p className="mt-1 text-2xl font-semibold">{remainingPublicSubmissions}</p><p className="text-xs text-slate-500">{publicSubmissionsUsed} of {publicSubmissionLimit} used</p></div>
+      <div className="rounded-lg bg-slate-50 p-3"><p className="text-sm text-slate-600">Latest test score</p><p className="mt-1 text-2xl font-semibold">{latestPublicScore === null ? "Not evaluated" : `${Math.round(latestPublicScore)}%`}</p><p className="text-xs text-slate-500">{publicReportDescription}</p></div>
+      <div className="rounded-lg bg-slate-50 p-3"><p className="text-sm text-slate-600">Final submission</p><p className="mt-1 font-semibold">{finalSubmissionUsed ? "Final submitted" : "Not submitted"}</p><p className="text-xs text-slate-500">{finalScore !== null ? `Final score: ${Math.round(finalScore)}%` : finalSubmissionUsed ? "Results await organizer reveal" : privateReportDescription}</p></div>
+    </div>
+    <div role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-slate-700">
+      {pendingAction ? "Evaluating your instructions. Please keep this page open and wait before submitting again." : message || (!feedback ? "Your next test result and field-by-field feedback will appear here." : "")}
+    </div>
+    {feedback ? <SafeFeedbackPanel feedback={feedback} /> : null}
+    {promptDebug ? <details className="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold">Last submitted instructions</summary><p className="mt-2 whitespace-pre-wrap break-words">{promptDebug.promptPreview}</p><p className="mt-1 text-xs">{promptDebug.promptLength} characters</p></details> : null}
+  </section>;
 }
 
 function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
   const isPublic = feedback.kind === "public";
-  if (isPublic && feedback.clinicalComparisons) return <section className="rounded border bg-white p-3 text-slate-900"><h3 className="font-semibold">Practice clinical feedback</h3><p>Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Review the report alongside its reference labels.</p>{feedback.clinicalComparisons.map(r => <details key={r.report}><summary>{r.report}</summary><table className="w-full text-xs"><thead><tr><th>Field</th><th>Extraction</th><th>Reference</th><th>Match</th></tr></thead><tbody>{r.fields.map(f => <tr key={f.field}><td>{f.field}</td><td>{f.noDecision ? "No decision" : String(f.actual)}</td><td>{String(f.expected)}</td><td>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></details>)}</section>;
+  if (isPublic && feedback.clinicalComparisons) return <section className="mt-4 text-slate-900"><h3 className="font-semibold">Practice clinical feedback</h3><p className="mt-1 text-sm text-slate-600">Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Compare the model’s extraction with the reference for each report.</p><div className="mt-3 grid gap-2">{feedback.clinicalComparisons.map(r => <details key={r.report} className="min-w-0 rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer font-semibold">{r.report}</summary><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[440px] text-left text-sm"><caption className="sr-only">Field comparison for {r.report}</caption><thead className="bg-slate-50"><tr>{["Field", "Extraction", "Reference", "Match"].map(h => <th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{r.fields.map(f => <tr key={f.field} className="border-t border-slate-100"><th scope="row" className="p-2 font-medium">{f.field.replaceAll("_", " ")}</th><td className="p-2">{f.noDecision ? "No decision" : String(f.actual).replaceAll("_", " ")}</td><td className="p-2">{String(f.expected).replaceAll("_", " ")}</td><td className={`p-2 font-semibold ${f.correct ? "text-teal-700" : "text-amber-800"}`}>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></div></details>)}</div></section>;
+
 
   return (
     <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">

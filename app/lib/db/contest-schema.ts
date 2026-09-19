@@ -1,4 +1,5 @@
 import "server-only";
+import {expireSandboxJobs} from "./sandbox";
 import type { Database } from "./database";
 import { validateContestSchema } from "../contest-schema";
 import {
@@ -19,10 +20,11 @@ type ContestRow = {
   management_revision:number;
   evaluation_model:string|null;
   public_submission_limit:number;
+  sandbox_enabled:boolean;
 };
 export async function contestSchemaState(db: Database, contestId?: string) {
   const [c] = await db.sql<ContestRow>(
-    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
+    "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit,sandbox_enabled FROM challenges WHERE $1::uuid IS NULL OR id=$1 ORDER BY is_active DESC, created_at DESC LIMIT 1",
     [contestId ?? null],
   );
   if (!c) {
@@ -37,6 +39,8 @@ export async function contestSchemaState(db: Database, contestId?: string) {
     "SELECT p.participant_code,s.submission_type,s.attempt_number,s.score,s.submitted_at FROM submissions s JOIN participants p ON p.id=s.participant_id WHERE s.challenge_id=$1 ORDER BY s.submitted_at DESC LIMIT 200",[c.id]);
   return {
     history,
+    sandboxEnabled:c.sandbox_enabled,
+    sandboxSamples:await db.sql<{id:string;filename:string}>("SELECT id,filename FROM reports WHERE challenge_id=$1 AND split='sample' ORDER BY id",[c.id]),
     revision:c.management_revision,
     evaluationModel:c.evaluation_model,
     practiceBudget:c.public_submission_limit,
@@ -62,7 +66,7 @@ export async function saveContestSchema(db: Database, payload: unknown) {
   return db.transaction(async (tx) => {
     await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
     const [c] = await tx.sql<ContestRow>(
-      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit FROM challenges WHERE id=$1 FOR UPDATE",
+      "SELECT id,mode_id,schema_version,contest_schema,schema_locked,schema_ready,archived_at,management_revision,evaluation_model,public_submission_limit,sandbox_enabled FROM challenges WHERE id=$1 FOR UPDATE",
       [p.contestId],
     );
     if (!c || c.id !== p.contestId || c.schema_version !== p.expectedVersion || (p.expectedRevision !== undefined && p.expectedRevision !== c.management_revision))
@@ -94,6 +98,8 @@ export async function saveContestSchema(db: Database, payload: unknown) {
 
       return { ok: true, contestId: created.id, schema: next };
     }
+    await expireSandboxJobs(tx);
+    if ((await tx.sql("SELECT id FROM sandbox_jobs WHERE challenge_id=$1 AND status='running' LIMIT 1",[c.id])).length) throw new Error("Wait for in-flight sandbox work before editing.");
     if (c.schema_locked || c.archived_at)
       throw new Error(
         "Contest is locked. Create a new contest version before editing.",

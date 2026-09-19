@@ -1,4 +1,5 @@
-import { withProviderSlot } from "./provider-concurrency";
+import { ProviderAdmissionError, retryAfterMs, withAdmissionRetry } from "./provider-retry";
+import { withProviderSlot, type ProviderTaskOptions } from "./provider-concurrency";
 import { educationOutputSchema, parseEducationOutput } from "./education-contract";
 import "server-only";
 
@@ -6,13 +7,14 @@ import type { ChallengeModeDefinition } from "./challenge-modes";
 import { resolveChallengeEvaluationModel } from "./model-options";
 import {
   buildOpenRouterMessages,
+  openRouterReasoningOptions,
   type OpenRouterMessage,
 } from "./openrouter-contract";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
-const defaultModel = "google/gemini-2.0-flash-001";
-const defaultConcurrency = 3;
-const requestTimeoutMs = 30000;
+const defaultModel = "qwen/qwen3.5-9b";
+const defaultConcurrency = 20;
+const requestTimeoutMs = 60000;
 
 type OpenRouterResponse = {
   choices?: Array<{
@@ -41,7 +43,7 @@ export function getOpenRouterConcurrency() {
     return defaultConcurrency;
   }
 
-  return Math.min(Math.max(parsed, 1), 10);
+  return Math.min(Math.max(parsed, 1), 20);
 }
 
 export function hasOpenRouterApiKey() {
@@ -53,11 +55,13 @@ async function extractReportRequest({
   reportText,
   model,
   mode,
+  signal,
 }: {
   prompt: string;
   reportText: string;
   model?: string;
   mode?: ChallengeModeDefinition;
+  signal?: AbortSignal;
 }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -66,6 +70,9 @@ async function extractReportRequest({
   }
 
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", cancel, { once: true });
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
   const messages: OpenRouterMessage[] = buildOpenRouterMessages({
@@ -87,12 +94,21 @@ async function extractReportRequest({
       body: JSON.stringify({
         model: model || getOpenRouterModel(),
         messages,
+        ...openRouterReasoningOptions(model || getOpenRouterModel()),
         temperature: 0,
         max_tokens: mode?.education ? Math.min(8192, 256 + mode.fields.length * 96) : 300,
         ...(mode?.education ? { response_format: { type: "json_schema", json_schema: { name: "clinical_decisions", strict: true, schema: educationOutputSchema(mode) } }, provider: { require_parameters: true } } : {}),
       }),
     });
   if (!response.ok) {
+    if (response.status === 429) throw new ProviderAdmissionError(retryAfterMs(response.headers.get("retry-after")));
+    if (response.status === 402) {
+      const body = await response.json().catch(() => null);
+      const metadata = body?.error?.metadata;
+      if (metadata?.limit_source === "openrouter_in_flight_budget" && metadata?.reason === "in_flight_budget_exhausted") {
+        throw new ProviderAdmissionError(retryAfterMs(response.headers.get("retry-after")));
+      }
+    }
     throw new Error(
       `OpenRouter request failed with status ${response.status}`,
     );
@@ -108,11 +124,14 @@ async function extractReportRequest({
   if (mode?.education) parseEducationOutput(content, mode);
   return content;
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw new Error("OpenRouter request timed out. Please try again.");
+    if (error instanceof Error && error.name === "AbortError") throw new Error(signal?.aborted ? "Evaluation cancelled." : "OpenRouter request timed out. Please try again.");
     throw error;
-  } finally { clearTimeout(timeout); }
+  } finally { clearTimeout(timeout); signal?.removeEventListener("abort", cancel); }
 }
 
-export async function extractReportWithOpenRouter(input: Parameters<typeof extractReportRequest>[0]) {
-  return withProviderSlot(getOpenRouterConcurrency(), () => extractReportRequest(input));
+export async function extractReportWithOpenRouter(input: Parameters<typeof extractReportRequest>[0], scheduling: ProviderTaskOptions = {}) {
+  return withAdmissionRetry(
+    () => withProviderSlot(getOpenRouterConcurrency(), () => extractReportRequest(input), { ...scheduling, signal: input.signal }),
+    { signal: input.signal },
+  );
 }

@@ -1,10 +1,6 @@
-import { connection } from "next/server";
 import { ChallengeWorkspace } from "../components/ChallengeWorkspace";
-import { getPublicChallengeReports } from "../lib/challenge-data";
 
-export default async function ChallengePage() {
-  await connection();
-  const reports = await getPublicChallengeReports();
-
-  return <ChallengeWorkspace initialParticipantId="" reports={reports} />;
+export default function ChallengePage() {
+  // Report contents are fetched only through the authenticated API.
+  return <ChallengeWorkspace initialParticipantId="" reports={[]} />;
 }

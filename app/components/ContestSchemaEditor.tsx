@@ -14,6 +14,8 @@ type State = {
   revision:number;
   evaluationModel:string|null;
   practiceBudget:number;
+  sandboxEnabled?:boolean;
+  sandboxSamples?:{id:string;filename:string}[];
   schema: ChallengeModeDefinition;
   locked: boolean;
   ready: boolean;
@@ -28,6 +30,7 @@ export function ContestSchemaEditor() {
   const [title, setTitle] = useState("");
   const [model, setModel] = useState<string>(evaluationModelOptions[0].id);
   const [budget, setBudget] = useState(5);
+  const [sampleIds,setSampleIds]=useState<string[]>([]);
   const generation = useRef(0);
   const listGeneration = useRef(0);
   const writing = useRef(false);
@@ -43,7 +46,7 @@ export function ContestSchemaEditor() {
     writing.current = true;
     setBusy(true);
     try {
-      const r=await fetch("/api/admin/contests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,contestId:state.contestId,expectedVersion:state.schema.version,expectedRevision:state.revision,title,schema:state.schema,evaluationModel:action==='settings'?state.evaluationModel:model,practiceBudget:action==='settings'?state.practiceBudget:budget})});
+      const r=await fetch("/api/admin/contests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,contestId:state.contestId,expectedVersion:state.schema.version,expectedRevision:state.revision,title,schema:state.schema,evaluationModel:action==='settings'?state.evaluationModel:model,practiceBudget:action==='settings'?state.practiceBudget:budget,...(action==='sandbox'?{sandboxEnabled:!!state.sandboxEnabled,...(sampleIds.length?{sampleIds}:{})}:{})})});
       const b=await r.json(); if(!r.ok) throw new Error(b.error);
       setMessage(action==='activate'?"Contest selected. Open practice separately in the active-contest controls.":"Saved. Existing contest data preserved.");
       await refreshList(); if(b.contestId===state.contestId) await load(state.contestId); else setSelected(b.contestId);
@@ -62,7 +65,7 @@ export function ContestSchemaEditor() {
       if (token !== generation.current) return;
       if (!r.ok) throw new Error(b.error);
       if (b.contestId !== target) throw new Error("Contest response did not match selection. Select again to reload.");
-      setState(b);
+      setState(b); setSampleIds([]);
     } catch (e) {
       if (token === generation.current) setMessage(e instanceof Error ? e.message : "Could not load schema.");
     }
@@ -127,8 +130,8 @@ export function ContestSchemaEditor() {
     });
   }
   return (
-    <section className="space-y-4 rounded border bg-white p-5 text-slate-900">
-      <h2 className="text-xl font-bold">Contest Library</h2>
+    <section className="contest-library space-y-5 rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm sm:p-6">
+      <header><p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Contest management</p><h2 className="mt-2 text-2xl font-semibold">Contest Library</h2></header>
       <label className="grid gap-2">Selected contest (does not change the active contest)
         <select aria-label="Selected contest" disabled={busy} value={selected} onChange={e=>{if(writing.current) return; ++generation.current; setState(null); setMessage(""); setSelected(e.target.value);}} className="border p-2">
           {contests.map(c=><option key={c.id} value={c.id}>{c.title} — {c.is_active?'ACTIVE':c.archived_at?'archived':'inactive'} · {c.report_count} reports · {c.submission_count} submissions</option>)}
@@ -136,8 +139,8 @@ export function ContestSchemaEditor() {
       </label>
       <p>Other organizer controls apply to the active contest only. This library edits the explicitly selected contest. Import readiness is structural, not clinical reference approval.</p>
       {state && state.contestId === selected ? <>
-      <button disabled={busy || !state.ready} onClick={()=>{if(window.confirm("Switch to this contest and pause submissions? Confirm reference review is complete. In-flight work blocks switching.")) void library('activate');}}>Activate selected contest (paused)</button>{' '}
-      <button disabled={busy} onClick={()=>{if(window.confirm("Archive selection without deleting its reports, results or team history?")) void library('archive');}}>Archive selected contest</button>
+      <div className="contest-library-actions"><button disabled={busy || !state.ready} onClick={()=>{if(window.confirm("Switch to this contest and pause submissions? Confirm reference review is complete. In-flight work blocks switching.")) void library('activate');}}>Activate selected contest (paused)</button>{' '}
+      <button disabled={busy} onClick={()=>{if(window.confirm("Archive selection without deleting its reports, results or team history?")) void library('archive');}}>Archive selected contest</button></div>
       <details><summary>Create empty inactive contest from this configuration</summary>
         <label>New title<input aria-label="New contest title" value={title} onChange={e=>setTitle(e.target.value)} className="border p-2" /></label>
         <label>Fixed model<select aria-label="New contest model" value={model} onChange={e=>setModel(e.target.value)}>{evaluationModelOptions.map(m=><option key={m.id} value={m.id}>{m.id}</option>)}</select></label>
@@ -149,6 +152,16 @@ export function ContestSchemaEditor() {
         <label>Practice budget<input aria-label="Selected contest budget" type="number" value={state.practiceBudget} onChange={e=>setState({...state,practiceBudget:Number(e.target.value)})} /></label>
         <button onClick={()=>void library('settings')}>Save selected contest settings (paused)</button>
       </fieldset>
+      <details className="rounded border p-3"><summary>Sandbox configuration</summary>
+        <p>Three unscored editable samples; one run per participant followed by a 60-second cooldown. Samples can only be reassigned before any runs or scored attempts. Public reports stay unchanged.</p>
+        <label><input type="checkbox" checked={!!state.sandboxEnabled} disabled={busy} onChange={e=>setState({...state,sandboxEnabled:e.target.checked})}/> Enable sandbox during open practice</label>
+        <p>Current samples: {state.sandboxSamples?.map(r=>r.filename).join(', ') || 'None selected'}</p>
+        {!state.locked && <details><summary>Choose three held-out reports as sandbox samples</summary>
+          {state.reports.filter(r=>r.split==='private').map(r=><label className="block" key={r.id}><input type="checkbox" checked={sampleIds.includes(r.id)} disabled={busy} onChange={e=>setSampleIds(e.target.checked?[...sampleIds,r.id]:sampleIds.filter(id=>id!==r.id))}/>{r.filename}</label>)}
+          <p>{sampleIds.length} selected</p>
+        </details>}
+        <button disabled={busy} onClick={()=>void library('sandbox')}>Save sandbox configuration</button>
+      </details>
       <h3>Selected contest fields and answer keys</h3>
       <p>
         Version {state.schema.version} · {state.schema.fields.length} fields ·{" "}
@@ -221,7 +234,7 @@ export function ContestSchemaEditor() {
           />
         </label>
         {state.schema.fields.map((f, i) => (
-          <div key={i} className="grid gap-2 rounded border p-3 md:grid-cols-3">
+          <div key={i} className="contest-field-card">
             <label>
               Key{" "}
               <input
@@ -263,7 +276,7 @@ export function ContestSchemaEditor() {
                 <option value="number">Measurement</option>
               </select>
             </label>
-            <label>
+            <label className="contest-field-wide">
               Instructions{" "}
               <textarea
                 className="border p-1"
@@ -317,7 +330,7 @@ export function ContestSchemaEditor() {
                 ))}
               </>
             ) : (
-              <label>
+              <label className="contest-field-wide">
                 Labels (comma-separated)
                 <input
                   className="border p-1"
@@ -390,7 +403,7 @@ export function ContestSchemaEditor() {
         </button>
         <button
           type="button"
-          className="ml-4 rounded bg-teal-800 p-2 text-white"
+          className="rounded bg-teal-800 p-2 text-white"
           onClick={() => void save("schema")}
         >
           Save schema as new draft version
