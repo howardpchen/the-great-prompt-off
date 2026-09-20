@@ -44,3 +44,27 @@ Common simulation baseline is computed with exactly the same deterministic simul
 - Playwright `tests/e2e/education.pw.ts`: protected fixture credentials, explicit `E2E_ALLOW_MUTATIONS=true`, disposable app only. Forks synthetic contest, validates baseline equality, one editor, final hiding/replay/reveal and debrief.
 
 Keep the server at one app process for the process-wide provider semaphore. Multi-replica provider limits require a distributed queue before scale-out. Provider routing/latency and real-model clinical performance still require separate calibration.
+
+## Versioned system instruction
+
+Team Challenge schemas can opt in to the reusable clinical-extraction system contract
+with `education.systemPromptVersion: "clinical-extraction-v1"`. The enclosing
+`education.version: 1` and `education.pipeline: "structured-v1"` remain unchanged.
+An omitted selector preserves the historical system instruction byte-for-byte;
+unknown selectors are rejected rather than silently falling back.
+
+The opt-in contract delegates clinical interpretation to participant instructions.
+The application appends only field identities, allowed values and numeric units,
+while retaining its existing strict structured-output schema. Organizer clinical
+definitions and the editor baseline are not appended to provider requests. The
+baseline is sent only when a participant uses it as their submitted instructions.
+Sandbox and scored evaluations use the same contract. Explicit `no_decision` is
+still an abstention, not an automatic conversion to any clinical label; malformed
+responses and provider failures remain errors.
+
+Select the contract through the existing validated contest-schema save interface
+on an unlocked draft. For a scored/locked contest, create a fresh inactive version
+first; never modify historical evaluation semantics in place. Forks and recorded
+run snapshots preserve the selector. A fork creates an inactive draft with copied reports and reference answers;
+readiness and operational settings must still be verified before activation. The baseline text and activation remain independent decisions. No
+private contest configuration, reports or answer keys belong in the repository.

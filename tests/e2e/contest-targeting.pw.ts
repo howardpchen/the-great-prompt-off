@@ -8,88 +8,33 @@ async function login(page: Page, context: BrowserContext) {
   await page.goto("/admin");
   await page.getByLabel("Admin secret").fill(readFileSync(process.env.ADMIN_SECRET_FILE!, "utf8").trim());
   await page.getByRole("button", { name: "Enter admin", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Contest Library", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Run contest", exact: true })).toBeVisible();
   const origin = process.env.E2E_BASE_URL || "http://localhost:3000";
   return request.newContext({ baseURL: origin, extraHTTPHeaders: { Origin: origin, Cookie: (await context.cookies()).map(c => `${c.name}=${c.value}`).join("; ") } });
 }
 
-test("selection failures/out-of-order reads cannot expose old actions; writes own every refresh", async ({page, context}) => {
-  const api = await login(page, context);
-  const ids = ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002", "10000000-0000-4000-8000-000000000003"];
-  const state = (id: string) => ({ contestId: id, revision: 1, schema: {...twelveBinaryTemplate, title: `Fixture ${ids.indexOf(id)}`, version: 1}, evaluationModel: "qwen/qwen3.5-9b", practiceBudget: 5, locked: false, ready: true, reports: [] });
-  const reads: {id: string; route: Route}[] = [];
-  const writes: Route[] = [];
-  let automatic = true;
-  await page.route("**/api/admin/contests", async route => {
-    if (route.request().method() === "POST") { writes.push(route); return; }
-    await route.fulfill({json:{contests:ids.map((id,i) => ({id,title:`Fixture ${i}`,is_active:i===0,report_count:0,submission_count:0}))}});
-  });
-  await page.route("**/api/admin/contest-schema", route => { writes.push(route); });
-  await page.route("**/api/admin/contest-schema?*", async route => {
-    const id = new URL(route.request().url()).searchParams.get("contestId")!;
-    if (automatic) await route.fulfill({json:state(id)});
-    else reads.push({id,route});
-  });
-  await page.reload();
-  const select = page.getByLabel("Selected contest", {exact:true});
-  const save = page.getByRole("button", {name:"Save selected contest settings (paused)",exact:true});
-  await expect(save).toBeEnabled();
-  automatic = false;
-  await select.selectOption(ids[1]);
-  await expect.poll(() => reads.length).toBe(1);
-  await expect(save).toHaveCount(0);
-  await expect(page.getByRole("button", {name:"Archive selected contest",exact:true})).toHaveCount(0);
-  expect(writes).toHaveLength(0);
-  await select.selectOption(ids[2]);
-  await expect.poll(() => reads.length).toBe(2);
-  await reads[1].route.fulfill({json:state(ids[2])});
-  await expect(save).toBeEnabled();
-  await reads[0].route.fulfill({json:state(ids[1])});
-  await page.waitForLoadState("networkidle");
-  await expect(select).toHaveValue(ids[2]);
-  await expect(page.getByLabel("Contest title", {exact:true})).toHaveValue("Fixture 2");
-  await select.selectOption(ids[1]);
-  await expect.poll(() => reads.length).toBe(3);
-  await reads[2].route.fulfill({status:503,json:{error:"Controlled selection failure"}});
-  await expect(page.getByRole("status")).toContainText("Controlled selection failure");
-  await expect(save).toHaveCount(0);
-  expect(writes).toHaveLength(0);
-  await select.selectOption(ids[0]);
-  await expect.poll(() => reads.length).toBe(4);
-  await reads[3].route.fulfill({json:state(ids[0])});
-  await expect(save).toBeEnabled();
-  await save.click();
-  await expect.poll(() => writes.length).toBe(1);
-  expect(writes[0].request().postDataJSON().contestId).toBe(ids[0]);
-  await expect(select).toBeDisabled();
-  await writes[0].fulfill({json:{contestId:ids[0]}});
-  await expect.poll(() => reads.length).toBe(5);
-  await expect(select).toBeDisabled(); // includes post-mutation list/schema refresh
-  await expect(save).toHaveCount(0);
-  await reads[4].route.fulfill({json:{...state(ids[0]),revision:2}});
-  await expect(select).toBeEnabled();
-  await select.selectOption(ids[2]);
-  await expect.poll(() => reads.length).toBe(6);
-  await reads[5].route.fulfill({json:state(ids[2])});
-  await expect(page.getByLabel("Contest title", {exact:true})).toHaveValue("Fixture 2");
-  await save.click();
-  await expect.poll(() => writes.length).toBe(2);
-  expect(writes[1].request().postDataJSON().contestId).toBe(ids[2]);
-  await writes[1].fulfill({status:409,json:{error:"Controlled write failure"}});
-  await expect(select).toBeEnabled();
-  await expect(page.getByRole("status")).toContainText("Controlled write failure");
-  await page.getByRole("button", {name:"Save schema as new draft version",exact:true}).click();
-  await expect.poll(() => writes.length).toBe(3);
-  expect(writes[2].request().postDataJSON().contestId).toBe(ids[2]);
-  expect(writes[2].request().postDataJSON().action).toBe("schema");
-  await writes[2].fulfill({json:{contestId:ids[2]}});
-  await expect.poll(() => reads.length).toBe(7);
-  await expect(select).toBeDisabled();
-  await reads[6].route.fulfill({status:503,json:{error:"Controlled mutation refresh failure"}});
-  await expect(select).toBeEnabled();
-  await expect(save).toHaveCount(0);
-  await expect(page.getByRole("status")).toContainText("Controlled mutation refresh failure");
-  await api.dispose();
+test("selection failures cannot retarget route-bound drafts; writes own every refresh", async ({page, context}) => {
+  const api=await login(page,context);
+  const created=await api.post('/api/admin/contests',{data:{action:'create',title:'Synthetic targeting draft',schema:twelveBinaryTemplate,evaluationModel:'qwen/qwen3.5-9b',practiceBudget:5}});
+  expect(created.ok()).toBe(true);const {contestId:id}=await created.json();
+  const s=await(await api.get(`/api/admin/contest-schema?contestId=${id}`)).json();
+  await page.goto(`/admin/contests/${id}`);
+  const writes:Route[]=[];const reads:Route[]=[];
+  await page.route('**/api/admin/contest-schema',r=>{writes.push(r);});
+  await page.route('**/api/admin/contest-schema?*',r=>{reads.push(r);});
+  await page.getByLabel('Contest title',{exact:true}).fill('Changed synthetic title');
+  const save=page.getByRole('button',{name:'Save draft configuration',exact:true});
+  await save.click();await expect.poll(()=>writes.length).toBe(1);
+  expect(writes[0].request().postDataJSON().contestId).toBe(id);
+  await expect(save).toBeDisabled();await expect(page.getByRole('button',{name:'Reload contest',exact:true})).toBeDisabled();
+  await writes[0].fulfill({json:{ok:true}});await expect.poll(()=>reads.length).toBe(1);await expect(save).toBeDisabled();
+  await reads[0].fulfill({json:{...s,revision:s.revision+1}});
+  await expect(page.getByRole('status').last()).toContainText('Saved');
+  await page.getByRole('button',{name:'Reload contest',exact:true}).click();await expect.poll(()=>reads.length).toBe(2);await expect(page.getByLabel('Contest title',{exact:true})).toBeDisabled();await expect(save).toBeDisabled();
+  await reads[1].fulfill({json:{...s,contestId:'10000000-0000-4000-8000-000000000001'}});
+  await expect(page.getByRole('status').last()).toContainText('mismatch');
+  await page.getByLabel('Contest title',{exact:true}).fill('Another change');await save.click();await expect.poll(()=>writes.length).toBe(2);expect(writes[1].request().postDataJSON().contestId).toBe(id);
+  await writes[1].fulfill({status:400,json:{error:'Contest changed; reload before saving.'}});await expect(page.getByRole('status').last()).toContainText('Contest changed');await api.dispose();
 });
 
 test("all DELETE verbs reject stale/missing context without changing either contest; async reads stay scoped", async ({page,context}) => {

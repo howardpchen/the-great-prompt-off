@@ -114,7 +114,7 @@ export default async function AdminHelpPage() {
 
   if (!authed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 py-10 text-slate-950">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 py-10 text-slate-950 dark:text-slate-50">
         <AdminLoginForm />
       </main>
     );
@@ -132,38 +132,38 @@ export default async function AdminHelpPage() {
 
       <AdminSectionNav currentHref="/admin/help" />
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+      <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
           Documentation
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-950">
+        <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
           Project docs
         </h2>
-        <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600 md:grid-cols-3">
+        <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600 dark:text-slate-300 md:grid-cols-3">
           <p>
-            <span className="font-semibold text-slate-800">
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
               PROJECT_ARCHITECTURE.md
             </span>{" "}
             explains how reports, prompts, model outputs, scores, submissions,
             and admin controls fit together.
           </p>
           <p>
-            <span className="font-semibold text-slate-800">
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
               DEMO_CHECKLIST.md
             </span>{" "}
             is the rehearsal and live run-of-show checklist.
           </p>
           <p>
-            <span className="font-semibold text-slate-800">
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
               deploy/README.md
             </span>{" "}
             explains PostgreSQL migrations, verification, deployment, and recovery.
           </p>
         </div>
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          Use <span className="font-semibold text-slate-800">README.md</span>{" "}
+        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+          Use <span className="font-semibold text-slate-800 dark:text-slate-100">README.md</span>{" "}
           as the short setup index and{" "}
-          <span className="font-semibold text-slate-800">
+          <span className="font-semibold text-slate-800 dark:text-slate-100">
             REPORT_IMPORT_GUIDE.md
           </span>{" "}
           for report import details.
@@ -174,12 +174,12 @@ export default async function AdminHelpPage() {
         {helpSections.map((section) => (
           <article
             key={section.title}
-            className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm"
           >
-            <h2 className="text-lg font-semibold text-slate-950">
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">
               {section.title}
             </h2>
-            <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-600">
+            <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
               {section.items.map((item) => (
                 <li key={item}>{item}</li>
               ))}

@@ -1,7 +1,7 @@
 export const CHALLENGE_CONFIGURATION_LOCK_MESSAGE =
-  "Challenge configuration is locked after the first successful submission.";
+  "Contest configuration is frozen after activation or evaluation. Duplicate as a new draft to make changes.";
 
-/** A submission row is the durable marker for successful event activity. */
+/** Historical compatibility check; permanent lifecycle state is also checked in the database. */
 export function isChallengeConfigurationLocked(successfulSubmissionCount: number) {
   return successfulSubmissionCount > 0;
 }

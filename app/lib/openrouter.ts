@@ -43,7 +43,12 @@ export function getOpenRouterConcurrency() {
     return defaultConcurrency;
   }
 
-  return Math.min(Math.max(parsed, 1), 20);
+  return Math.min(Math.max(parsed, 1), 50);
+}
+
+// Bound each submission independently of the process-wide provider ceiling.
+export function getOpenRouterSubmissionConcurrency() {
+  return Math.min(getOpenRouterConcurrency(), 20);
 }
 
 export function hasOpenRouterApiKey() {
@@ -101,11 +106,14 @@ async function extractReportRequest({
       }),
     });
   if (!response.ok) {
-    if (response.status === 429) throw new ProviderAdmissionError(retryAfterMs(response.headers.get("retry-after")));
+    if (response.status === 429 || response.status === 503) {
+      await response.body?.cancel();
+      throw new ProviderAdmissionError(retryAfterMs(response.headers.get("retry-after")));
+    }
     if (response.status === 402) {
       const body = await response.json().catch(() => null);
       const metadata = body?.error?.metadata;
-      if (metadata?.limit_source === "openrouter_in_flight_budget" && metadata?.reason === "in_flight_budget_exhausted") {
+      if (metadata?.limit_source === "openrouter_in_flight_budget" && metadata?.reason === "in_flight_budget_exhausted" && retryAfterMs(response.headers.get("retry-after")) !== null) {
         throw new ProviderAdmissionError(retryAfterMs(response.headers.get("retry-after")));
       }
     }

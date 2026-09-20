@@ -1,311 +1,38 @@
-import {readAdminPageSnapshot} from "@/app/lib/db/admin-page-snapshot";
-import {ScopedAdminPageFrame as AdminPageFrame} from "@/app/components/ScopedAdminPageFrame";
-import { ContestSchemaEditor } from "../components/ContestSchemaEditor";
-import { AdminLoginForm } from "../components/AdminLoginForm";
-import { AdminAutoRefresh } from "../components/AdminAutoRefresh";
-import { AdminModeReadiness } from "../components/AdminModeReadiness";
-import {
-  AdminEventAnnouncementControls,
-  AdminEventControls,
-  AdminEventTimerControls,
-  AdminChallengeSchemaPanel,
-  AdminEvaluationModelControls,
-  AdminLeaderboardVisibilityControls,
-  AdminLogoutButton,
-  AdminResetPanel,
-} from "../components/AdminActions";
-import {
-  AdminHeader,
-  AdminNavigationCards,
-  AdminSectionNav,
-  formatDate,
-  HealthItem,
-  MetricCard,
-} from "../components/AdminLayout";
-import { hasAdminSession } from "../lib/supabase/admin-auth";
-import { getAdminDashboardData } from "../lib/supabase/admin-dashboard";
-
-export default async function AdminPage() {
-  const authed = await hasAdminSession();
-
-  if (!authed) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 py-10 text-slate-950">
-        <AdminLoginForm />
-      </main>
-    );
-  }
-
-  const { data: data, contestContext } = await readAdminPageSnapshot(getAdminDashboardData);
-
-  return (
-    <AdminPageFrame contestContext={contestContext}>
-      <AdminHeader
-        title="Organizer dashboard"
-        subtitle="Command center for event readiness, exports, and admin tools."
-        actions={
-          <>
-            <a
-              href="/api/admin/export/access-codes"
-              className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700"
-            >
-              Export access codes CSV
-            </a>
-            <a
-              href="/api/admin/export/results"
-              className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700"
-            >
-              Export results CSV
-            </a>
-            <AdminLogoutButton />
-          </>
-        }
-      />
-
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <AdminSectionNav currentHref="/admin" />
-        <AdminAutoRefresh intervalSeconds={15} />
-      </div>
-
-      <ContestSchemaEditor />
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <MetricCard
-          label="Participants"
-          value={data.overview.totalParticipants}
-        />
-        <MetricCard
-          label="With access codes"
-          value={data.overview.participantsWithAccessCodes}
-        />
-        <MetricCard
-          label="Test submissions"
-          value={data.overview.testSubmissionsCount}
-        />
-        <MetricCard
-          label="Final submissions"
-          value={data.overview.finalSubmissionsCount}
-        />
-        <MetricCard
-          label="Completed final"
-          value={data.overview.participantsCompletedFinal}
-        />
-        <MetricCard
-          label="Latest run"
-          value={formatDate(data.overview.latestRunTimestamp)}
-        />
-      </section>
-
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-          Live event control
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-          Run the workshop
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Live controls for phases, participant messaging, visibility, and
-          readiness.
-        </p>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-            Health check
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Admin readiness
-          </h2>
-          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-            <HealthItem
-              label="Database connected"
-              value={data.health.supabaseConnected ? "Yes" : "No"}
-            />
-            <HealthItem
-              label="USE_REAL_LLM"
-              value={data.health.useRealLlm ? "true" : "false"}
-            />
-            <HealthItem
-              label="OpenRouter model"
-              value={data.health.openRouterModel}
-            />
-            <HealthItem
-              label="Environment model fallback"
-              value={data.health.openRouterEnvironmentModel}
-            />
-            <HealthItem
-              label="Challenge model override"
-              value={data.health.challengeEvaluationModel || "Not set"}
-            />
-            <HealthItem
-              label="Model source"
-              value={
-                data.health.evaluationModelSource === "challenge_override"
-                  ? "Challenge override"
-                  : "Environment fallback"
-              }
-            />
-            <HealthItem
-              label="Report split"
-              value={`${data.health.reportCounts.public} public / ${data.health.reportCounts.private} private`}
-            />
-            <HealthItem
-              label="Participants"
-              value={String(data.health.participantCount)}
-            />
-            <HealthItem
-              label="Test submissions"
-              value={String(data.health.testSubmissionsCount)}
-            />
-            <HealthItem
-              label="Final submissions"
-              value={String(data.health.finalSubmissionsCount)}
-            />
-            <HealthItem
-              label="Latest run"
-              value={formatDate(data.health.latestRunTimestamp) || "-"}
-            />
-          </div>
-        </div>
-        <div className="grid gap-5">
-          <AdminEventControls currentPhase={data.overview.eventPhase} />
-          <AdminLeaderboardVisibilityControls
-            currentVisibility={data.overview.leaderboardVisibility}
-          />
-          <AdminEventAnnouncementControls
-            currentAnnouncement={data.overview.eventAnnouncement}
-          />
-          <AdminEventTimerControls
-            currentEndsAt={data.overview.eventTimerEndsAt}
-            currentLabel={data.overview.eventTimerLabel}
-          />
-          <a
-            href="/display/leaderboard"
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-teal-500 hover:shadow-md"
-          >
-            <h2 className="text-lg font-semibold text-slate-950">
-              Open projector leaderboard
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Open the big-screen display in a new tab. It follows the current
-              participant leaderboard visibility setting.
-            </p>
-          </a>
-        </div>
-      </section>
-
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-          Difficulty & calibration
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-          Set the evaluation difficulty
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Model choice changes how much participant prompt strategy matters. Run
-          calibration after changing models.
-        </p>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <AdminEvaluationModelControls
-          currentModel={data.health.challengeEvaluationModel}
-          resolvedModel={data.health.openRouterModel}
-          fallbackModel={data.health.openRouterEnvironmentModel}
-        />
-        <a
-          href="/admin/analytics"
-          className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-teal-500 hover:shadow-md"
-        >
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-            Baseline calibration
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Compare model difficulty
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Run four fixed baseline prompts against public reports without
-            creating submissions or consuming participant attempts.
-          </p>
-          <span className="mt-4 inline-flex text-sm font-semibold text-teal-700">
-            Open Analytics
-          </span>
-        </a>
-      </section>
-
-      {!data.overview.challengeSchema.modeId.startsWith("contest_") && (
-        <AdminChallengeSchemaPanel
-          challengeSchema={data.overview.challengeSchema}
-        />
-      )}
-
-      {!data.overview.challengeSchema.modeId.startsWith("contest_") && (
-        <AdminModeReadiness
-          modes={data.overview.modeReadiness}
-          configurationLocked={
-            data.overview.challengeSchema.configurationLocked
-          }
-        />
-      )}
-
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-          Recommended run order
-        </p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-950">
-          Live workflow
-        </h2>
-        <ol className="mt-3 grid gap-2 text-sm leading-6 text-slate-600 md:grid-cols-2 xl:grid-cols-4">
-          <li>
-            <span className="font-semibold text-slate-900">1.</span> Check
-            health and model.
-          </li>
-          <li>
-            <span className="font-semibold text-slate-900">2.</span> Open
-            practice and monitor participants.
-          </li>
-          <li>
-            <span className="font-semibold text-slate-900">3.</span> Switch to
-            final when ready.
-          </li>
-          <li>
-            <span className="font-semibold text-slate-900">4.</span> Review
-            results and export.
-          </li>
-        </ol>
-      </section>
-
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-          Admin areas
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-          Monitor and manage
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Open a focused workspace for participants, results, analytics, cases,
-          or help.
-        </p>
-      </section>
-
-      <AdminNavigationCards />
-
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700">
-          Maintenance
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-          Dangerous actions
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Use only when intentionally clearing workshop run data before or after
-          an event.
-        </p>
-      </section>
-
-      <AdminResetPanel />
-    </AdminPageFrame>
-  );
+import Link from 'next/link';
+import {readAdminPageSnapshot} from '../lib/db/admin-page-snapshot';
+import {createDatabase} from '../lib/db/database';
+import {contestSchemaState} from '../lib/db/contest-schema';
+import {ScopedAdminPageFrame} from '../components/ScopedAdminPageFrame';
+import {AdminLoginForm} from '../components/AdminLoginForm';
+import {AdminAutoRefresh} from '../components/AdminAutoRefresh';
+import {AdminEventAnnouncementControls,AdminEventControls,AdminEventTimerControls,AdminLeaderboardVisibilityControls,AdminLogoutButton} from '../components/AdminActions';
+import {AdminHeader,AdminNavigationCards,AdminSectionNav,HealthItem,MetricCard,formatDate} from '../components/AdminLayout';
+import {ContestConfigurationSummary} from '../components/ContestConfigurationSummary';
+import {AdminSandboxControl} from '../components/AdminSandboxControl';
+import {hasAdminSession} from '../lib/supabase/admin-auth';
+import {getAdminDashboardData} from '../lib/supabase/admin-dashboard';
+export default async function AdminPage(){
+ if(!await hasAdminSession())return <main className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 p-8"><AdminLoginForm/></main>;
+ const {data: snapshot,contestContext}=await readAdminPageSnapshot(async active=>{
+   const data=active?await getAdminDashboardData():null;
+   const contest=active?await contestSchemaState(createDatabase(),active.id):null;
+   const [jobs]=active?await createDatabase().sql<{pending:number;failed:number}>(`SELECT
+     (SELECT count(*)::int FROM attempt_reservations WHERE challenge_id=$1 AND status='pending') +
+     (SELECT count(*)::int FROM sandbox_jobs WHERE challenge_id=$1 AND status='running') AS pending,
+     (SELECT count(*)::int FROM sandbox_jobs WHERE challenge_id=$1 AND status='failed') AS failed`,[active.id]):[{pending:0,failed:0}];
+   return {data,contest,jobs};
+ });
+ const {data,contest,jobs}=snapshot;
+ return <ScopedAdminPageFrame contestContext={contestContext}>
+  <AdminHeader title="Run contest" subtitle="Operate the active event. Build and revise contests separately in the Contest Library." actions={<><Link href="/admin/contests" className="rounded border bg-white dark:bg-slate-900 px-3 py-2 font-semibold text-teal-800 dark:text-teal-300">Contest Library</Link><AdminLogoutButton/></>}/>
+  <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]"><AdminSectionNav currentHref="/admin"/><AdminAutoRefresh intervalSeconds={15}/></div>
+  {contest&&data?<>
+    <ContestConfigurationSummary state={contest} compact/>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Participants" value={data.overview.totalParticipants}/><MetricCard label="Public submissions" value={data.overview.testSubmissionsCount}/><MetricCard label="Final submissions" value={data.overview.finalSubmissionsCount}/><MetricCard label="Evaluations in progress" value={jobs.pending}/></div>
+    <section aria-label="Live event controls" className="grid items-start gap-5 xl:grid-cols-2"><div className="space-y-5"><AdminEventControls currentPhase={data.overview.eventPhase}/>{contest.schema.education&&<AdminSandboxControl contestId={contest.contestId} version={contest.schema.version} revision={contest.revision} enabled={!!contest.sandboxEnabled}/>}<AdminLeaderboardVisibilityControls currentVisibility={data.overview.leaderboardVisibility}/><Link href="/display/leaderboard" target="_blank" rel="noreferrer" className="block rounded-lg border bg-white dark:bg-slate-900 p-4 font-semibold text-teal-800 dark:text-teal-300">Open projector leaderboard ↗</Link></div><div className="space-y-5"><AdminEventAnnouncementControls currentAnnouncement={data.overview.eventAnnouncement}/><AdminEventTimerControls currentEndsAt={data.overview.eventTimerEndsAt} currentLabel={data.overview.eventTimerLabel}/><div className="rounded-lg border bg-white dark:bg-slate-900 p-5"><h2 className="text-lg font-semibold">Monitor participants and results</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Latest scored activity: {formatDate(data.overview.latestRunTimestamp)||'None yet'}. Failed Sandbox runs: {jobs.failed}. Review individual budgets and explicit accommodations from Participants.</p><div className="mt-3 flex flex-wrap gap-3"><Link href="/admin/participants" className="font-semibold text-teal-800 dark:text-teal-300 underline">Participants and budgets</Link><Link href="/admin/results" className="font-semibold text-teal-800 dark:text-teal-300 underline">Results and exports</Link></div></div></div></section>
+    <details className="rounded-xl border bg-white dark:bg-slate-900 p-5"><summary className="cursor-pointer font-semibold">Technical health and diagnostics</summary><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><HealthItem label="Database connected" value={data.health.supabaseConnected?'Yes':'No'}/><HealthItem label="Provider requests" value={data.health.useRealLlm?'Live provider enabled':'Simulation runtime'}/><HealthItem label="Resolved model" value={data.health.openRouterModel}/><HealthItem label="Reference readiness" value={contest.ready?'Structurally ready':'Not ready'}/></div><p className="mt-3 text-sm">Model and evaluation settings are fixed for this contest version. Use the Builder on a new draft for configuration changes.</p><Link href="/admin/analytics" className="mt-2 inline-flex font-semibold text-teal-800 dark:text-teal-300 underline">Open analytics</Link></details>
+  </>:<section className="rounded border bg-white dark:bg-slate-900 p-6"><h2 className="text-xl font-semibold">No active contest</h2><Link href="/admin/contests" className="text-teal-800 dark:text-teal-300 underline">Prepare or activate a contest from the library.</Link></section>}
+  <AdminNavigationCards/>
+  <footer className="text-sm text-slate-600 dark:text-slate-300">Need another rehearsal? Duplicate the contest to preserve its history. <Link className="underline" href="/admin/maintenance">Advanced maintenance</Link></footer>
+ </ScopedAdminPageFrame>;
 }

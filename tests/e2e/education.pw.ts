@@ -44,7 +44,7 @@ test("one-editor team rehearsal: baseline, shared practice, frozen final, reveal
   const replay=await (await submit("public",baseline,"edu-browser-practice")).json();expect(replay.publicSubmissionsUsed).toBe(1);
   expect((await context.request.post("/api/admin/evaluation-model",{headers,data:{model:"google/gemini-2.5-flash"}})).ok()).toBe(false);
   await page.goto("/");await page.getByLabel("Participant access code",{exact:true}).fill(accessCode);await page.getByRole("button",{name:"Enter workspace",exact:true}).click();
-  await page.getByText("Shared baseline and scoring", {exact:true}).click();
+  await page.getByText("Scoring and baseline comparison", {exact:true}).click();
   await expect(page.getByText("SIMULATION — workflow rehearsal only.",{exact:false})).toBeVisible();
   await expect(page.getByPlaceholder("Write your clinical extraction strategy here...")).toHaveValue(baseline);
   await expect(page.getByText("Field names and allowed values", {exact:true})).toBeVisible();

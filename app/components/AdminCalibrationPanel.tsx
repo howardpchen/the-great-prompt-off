@@ -58,16 +58,16 @@ export function AdminCalibrationPanel() {
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Difficulty calibration
           </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+          <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
             Baseline prompt check
           </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
             Runs four fixed prompts against public reports using the current
             configured evaluation model. Results are temporary diagnostics only.
           </p>
@@ -76,51 +76,51 @@ export function AdminCalibrationPanel() {
           type="button"
           onClick={runCalibration}
           disabled={isPending}
-          className="h-10 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="h-10 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
         >
           {isPending ? "Running calibration..." : "Run baseline check"}
         </button>
       </div>
 
-      <p className="mt-3 text-xs leading-5 text-slate-500">
+      <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
         {result
           ? `This runs 4 baseline prompts across ${result.reportCount} public reports, for up to ${result.reportCount * 4} model calls.`
           : "This runs 4 baseline prompts across the public reports, for up to 4 model calls per public report."} It does not create submissions, consume attempts, or use private reports.
       </p>
 
       {error ? (
-        <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-800">
+        <p className="mt-4 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-sm leading-6 text-rose-800 dark:text-rose-300">
           {error}
         </p>
       ) : null}
 
       {result ? (
         <div className="mt-5 overflow-x-auto">
-          <div className="mb-3 flex flex-wrap gap-2 text-xs text-slate-600">
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold">
+          <div className="mb-3 flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <span className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 font-semibold">
               Model: {result.model}
             </span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold">
+            <span className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 font-semibold">
               Friendly name: {getFriendlyModelName(result.model)}
             </span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold">
+            <span className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 font-semibold">
               Source: {result.modelSource === "challenge_override" ? "Challenge override" : "Environment fallback"}
             </span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold">
+            <span className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 font-semibold">
               Environment fallback: {result.environmentModel}
             </span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold">
+            <span className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 font-semibold">
               Challenge override: {result.challengeModel || "Not set"}
             </span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold">
+            <span className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 font-semibold">
               Public reports: {result.reportCount}
             </span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold">
+            <span className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 font-semibold">
               Fields per report: {result.fieldCount}
             </span>
           </div>
           <table className="w-full min-w-[680px] border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-3 font-semibold">Baseline</th>
                 <th className="px-3 py-3 font-semibold">Score</th>
@@ -130,17 +130,17 @@ export function AdminCalibrationPanel() {
             </thead>
             <tbody>
               {result.baselines.map((baseline) => (
-                <tr key={baseline.id} className="border-t border-slate-100">
-                  <td className="px-3 py-3 font-semibold text-slate-800">
+                <tr key={baseline.id} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100">
                     {baseline.label}
                   </td>
-                  <td className="px-3 py-3 font-semibold text-slate-950">
+                  <td className="px-3 py-3 font-semibold text-slate-950 dark:text-slate-50">
                     {Math.round(baseline.score)}%
                   </td>
-                  <td className="px-3 py-3 text-slate-600">
+                  <td className="px-3 py-3 text-slate-600 dark:text-slate-300">
                     {baseline.correctFields}/{baseline.totalFields}
                   </td>
-                  <td className="px-3 py-3 font-mono text-xs text-slate-600">
+                  <td className="px-3 py-3 font-mono text-xs text-slate-600 dark:text-slate-300">
                     {baseline.reportScores
                       .map((score) => formatFieldScore(score, result.fieldCount))
                       .join(" / ")}
@@ -149,12 +149,12 @@ export function AdminCalibrationPanel() {
               ))}
             </tbody>
           </table>
-          <p className="mt-4 text-sm leading-6 text-slate-600">
+          <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Interpretation: if blank or nonsense prompts score very high, the
             current model/report set may be too easy. Strong participant prompts
             should show a meaningful gap above these baselines.
           </p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
+          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Blank and nonsense should score low. Partial ACL-only should usually
             score somewhere in the middle because it only gives a usable
             strategy for one field. Basic all-findings should score higher when

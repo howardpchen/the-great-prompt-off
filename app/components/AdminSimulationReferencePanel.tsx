@@ -135,41 +135,41 @@ export function AdminSimulationReferencePanel({
   }
 
   return (
-    <section aria-labelledby="simulation-reference-heading" className="grid gap-5 border-y border-slate-200 py-6">
+    <section aria-labelledby="simulation-reference-heading" className="grid gap-5 border-y border-slate-200 dark:border-slate-700 py-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Simulation-only regression checking</p>
-          <h2 id="simulation-reference-heading" className="mt-2 text-2xl font-semibold text-slate-950">Reference baseline</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">Simulation-only regression checking</p>
+          <h2 id="simulation-reference-heading" className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-50">Reference baseline</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
             Compare completed deterministic rehearsals against one reference batch. This is not clinical validation and does not affect live workshop results.
           </p>
         </div>
         {data?.reference ? (
-          <button type="button" onClick={() => void clearReference()} disabled={clearing} className="inline-flex h-10 w-fit items-center rounded-md border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+          <button type="button" onClick={() => void clearReference()} disabled={clearing} className="inline-flex h-10 w-fit items-center rounded-md border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 disabled:opacity-50">
             {clearing ? "Clearing..." : "Clear reference"}
           </button>
         ) : null}
       </div>
 
-      {error ? <p role="alert" className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p> : null}
-      {loading && !data ? <p className="text-sm text-slate-600">Loading reference baseline...</p> : null}
+      {error ? <p role="alert" className="rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 px-4 py-3 text-sm text-rose-800 dark:text-rose-300">{error}</p> : null}
+      {loading && !data ? <p className="text-sm text-slate-600 dark:text-slate-300">Loading reference baseline...</p> : null}
 
       {data && !data.reference ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-5 py-8 text-sm text-slate-600 shadow-sm">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-8 text-sm text-slate-600 dark:text-slate-300 shadow-sm">
           No reference is set. Mark a completed batch below to begin deterministic regression checking.
         </div>
       ) : null}
 
       {data?.reference ? (
         <>
-          <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-5 py-4">
+          <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950 px-5 py-4">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Current reference</p>
-                <h3 className="mt-1 text-lg font-semibold text-slate-950">{data.reference.label || formatTimestamp(data.reference.createdAt)}</h3>
-                <p className="mt-1 break-all text-xs text-slate-600">{data.reference.batchId}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-300">Current reference</p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">{data.reference.label || formatTimestamp(data.reference.createdAt)}</h3>
+                <p className="mt-1 break-all text-xs text-slate-600 dark:text-slate-300">{data.reference.batchId}</p>
               </div>
-              <span className="w-fit rounded-md border border-cyan-300 bg-white px-2.5 py-1 text-xs font-semibold text-cyan-900">{data.reference.modeId} v{data.reference.schemaVersion}</span>
+              <span className="w-fit rounded-md border border-cyan-300 dark:border-cyan-800 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-semibold text-cyan-900 dark:text-cyan-300">{data.reference.modeId} v{data.reference.schemaVersion}</span>
             </div>
             <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
               <ReferenceFact label="Scope" value={capitalize(data.reference.reportScope)} />
@@ -177,8 +177,8 @@ export function AdminSimulationReferencePanel({
               <ReferenceFact label="Profiles" value={String(data.reference.profiles.length)} />
               <ReferenceFact label="Evaluations" value={String(data.reference.totalEvaluations)} />
             </div>
-            {data.reference.notes ? <p className="mt-3 text-sm leading-6 text-slate-700">{data.reference.notes}</p> : null}
-            <p className="mt-3 text-xs text-slate-600">{data.reference.disclaimer}</p>
+            {data.reference.notes ? <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-200">{data.reference.notes}</p> : null}
+            <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">{data.reference.disclaimer}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -189,10 +189,10 @@ export function AdminSimulationReferencePanel({
           </div>
 
           <div className="grid gap-4">
-            <h3 className="text-lg font-semibold text-slate-950">Recent batches versus reference</h3>
+            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Recent batches versus reference</h3>
             {data.comparisons.length ? data.comparisons.map((comparison) => (
               <RegressionComparison key={comparison.candidate.batchId} comparison={comparison} />
-            )) : <p className="rounded-lg border border-slate-200 bg-white px-5 py-8 text-sm text-slate-600 shadow-sm">No other completed simulation batches are available for comparison.</p>}
+            )) : <p className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-8 text-sm text-slate-600 dark:text-slate-300 shadow-sm">No other completed simulation batches are available for comparison.</p>}
           </div>
         </>
       ) : null}
@@ -202,22 +202,22 @@ export function AdminSimulationReferencePanel({
 
 function RegressionComparison({ comparison }: { comparison: ReferenceResponse["comparisons"][number] }) {
   return (
-    <details className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <summary className="cursor-pointer list-none px-5 py-4 hover:bg-slate-50">
+    <details className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+      <summary className="cursor-pointer list-none px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-950">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="font-semibold text-slate-950">{formatTimestamp(comparison.candidate.createdAt)}</p>
-            <p className="mt-1 text-xs text-slate-500">{comparison.candidate.modeId} v{comparison.candidate.schemaVersion} · {comparison.candidate.reportScope}</p>
+            <p className="font-semibold text-slate-950 dark:text-slate-50">{formatTimestamp(comparison.candidate.createdAt)}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{comparison.candidate.modeId} v{comparison.candidate.schemaVersion} · {comparison.candidate.reportScope}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <DeltaBadge label="Score" value={formatSignedPoints(comparison.deltas.averageScore)} warning={comparison.deltas.averageScore !== null && Math.abs(comparison.deltas.averageScore) > 5} />
             <DeltaBadge label="JSON" value={formatSignedPoints(comparison.deltas.jsonValidityRate)} warning={comparison.deltas.jsonValidityRate !== null && comparison.deltas.jsonValidityRate < 0} />
-            <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${comparison.warnings.length ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-300 bg-emerald-50 text-emerald-800"}`}>{comparison.warnings.length ? `${comparison.warnings.length} warnings` : "Within thresholds"}</span>
+            <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${comparison.warnings.length ? "border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-300" : "border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300"}`}>{comparison.warnings.length ? `${comparison.warnings.length} warnings` : "Within thresholds"}</span>
           </div>
         </div>
       </summary>
-      <div className="border-t border-slate-200 px-5 py-4">
-        {comparison.warnings.length ? <ul className="grid gap-2">{comparison.warnings.map((warning, index) => <li key={`${warning.code}:${warning.profileId ?? "batch"}:${index}`} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{warning.message}</li>)}</ul> : <p className="text-sm text-emerald-700">No configured regression thresholds were crossed.</p>}
+      <div className="border-t border-slate-200 dark:border-slate-700 px-5 py-4">
+        {comparison.warnings.length ? <ul className="grid gap-2">{comparison.warnings.map((warning, index) => <li key={`${warning.code}:${warning.profileId ?? "batch"}:${index}`} className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-sm text-amber-900 dark:text-amber-300">{warning.message}</li>)}</ul> : <p className="text-sm text-emerald-700 dark:text-emerald-300">No configured regression thresholds were crossed.</p>}
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <ReferenceFact label="Evaluation delta" value={formatSignedNumber(comparison.deltas.totalEvaluations)} />
           <ReferenceFact label="Missing-field delta" value={formatSignedNumber(comparison.deltas.missingFieldCount)} />
@@ -226,8 +226,8 @@ function RegressionComparison({ comparison }: { comparison: ReferenceResponse["c
         </div>
         <div className="mt-4 overflow-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">Profile</th><th className="px-3 py-3">Reference</th><th className="px-3 py-3">Candidate</th><th className="px-3 py-3">Score delta</th><th className="px-3 py-3">Missing ref / candidate</th><th className="px-3 py-3">Invalid ref / candidate</th></tr></thead>
-            <tbody>{comparison.profiles.map((profile) => <tr key={`${profile.profileId}:${profile.profileVersion}`} className="border-t border-slate-100"><td className="px-3 py-3 font-semibold text-slate-900">{profile.profileLabel}</td><td className="px-3 py-3">{formatPercent(profile.referenceScore)}</td><td className="px-3 py-3">{formatPercent(profile.candidateScore)}</td><td className="px-3 py-3 font-semibold">{formatSignedPoints(profile.scoreDelta)}</td><td className="px-3 py-3">{formatPair(profile.referenceMissingFieldCount, profile.candidateMissingFieldCount)}</td><td className="px-3 py-3">{formatPair(profile.referenceInvalidValueCount, profile.candidateInvalidValueCount)}</td></tr>)}</tbody>
+            <thead className="bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"><tr><th className="px-3 py-3">Profile</th><th className="px-3 py-3">Reference</th><th className="px-3 py-3">Candidate</th><th className="px-3 py-3">Score delta</th><th className="px-3 py-3">Missing ref / candidate</th><th className="px-3 py-3">Invalid ref / candidate</th></tr></thead>
+            <tbody>{comparison.profiles.map((profile) => <tr key={`${profile.profileId}:${profile.profileVersion}`} className="border-t border-slate-100 dark:border-slate-800"><td className="px-3 py-3 font-semibold text-slate-900 dark:text-slate-100">{profile.profileLabel}</td><td className="px-3 py-3">{formatPercent(profile.referenceScore)}</td><td className="px-3 py-3">{formatPercent(profile.candidateScore)}</td><td className="px-3 py-3 font-semibold">{formatSignedPoints(profile.scoreDelta)}</td><td className="px-3 py-3">{formatPair(profile.referenceMissingFieldCount, profile.candidateMissingFieldCount)}</td><td className="px-3 py-3">{formatPair(profile.referenceInvalidValueCount, profile.candidateInvalidValueCount)}</td></tr>)}</tbody>
           </table>
         </div>
       </div>
@@ -236,15 +236,15 @@ function RegressionComparison({ comparison }: { comparison: ReferenceResponse["c
 }
 
 function ReferenceFact({ label, value }: { label: string; value: string }) {
-  return <div className="border-l-2 border-slate-300 pl-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 font-semibold text-slate-900">{value}</p></div>;
+  return <div className="border-l-2 border-slate-300 dark:border-slate-600 pl-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p><p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{value}</p></div>;
 }
 
 function ThresholdFact({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-2 text-lg font-semibold text-slate-950">{value}</p></div>;
+  return <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p><p className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-50">{value}</p></div>;
 }
 
 function DeltaBadge({ label, value, warning }: { label: string; value: string; warning: boolean }) {
-  return <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${warning ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{label} {value}</span>;
+  return <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${warning ? "border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-300" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-200"}`}>{label} {value}</span>;
 }
 
 async function readJson<T>(response: Response): Promise<T> {

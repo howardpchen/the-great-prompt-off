@@ -19,7 +19,7 @@ export default async function AdminParticipantsPage() {
 
   if (!authed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 py-10 text-slate-950">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 py-10 text-slate-950 dark:text-slate-50">
         <AdminLoginForm />
       </main>
     );
@@ -36,7 +36,7 @@ export default async function AdminParticipantsPage() {
         actions={
           <a
             href="/api/admin/export/access-codes"
-            className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700"
+            className="inline-flex h-10 items-center rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
           >
             Export access codes CSV
           </a>
@@ -49,13 +49,13 @@ export default async function AdminParticipantsPage() {
       </div>
 
       <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
           Live participant monitoring
         </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+        <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-50">
           Progress at a glance
         </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
           Track activity, attempts, and final submissions while the workshop is running.
         </p>
       </section>
@@ -77,7 +77,7 @@ export default async function AdminParticipantsPage() {
 
       {data.progressSummary.participantsWithTestAttempt === 0 &&
       data.progressSummary.participantsWithFinalSubmitted === 0 ? (
-        <p className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600 shadow-sm">
+        <p className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm leading-6 text-slate-600 dark:text-slate-300 shadow-sm">
           No participant run activity yet. This monitor will update as participants submit Test Attempts and Final Submissions.
         </p>
       ) : null}
@@ -85,13 +85,13 @@ export default async function AdminParticipantsPage() {
       <AdminProgressMonitor participants={data.participants} />
 
       <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
           Participant operations
         </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+        <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-50">
           Manage participant accounts
         </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
           Edit organizer-facing identity details, access status, and participant-specific data.
         </p>
       </section>

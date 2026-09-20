@@ -215,7 +215,7 @@ async function main() {
           event_announcement: "",
           event_timer_ends_at: null,
           event_timer_label: "",
-          is_active: true,
+          is_active: false,
         },
         conflict: { onConflict: "slug" }.onConflict,
         columns: "id",
@@ -364,6 +364,9 @@ async function main() {
         `Failed to upsert mock participants: ${participantsError.message}`,
       );
     }
+
+    // Build all reports/references before activation permanently freezes the contract.
+    await supabase.sql("UPDATE challenges SET is_active=true WHERE id=$1",[challenge.id]);
 
     const splitCounts = manifest.reduce<Record<ReportSplit, number>>(
       (counts, report) => {

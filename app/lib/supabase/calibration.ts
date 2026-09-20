@@ -2,7 +2,7 @@ import "server-only";
 
 import {
   extractReportWithOpenRouter,
-  getOpenRouterConcurrency,
+  getOpenRouterSubmissionConcurrency,
   getOpenRouterModel,
   hasOpenRouterApiKey,
   resolveOpenRouterModel,
@@ -90,7 +90,7 @@ export async function runBaselineCalibration(): Promise<CalibrationResult> {
   for (const baseline of calibrationBaselines) {
     const evaluated = await mapWithConcurrency(
       reports,
-      getOpenRouterConcurrency(),
+      getOpenRouterSubmissionConcurrency(),
       async (report) => {
         const modelOutput = await extractReportWithOpenRouter({
           prompt: baseline.prompt,

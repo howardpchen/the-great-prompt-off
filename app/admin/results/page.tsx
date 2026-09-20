@@ -18,7 +18,7 @@ export default async function AdminResultsPage() {
 
   if (!authed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 py-10 text-slate-950">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 py-10 text-slate-950 dark:text-slate-50">
         <AdminLoginForm />
       </main>
     );
@@ -35,7 +35,7 @@ export default async function AdminResultsPage() {
         actions={
           <a
             href="/api/admin/export/results"
-            className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700"
+            className="inline-flex h-10 items-center rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
           >
             Export results CSV
           </a>

@@ -35,7 +35,7 @@ export function AdminLogoutButton() {
       type="button"
       onClick={logout}
       disabled={isPending}
-      className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+      className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
     >
       {isPending ? "Logging out..." : "Logout"}
     </button>
@@ -78,18 +78,18 @@ export function AdminResetPanel() {
   }
 
   return (
-    <section className="rounded-lg border border-rose-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700">
+    <section className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700 dark:text-rose-300">
         Destructive organizer action
       </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">
+      <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
         Clear leaderboard & submissions
       </h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
         Clears test attempts, final submissions, leaderboard results, and run
         history.
       </p>
-      <p className="mt-2 rounded-md border border-rose-100 bg-rose-50 p-3 text-sm leading-6 text-rose-900">
+      <p className="mt-2 rounded-md border border-rose-100 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-sm leading-6 text-rose-900 dark:text-rose-300">
         Type RESET to confirm. This deletes prompt run items, submissions, and
         prompt runs. Participants, access codes, cases/reports, answer keys, and
         challenges are preserved.
@@ -98,18 +98,18 @@ export function AdminResetPanel() {
         value={confirmation}
         onChange={(event) => setConfirmation(event.target.value)}
         placeholder="Type RESET"
-        className="mt-4 h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
+        className="mt-4 h-10 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 text-sm outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-100 dark:focus:ring-rose-800"
       />
       <button
         type="button"
         onClick={resetWorkshopData}
         disabled={confirmation !== "RESET" || isPending}
-        className="mt-3 h-10 rounded-md bg-rose-700 px-4 text-sm font-semibold text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+        className="mt-3 h-10 rounded-md bg-rose-700 px-4 text-sm font-semibold text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
       >
         {isPending ? "Clearing..." : "Clear leaderboard & submissions"}
       </button>
       {message ? (
-        <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+        <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-950 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
           {message}
         </p>
       ) : null}
@@ -143,7 +143,7 @@ export function AdminEventControls({
 
     if (nextPhase === "ended") {
       const confirmed = window.confirm(
-        "End the event? Test Attempts and Final Submission will both close.",
+        "End and reveal final results? All submissions close. Revealed final results cannot be hidden again.",
       );
 
       if (!confirmed) {
@@ -190,17 +190,17 @@ export function AdminEventControls({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
         Event controls
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-950">Event phase</h2>
-        <span className="rounded-md bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+        <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">Event phase</h2>
+        <span className="rounded-md bg-teal-50 dark:bg-teal-950 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:text-teal-300">
           {eventPhaseLabel(currentPhase)}
         </span>
       </div>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
         Controls participant access to Test Attempts and Final Submission.
         Login remains available in every phase.
       </p>
@@ -210,8 +210,8 @@ export function AdminEventControls({
             key={phase}
             type="button"
             onClick={() => changePhase(phase)}
-            disabled={isPending || phase === currentPhase}
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+            disabled={isPending || phase === currentPhase || currentPhase === "ended"}
+            className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
           >
             {phase === currentPhase
               ? `${eventPhaseLabel(phase)} current`
@@ -220,7 +220,7 @@ export function AdminEventControls({
         ))}
       </div>
       {message ? (
-        <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+        <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-950 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
           {message}
         </p>
       ) : null}
@@ -272,19 +272,19 @@ export function AdminLeaderboardVisibilityControls({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
         Leaderboard visibility
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-950">
+        <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">
           Participant leaderboard
         </h2>
-        <span className="rounded-md bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+        <span className="rounded-md bg-teal-50 dark:bg-teal-950 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:text-teal-300">
           {leaderboardVisibilityLabel(currentVisibility)}
         </span>
       </div>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
         Controls when participants can see the leaderboard. Admin result pages
         remain visible to organizers.
       </p>
@@ -295,7 +295,7 @@ export function AdminLeaderboardVisibilityControls({
             type="button"
             onClick={() => changeVisibility(visibility)}
             disabled={isPending || visibility === currentVisibility}
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+            className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
           >
             {visibility === currentVisibility
               ? `${leaderboardVisibilityLabel(visibility)} current`
@@ -304,7 +304,7 @@ export function AdminLeaderboardVisibilityControls({
         ))}
       </div>
       {message ? (
-        <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+        <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-950 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
           {message}
         </p>
       ) : null}
@@ -386,38 +386,38 @@ export function AdminEvaluationModelControls({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
         Evaluation model
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-950">Difficulty setting</h2>
-        <span className="rounded-md bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+        <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">Difficulty setting</h2>
+        <span className="rounded-md bg-teal-50 dark:bg-teal-950 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:text-teal-300">
           {getFriendlyModelName(resolvedModel)}
         </span>
       </div>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
         Model choice controls challenge difficulty. Weaker models may make
         participant prompt strategy matter more. Use calibration after changing
         models.
       </p>
-      <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+      <p className="mt-3 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3 text-xs leading-5 text-slate-600 dark:text-slate-300">
         The evaluation model and active mode/schema can be changed before the
         first successful submission. After Test Attempts or a Final Submission
         are recorded, they are locked until workshop run data is reset.
       </p>
       {currentModel && !isApprovedEvaluationModel(currentModel) ? (
-        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
+        <p className="mt-3 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-3 text-sm leading-6 text-amber-900 dark:text-amber-300">
           Unsupported saved model: {currentModel}. Choose an approved model or
           reset to the environment fallback.
         </p>
       ) : null}
-      <label className="mt-4 block text-sm font-semibold text-slate-800">
+      <label className="mt-4 block text-sm font-semibold text-slate-800 dark:text-slate-100">
         Challenge model
         <select
           value={selection}
           onChange={(event) => setSelection(event.target.value)}
-          className="mt-2 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+          className="mt-2 h-10 w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800"
         >
           <option value="">Use environment fallback</option>
           {evaluationModelOptions.map((option) => (
@@ -428,11 +428,11 @@ export function AdminEvaluationModelControls({
         </select>
       </label>
       {selectedOption ? (
-        <p className="mt-3 text-xs leading-5 text-slate-500">
+        <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
           {selectedOption.difficulty}: {selectedOption.note}
         </p>
       ) : null}
-      <p className="mt-3 text-xs leading-5 text-slate-500">
+      <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
         Current resolved model: {resolvedModel}. Environment fallback: {fallbackModel}.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -440,7 +440,7 @@ export function AdminEvaluationModelControls({
           type="button"
           onClick={saveModel}
           disabled={isPending || !draftModel.trim()}
-          className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
         >
           {isPending ? "Saving..." : "Save model"}
         </button>
@@ -448,13 +448,13 @@ export function AdminEvaluationModelControls({
           type="button"
           onClick={clearModel}
           disabled={isPending || !currentModel}
-          className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+          className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
         >
           Use environment fallback
         </button>
       </div>
       {message ? (
-        <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+        <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-950 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
           {message}
         </p>
       ) : null}
@@ -523,21 +523,21 @@ export function AdminChallengeSchemaPanel({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Challenge schema
           </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+          <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
             {challengeSchema.title}
           </h2>
         </div>
         <span
           className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
             challengeSchema.configurationLocked
-              ? "bg-amber-50 text-amber-800"
-              : "bg-emerald-50 text-emerald-800"
+              ? "bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300"
+              : "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300"
           }`}
         >
           {challengeSchema.configurationLocked ? "Locked" : "Unlocked"}
@@ -545,47 +545,47 @@ export function AdminChallengeSchemaPanel({
       </div>
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-slate-500">Mode ID</dt>
-          <dd className="mt-1 font-mono text-xs text-slate-900">
+          <dt className="text-slate-500 dark:text-slate-400">Mode ID</dt>
+          <dd className="mt-1 font-mono text-xs text-slate-900 dark:text-slate-100">
             {challengeSchema.modeId}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">Schema version</dt>
-          <dd className="mt-1 font-semibold text-slate-900">
+          <dt className="text-slate-500 dark:text-slate-400">Schema version</dt>
+          <dd className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
             {challengeSchema.schemaVersion}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">Field count</dt>
-          <dd className="mt-1 font-semibold text-slate-900">
+          <dt className="text-slate-500 dark:text-slate-400">Field count</dt>
+          <dd className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
             {challengeSchema.fields.length}
           </dd>
         </div>
       </dl>
       <div className="mt-4">
-        <p className="text-sm font-semibold text-slate-800">Fields</p>
-        <ul className="mt-2 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Fields</p>
+        <ul className="mt-2 grid gap-1 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-2">
           {challengeSchema.fields.map((field) => (
             <li key={field.key}>
-              <span className="font-medium text-slate-900">{field.label}</span>{" "}
+              <span className="font-medium text-slate-900 dark:text-slate-100">{field.label}</span>{" "}
               <span className="font-mono text-xs">({field.key})</span>
             </li>
           ))}
         </ul>
       </div>
-      <p className="mt-4 text-xs leading-5 text-slate-500">
+      <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
         {challengeSchema.configurationLocked
           ? "Challenge configuration is locked after event activity has started. Reset workshop run data before changing mode."
           : "This challenge is still configurable before submissions begin. Future mode or schema changes must happen before the first successful submission."}
       </p>
-      <div className="mt-5 border-t border-slate-200 pt-4">
-        <p className="text-sm font-semibold text-slate-800">Mode activation</p>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
+      <div className="mt-5 border-t border-slate-200 dark:border-slate-700 pt-4">
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Mode activation</p>
+        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
           Only modes approved for activation appear here. Dormant schemas remain
           unavailable until their reports and answer keys are prepared.
         </p>
-        <label className="mt-3 block text-sm font-semibold text-slate-800">
+        <label className="mt-3 block text-sm font-semibold text-slate-800 dark:text-slate-100">
           Available challenge mode
           <select
             value={selection}
@@ -595,7 +595,7 @@ export function AdminChallengeSchemaPanel({
               setMessage("");
             }}
             disabled={challengeSchema.configurationLocked || isPending}
-            className="mt-2 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="mt-2 h-10 w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
           >
             {challengeSchema.activationOptions.map((option) => (
               <option key={option.id} value={option.id}>
@@ -608,18 +608,18 @@ export function AdminChallengeSchemaPanel({
           type="button"
           onClick={() => setIsConfirming(true)}
           disabled={challengeSchema.configurationLocked || isPending || !selectedMode}
-          className="mt-3 h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="mt-3 h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
         >
           Review mode change
         </button>
         {isConfirming && selectedMode ? (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="mt-4 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-4 text-sm text-amber-950 dark:text-amber-300">
             <p className="font-semibold">Confirm challenge mode change</p>
             <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
-              <div><dt className="text-amber-800">Mode ID</dt><dd className="font-mono">{selectedMode.id}</dd></div>
-              <div><dt className="text-amber-800">Title</dt><dd>{selectedMode.title}</dd></div>
-              <div><dt className="text-amber-800">Schema version</dt><dd>{selectedMode.version}</dd></div>
-              <div><dt className="text-amber-800">Field count</dt><dd>{selectedMode.fieldCount}</dd></div>
+              <div><dt className="text-amber-800 dark:text-amber-300">Mode ID</dt><dd className="font-mono">{selectedMode.id}</dd></div>
+              <div><dt className="text-amber-800 dark:text-amber-300">Title</dt><dd>{selectedMode.title}</dd></div>
+              <div><dt className="text-amber-800 dark:text-amber-300">Schema version</dt><dd>{selectedMode.version}</dd></div>
+              <div><dt className="text-amber-800 dark:text-amber-300">Field count</dt><dd>{selectedMode.fieldCount}</dd></div>
             </dl>
             <p className="mt-3 text-xs leading-5">
               This requires compatible answer keys for every public and private
@@ -638,7 +638,7 @@ export function AdminChallengeSchemaPanel({
                 type="button"
                 onClick={() => setIsConfirming(false)}
                 disabled={isPending}
-                className="h-9 rounded-md border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-9 rounded-md border border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-900 px-3 text-xs font-semibold text-amber-900 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -646,7 +646,7 @@ export function AdminChallengeSchemaPanel({
           </div>
         ) : null}
         {message ? (
-          <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+          <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-950 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
             {message}
           </p>
         ) : null}
@@ -695,14 +695,14 @@ export function AdminEventAnnouncementControls({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
         Event announcement
       </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">
+      <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
         Participant banner
       </h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
         Show a short live message at the top of the participant workspace.
         Empty text clears the banner.
       </p>
@@ -712,12 +712,12 @@ export function AdminEventAnnouncementControls({
         maxLength={240}
         rows={3}
         placeholder="Optional live announcement..."
-        className="mt-4 w-full resize-none rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+        className="mt-4 w-full resize-none rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800"
       />
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
         <span>{Math.max(0, remaining)} characters remaining</span>
         {currentAnnouncement ? (
-          <span className="rounded-md bg-slate-100 px-2 py-1">
+          <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-1">
             Current: {currentAnnouncement}
           </span>
         ) : null}
@@ -727,7 +727,7 @@ export function AdminEventAnnouncementControls({
           type="button"
           onClick={() => saveAnnouncement()}
           disabled={isPending || draft.length > 240}
-          className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
         >
           {isPending ? "Saving..." : "Update announcement"}
         </button>
@@ -735,13 +735,13 @@ export function AdminEventAnnouncementControls({
           type="button"
           onClick={() => saveAnnouncement("")}
           disabled={isPending || (!draft && !currentAnnouncement)}
-          className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+          className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
         >
           Clear
         </button>
       </div>
       {message ? (
-        <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+        <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-950 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
           {message}
         </p>
       ) : null}
@@ -804,19 +804,19 @@ export function AdminEventTimerControls({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
         Event timer
       </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">
+      <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
         Display countdown
       </h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
         Show a live countdown in the participant workspace. This is
         display-only and does not change event phase when it ends.
       </p>
       {currentEndsAt ? (
-        <p className="mt-3 rounded-md border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-900">
+        <p className="mt-3 rounded-md border border-teal-100 dark:border-teal-800 bg-teal-50 dark:bg-teal-950 p-3 text-sm leading-6 text-teal-900 dark:text-teal-300">
           Current timer: {currentLabel || "Event timer"} ends at{" "}
           {new Date(currentEndsAt).toLocaleTimeString([], {
             hour: "numeric",
@@ -824,25 +824,25 @@ export function AdminEventTimerControls({
           })}
         </p>
       ) : null}
-      <label className="mt-4 grid gap-1 text-sm font-semibold text-slate-700">
+      <label className="mt-4 grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
         Timer label
         <input
           value={label}
           onChange={(event) => setLabel(event.target.value)}
           maxLength={80}
           placeholder="Practice round"
-          className="h-10 rounded-md border border-slate-300 px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+          className="h-10 rounded-md border border-slate-300 dark:border-slate-600 px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800"
         />
       </label>
-      <div className="mt-2 text-xs text-slate-500">
+      <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
         {Math.max(0, remaining)} characters remaining
       </div>
-      <label className="mt-3 grid gap-1 text-sm font-semibold text-slate-700">
+      <label className="mt-3 grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
         Duration
         <select
           value={durationMinutes}
           onChange={(event) => setDurationMinutes(event.target.value)}
-          className="h-10 rounded-md border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+          className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800"
         >
           {[5, 10, 15, 20, 30, 45, 60, 90, 120, 180].map((minutes) => (
             <option key={minutes} value={minutes}>
@@ -856,7 +856,7 @@ export function AdminEventTimerControls({
           type="button"
           onClick={setTimer}
           disabled={isPending || label.length > 80}
-          className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
         >
           {isPending ? "Saving..." : "Set timer"}
         </button>
@@ -864,13 +864,13 @@ export function AdminEventTimerControls({
           type="button"
           onClick={clearTimer}
           disabled={isPending || !currentEndsAt}
-          className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+          className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
         >
           Clear
         </button>
       </div>
       {message ? (
-        <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+        <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-950 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
           {message}
         </p>
       ) : null}
@@ -1035,7 +1035,7 @@ export function AdminParticipantActions({
             setMessage("");
           }}
           disabled={isPending}
-          className="h-8 rounded-md border border-slate-300 px-2 text-xs font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
         >
           Edit
         </button>
@@ -1043,7 +1043,7 @@ export function AdminParticipantActions({
           type="button"
           onClick={regenerateAccessCode}
           disabled={isPending}
-          className="h-8 rounded-md border border-slate-300 px-2 text-xs font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
         >
           New code
         </button>
@@ -1051,7 +1051,7 @@ export function AdminParticipantActions({
           type="button"
           onClick={clearParticipantData}
           disabled={isPending}
-          className="h-8 rounded-md border border-slate-300 px-2 text-xs font-semibold text-slate-700 hover:border-rose-600 hover:text-rose-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-rose-600 hover:text-rose-700 dark:hover:text-rose-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
         >
           Clear data
         </button>
@@ -1059,7 +1059,7 @@ export function AdminParticipantActions({
           type="button"
           onClick={grantExtraTestAttempt}
           disabled={isPending || !isActive}
-          className="h-8 rounded-md border border-slate-300 px-2 text-xs font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
         >
           Grant +1 test
         </button>
@@ -1067,30 +1067,30 @@ export function AdminParticipantActions({
           type="button"
           onClick={toggleActive}
           disabled={isPending}
-          className="h-8 rounded-md border border-slate-300 px-2 text-xs font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
         >
           {isActive ? "Deactivate" : "Reactivate"}
         </button>
       </div>
       {isEditing ? (
-        <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
-          <label className="grid gap-1 text-xs font-semibold text-slate-600">
+        <div className="grid gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2">
+          <label className="grid gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
             Display name
             <input
               value={draftDisplayName}
               onChange={(event) => setDraftDisplayName(event.target.value)}
               maxLength={80}
-              className="h-8 rounded-md border border-slate-300 bg-white px-2 font-normal text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className="h-8 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 font-normal text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 dark:focus:ring-teal-800"
             />
           </label>
-          <label className="grid gap-1 text-xs font-semibold text-slate-600">
+          <label className="grid gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
             Email
             <input
               type="email"
               value={draftEmail}
               onChange={(event) => setDraftEmail(event.target.value)}
               maxLength={254}
-              className="h-8 rounded-md border border-slate-300 bg-white px-2 font-normal text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className="h-8 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 font-normal text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 dark:focus:ring-teal-800"
             />
           </label>
           <div className="flex flex-wrap gap-2">
@@ -1098,7 +1098,7 @@ export function AdminParticipantActions({
               type="button"
               onClick={saveIdentity}
               disabled={isPending}
-              className="h-8 rounded-md bg-teal-700 px-2 text-xs font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="h-8 rounded-md bg-teal-700 px-2 text-xs font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
             >
               Save
             </button>
@@ -1106,14 +1106,14 @@ export function AdminParticipantActions({
               type="button"
               onClick={cancelIdentityEdit}
               disabled={isPending}
-              className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 hover:border-slate-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+              className="h-8 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
             >
               Cancel
             </button>
           </div>
         </div>
       ) : null}
-      {message ? <p className="text-xs leading-5 text-slate-500">{message}</p> : null}
+      {message ? <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{message}</p> : null}
     </div>
   );
 }

@@ -58,6 +58,7 @@ type PromptDebug = {
 };
 
 type SubmissionPromptDebug = PromptDebug & {
+  promptSnapshot: string;
   kind: SubmissionKind;
 };
 
@@ -167,6 +168,7 @@ export function ChallengeWorkspace({
   reports: initialReports,
 }: ChallengeWorkspaceProps) {
   const router = useRouter();
+  const [definitionsExpanded, setDefinitionsExpanded] = useState(false);
   const [reports, setReports] = useState(initialReports);
   const [participantId, setParticipantId] = useState(
     normalizeParticipantCode(initialParticipantId),
@@ -197,6 +199,8 @@ export function ChallengeWorkspace({
     useState<SubmissionStatus | null>(null);
   const [leaderboardResponse, setLeaderboardResponse] =
     useState<LeaderboardResponse | null>(null);
+  const [submissionMessageKind, setSubmissionMessageKind] = useState<SubmissionKind>("public");
+  const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
   const [submissionMessage, setSubmissionMessage] = useState("");
   const [pendingAction, setPendingAction] = useState<"public" | "final" | null>(
     null,
@@ -570,6 +574,7 @@ export function ChallengeWorkspace({
   }
 
   async function submitChallengePrompt(kind: SubmissionKind) {
+    setSubmissionMessageKind(kind);
     if (!activeParticipantId || !activeParticipantToken) {
       setSubmissionMessage("Enter your participant access code before submitting.");
       return;
@@ -666,8 +671,10 @@ export function ChallengeWorkspace({
         }
       }
 
+      setSubmittedPrompt(participantPrompt);
       setLastSubmissionPromptDebug({
         ...promptDebug,
+        promptSnapshot: participantPrompt,
         kind,
       });
       setLastSubmissionFeedback(score.feedback ?? null);
@@ -721,15 +728,15 @@ export function ChallengeWorkspace({
 
   if (!activeParticipantId || !activeParticipantToken) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 text-slate-950">
-        <section className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 text-slate-950 dark:text-slate-50">
+        <section className="w-full max-w-lg rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Participant required
           </p>
-          <h1 className="mt-3 text-2xl font-semibold text-slate-950">
+          <h1 className="mt-3 text-2xl font-semibold text-slate-950 dark:text-slate-50">
             Enter a participant access code before opening the challenge.
           </h1>
-          <p className="mt-4 text-sm leading-6 text-slate-600">
+          <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             The home page is the participant check-in point. Return home, enter
             your unique workshop access code, then continue to the workspace.
           </p>
@@ -747,19 +754,19 @@ export function ChallengeWorkspace({
 
   if (participantValidationError) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 text-slate-950">
-        <section className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 text-slate-950 dark:text-slate-50">
+        <section className="w-full max-w-lg rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Participant check unavailable
           </p>
-          <h1 className="mt-3 text-2xl font-semibold text-slate-950">
+          <h1 className="mt-3 text-2xl font-semibold text-slate-950 dark:text-slate-50">
             We could not validate this participant session.
           </h1>
-          <p className="mt-4 text-sm leading-6 text-slate-600">
+          <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Return home and try again with the access code from your workshop
             organizer.
           </p>
-          <p className="mt-3 rounded-md bg-amber-50 p-3 text-sm leading-6 text-amber-900">
+          <p className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950 p-3 text-sm leading-6 text-amber-900 dark:text-amber-300">
             {participantValidationError}
           </p>
           <button
@@ -776,15 +783,15 @@ export function ChallengeWorkspace({
 
   if (!participantValidation) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 text-slate-950">
-        <section className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 text-slate-950 dark:text-slate-50">
+        <section className="w-full max-w-lg rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Checking participant
           </p>
-          <h1 className="mt-3 text-2xl font-semibold text-slate-950">
+          <h1 className="mt-3 text-2xl font-semibold text-slate-950 dark:text-slate-50">
             Validating your participant code...
           </h1>
-          <p className="mt-4 text-sm leading-6 text-slate-600">
+          <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             This keeps the challenge workspace limited to registered workshop
             participants.
           </p>
@@ -795,19 +802,19 @@ export function ChallengeWorkspace({
 
   if (!participantValidation.valid) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 text-slate-950">
-        <section className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 text-slate-950 dark:text-slate-50">
+        <section className="w-full max-w-lg rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Participant not found
           </p>
-          <h1 className="mt-3 text-2xl font-semibold text-slate-950">
+          <h1 className="mt-3 text-2xl font-semibold text-slate-950 dark:text-slate-50">
             This participant code is not registered.
           </h1>
-          <p className="mt-4 text-sm leading-6 text-slate-600">
+          <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Use the unique access code from your workshop organizer, then return
             to the workspace.
           </p>
-          <p className="mt-3 rounded-md bg-amber-50 p-3 text-sm leading-6 text-amber-900">
+          <p className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950 p-3 text-sm leading-6 text-amber-900 dark:text-amber-300">
             {participantValidation.message}
           </p>
           <button
@@ -823,27 +830,27 @@ export function ChallengeWorkspace({
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f9f8] text-slate-950">
+    <main className="min-h-screen bg-[#f7f9f8] dark:bg-slate-950 text-slate-950 dark:text-slate-50">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-5 sm:px-6">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
+        <header className="flex flex-col gap-4 border-b border-slate-200 dark:border-slate-700 pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <Link href="/" className="text-sm font-semibold text-teal-700 hover:text-teal-800">
+            <Link href="/" className="text-sm font-semibold text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-300">
               The Great Prompt-Off
             </Link>
-            <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+            <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">
               {challengeDataStatus?.challenge?.title || challenge.title}
             </h1>
             <div className="mt-2 flex flex-wrap gap-2">
-              <p className="w-fit rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
-                Write instructions · Test on practice reports · Refine
+              <p className="w-fit rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Write → Debug → Evaluate
               </p>
               {challengeDataStatus?.challenge?.evaluationModelDisplayName ? (
-                <p className="w-fit rounded-md border border-teal-100 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+                <p className="w-fit rounded-md border border-teal-100 dark:border-teal-800 bg-teal-50 dark:bg-teal-950 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:text-teal-300">
                   Evaluation model:{" "}
                   {challengeDataStatus.challenge.evaluationModelDisplayName}
                 </p>
               ) : null}
-              {education?.evaluationMode === "simulation" ? <p className="rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">Simulation — scores are synthetic, not clinical performance</p> : null}
+              {education?.evaluationMode === "simulation" ? <p className="rounded-md bg-amber-50 dark:bg-amber-950 px-2.5 py-1 text-xs font-semibold text-amber-900 dark:text-amber-300">Simulation — scores are synthetic, not clinical performance</p> : null}
             </div>
             <DataSourceStatus
               error={challengeDataError}
@@ -851,18 +858,18 @@ export function ChallengeWorkspace({
             />
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Current participant
               </p>
-              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {activeParticipantId}
               </p>
             </div>
             <button
               type="button"
               onClick={saveAndExit}
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700"
+              className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
             >
               Exit challenge
             </button>
@@ -890,26 +897,67 @@ export function ChallengeWorkspace({
           warning={statusRefreshWarning}
         />
 
+        <nav aria-label="Workspace sections" className="sticky top-0 z-10 rounded-lg bg-[#f7f9f8]/95 dark:bg-slate-950/95 py-2 flex flex-wrap gap-2 text-sm font-semibold">
+          {[['write','1. Write'],['debug','2. Debug'],['evaluate','3. Evaluate'],['final','4. Final']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950">{label}</a>)}
+        </nav>
         <div className="grid min-w-0 gap-5">
-          <section className="grid min-h-0 min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <h2 id="write" className="scroll-mt-24 text-lg font-semibold text-teal-800 dark:text-teal-300">1. Write · Instructions and allowed values</h2>
+          <section className="grid min-h-0 min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <PromptEditor
               fieldCount={activeMode.fields.length}
               clinicalInstructions={clinicalInstructions}
               remainingPublicSubmissions={remainingPublicSubmissions}
               setClinicalInstructions={setClinicalInstructions}
-              onSubmitFinal={submitFinal}
-              onSubmitPublic={submitPublic}
-              finalSubmissionUsed={finalSubmissionUsed}
-              participantReady={Boolean(activeParticipantId)}
-              pendingAction={pendingAction}
               promptLength={participantPromptLength}
               promptOverLimit={promptOverLimit}
-              canSubmitFinal={canSubmitFinal}
-              canSubmitPublic={canSubmitPublic}
-              privateReportDescription={privateReportDescription}
-              publicReportDescription={publicReportDescription}
               publicSubmissionLimit={publicSubmissionLimit}
             />
+            <aside aria-label="Findings and allowed values" className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm lg:max-h-[720px] lg:overflow-y-auto">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-xl font-semibold">Findings and allowed values</h2>
+                <button type="button" aria-expanded={definitionsExpanded} aria-controls="finding-reference" onClick={() => setDefinitionsExpanded(value => !value)} className="rounded border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-semibold lg:hidden">{definitionsExpanded ? "Hide allowed values" : "Show allowed values"}</button>
+              </div>
+              <div id="finding-reference" className={definitionsExpanded ? "block" : "hidden lg:block"}>
+                <TaskSidebar fields={activeMode.fields} />
+              </div>
+            </aside>
+          </section>
+
+          <div className="grid min-w-0 items-start gap-3 lg:grid-cols-2">
+            {education && activeParticipantToken ? <details open className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+              <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">Shared starting instructions</summary>
+            <EducationSummary mode={activeMode} token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} />
+            </details> : null}
+            {education && activeParticipantToken ? <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+              <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">Team instruction history</summary>
+            <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} />
+            </details> : null}
+          </div>
+          <section id="debug" className="scroll-mt-24" aria-label="Debug">
+            <h2 className="mb-3 text-lg font-semibold text-teal-800 dark:text-teal-300">2. Debug · Unscored Sandbox</h2>
+            {education ? <PromptSandbox key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} participantId={activeParticipantId} contestId={challengeId} version={activeMode.version} prompt={clinicalInstructions} fields={activeMode.fields}/> : <p className="rounded-lg border bg-white dark:bg-slate-900 p-4 text-sm">Sandbox is not available for this contest.</p>}
+          </section>
+          <section id="evaluate" className="min-w-0 scroll-mt-24" aria-label="Public evaluation">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><h2 className="text-xl font-semibold">3. Evaluate · Public test</h2><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Scored · Uses one attempt on all {publicReportDescription}. Sandbox edits never change these reports.</p><p className="text-sm font-semibold">{remainingPublicSubmissions} of {publicSubmissionLimit} attempts remaining</p></div>
+        <button
+          type="button"
+          onClick={submitPublic}
+          disabled={
+            !activeParticipantId ||
+            !clinicalInstructions.trim() ||
+            !canSubmitPublic ||
+            remainingPublicSubmissions === 0 ||
+            promptOverLimit ||
+            pendingAction !== null
+          }
+          className="min-h-11 rounded-lg bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
+        >
+          {pendingAction === "public" ? "Submitting..." : "Use test attempt"}
+        </button>
+
+            </div>
+            <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
             {activeReport ? (
               <ReportViewer
                 activeReport={activeReport}
@@ -919,19 +967,17 @@ export function ChallengeWorkspace({
                 setActiveReportId={setActiveReportId}
               />
             ) : null}
-          </section>
-
-          {education && <PromptSandbox key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} participantId={activeParticipantId} contestId={challengeId} version={activeMode.version} prompt={clinicalInstructions} fields={activeMode.fields}/> }
-          <aside className="grid min-w-0 gap-5">
+            <div className="min-w-0">
+            {lastSubmissionFeedback?.kind === "public" && submittedPrompt !== participantPrompt ? <p className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-950 p-3 text-sm text-amber-900 dark:text-amber-300">Your prompt has changed since this scored result. Submit another public test to evaluate the new version.</p> : null}
             <SubmissionPanel
-              finalSubmissionUsed={finalSubmissionUsed}
-              finalScore={finalScore}
+              reports={reports}
+              selectedReportLabel={activeReport ? (activeReport.filename || activeReport.id) : undefined}
+              onSelectReport={(label: string) => { const report = reports.find(r => (r.filename || r.id) === label); if (report) setActiveReportId(report.id); }}
               latestPublicScore={latestPublicScore}
-              message={submissionMessage}
-              promptDebug={lastSubmissionPromptDebug}
-              feedback={lastSubmissionFeedback}
+              message={submissionMessageKind === "final" ? "" : submissionMessage}
+              promptDebug={lastSubmissionPromptDebug?.kind === "public" ? lastSubmissionPromptDebug : null}
+              feedback={lastSubmissionFeedback?.kind === "public" ? lastSubmissionFeedback : null}
               pendingAction={pendingAction}
-              privateReportDescription={privateReportDescription}
               publicReportDescription={publicReportDescription}
               publicSubmissionLimit={publicSubmissionLimit}
               publicSubmissionsUsed={
@@ -941,35 +987,41 @@ export function ChallengeWorkspace({
               }
               remainingPublicSubmissions={remainingPublicSubmissions}
             />
-            <div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
-              <details className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
-                <summary className="cursor-pointer font-semibold text-slate-800">Field names and allowed values</summary>
-          <TaskSidebar
-            fields={activeMode.fields}
-            privateReportDescription={privateReportDescription}
-            publicReportDescription={publicReportDescription}
-            publicSubmissionLimit={publicSubmissionLimit}
-          />
-
-              </details>
-              <details className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
-                <summary className="cursor-pointer font-semibold text-slate-800">Leaderboard</summary>
+            </div>
+            </div>
+          </section>
+              <details className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+                <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">Leaderboard</summary>
             <Leaderboard
               participantId={activeParticipantId}
               rows={currentRows}
               visible={participantLeaderboardVisible}
             />
               </details>
-            </div>
-            {education && activeParticipantToken ? <details open={eventPhase === "ended" || undefined} className="rounded-xl border border-slate-200 bg-white p-4">
-              <summary className="cursor-pointer font-semibold text-slate-800">Shared baseline and scoring</summary>
-            <EducationSummary token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} />
-            </details> : null}
-            {education && activeParticipantToken ? <details className="rounded-xl border border-slate-200 bg-white p-4">
-              <summary className="cursor-pointer font-semibold text-slate-800">Team instruction history</summary>
-            <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} />
-            </details> : null}
-          </aside>
+
+          <section id="final" aria-label="Final submission" className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-5">
+            <h2 className="text-xl font-semibold">4. Final submission</h2>
+            <p className="my-3 text-sm text-slate-600 dark:text-slate-300">One locked instruction version, evaluated on {privateReportDescription}. Edited Sandbox samples are not used. Available only during the organizer’s final phase.</p>
+            <p className="mb-3 text-sm">{finalSubmissionUsed ? "Final submitted" : "Not submitted"}{finalScore !== null ? ` · ${Math.round(finalScore)}%` : finalSubmissionUsed ? " · Results await organizer reveal" : ""}</p>
+        <button
+          type="button"
+          onClick={submitFinal}
+          disabled={
+            !activeParticipantId ||
+            !clinicalInstructions.trim() ||
+            !canSubmitFinal ||
+            finalSubmissionUsed ||
+            promptOverLimit ||
+            pendingAction !== null
+          }
+          className="h-11 rounded-md border border-slate-300 dark:border-slate-600 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
+        >
+          {pendingAction === "final" ? "Submitting final..." : "Submit final"}
+        </button>
+
+            {submissionMessageKind === "final" ? <p role="status" className="mt-3 text-sm">{submissionMessage}</p> : null}
+            {lastSubmissionFeedback?.kind === "final" ? <SafeFeedbackPanel feedback={lastSubmissionFeedback} /> : null}
+          </section>
         </div>
       </div>
     </main>
@@ -989,8 +1041,8 @@ function PhaseNotice({
 }) {
   const tone =
     eventPhase === "practice_open" || eventPhase === "final_open"
-      ? "border-teal-200 bg-teal-50 text-teal-950"
-      : "border-amber-200 bg-amber-50 text-amber-950";
+      ? "border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950 text-teal-950 dark:text-teal-300"
+      : "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-950 dark:text-amber-300";
   const detail =
     eventPhase === "not_started"
       ? "Keep this page open. It will update automatically when the organizer starts the event. Your prompt draft is saved locally in this browser."
@@ -1006,7 +1058,7 @@ function PhaseNotice({
       <p>{message}</p>
       <p>{detail}</p>
       {eventPhase === "ended" ? (
-        <div className="mt-2 rounded-md border border-white/60 bg-white/50 p-3">
+        <div className="mt-2 rounded-md border border-white/60 bg-white/50 dark:bg-slate-900/50 p-3">
           {finalSubmissionUsed ? (
             <>
               <p className="font-semibold">Final submitted.</p>
@@ -1028,8 +1080,8 @@ function PhaseNotice({
 
 function EventAnnouncementBanner({ announcement }: { announcement: string }) {
   return (
-    <section className="rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm leading-6 text-cyan-950">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+    <section className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950 px-4 py-3 text-sm leading-6 text-cyan-950 dark:text-cyan-300">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800 dark:text-cyan-300">
         Organizer announcement
       </p>
       <p className="mt-1 font-medium">{announcement}</p>
@@ -1061,8 +1113,8 @@ function EventTimerCountdown({
   ).padStart(2, "0")}`;
 
   return (
-    <section className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm leading-6 text-indigo-950">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-800">
+    <section className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 px-4 py-3 text-sm leading-6 text-indigo-950 dark:text-indigo-300">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-800 dark:text-indigo-300">
         Event timer
       </p>
       <p className="mt-1 font-medium">
@@ -1082,7 +1134,7 @@ function LiveUpdateStatus({
   warning: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
       <span>Updates automatically</span>
       <span aria-hidden="true">|</span>
       <span>
@@ -1098,29 +1150,19 @@ function LiveUpdateStatus({
       {warning ? (
         <>
           <span aria-hidden="true">|</span>
-          <span className="text-amber-700">{warning}</span>
+          <span className="text-amber-700 dark:text-amber-300">{warning}</span>
         </>
       ) : null}
     </div>
   );
 }
 
-function TaskSidebar({ fields, privateReportDescription, publicReportDescription, publicSubmissionLimit }: {
-  fields: PublicChallengeModeMetadata["fields"];
-  privateReportDescription: string;
-  publicReportDescription: string;
-  publicSubmissionLimit: number;
-}) {
-  return <div className="mt-4 space-y-4 text-sm text-slate-600">
-    <p>The model receives these field names and allowed values, not separate field-level clinical instructions. Put the interpretation rules you want it to follow in your team instructions. JSON formatting is automatic.</p>
-    <dl className="grid gap-3 sm:grid-cols-2">
-      {fields.map(field => <div key={field.key} className="min-w-0 rounded-lg bg-slate-50 p-3">
-        <dt className="font-semibold text-slate-900">{field.label}</dt>
-        <dd className="mt-1 break-words leading-6">{field.type === "number" ? `Number in ${field.unit}; tolerance ±${field.tolerance}${field.minimum !== undefined ? `; minimum ${field.minimum}` : ""}${field.maximum !== undefined ? `; maximum ${field.maximum}` : ""}` : field.allowedValues.map(value => value.replaceAll("_", " ")).join(" · ")}</dd>
-        <dd className="mt-2 text-xs text-slate-500">Weight {field.weight ?? 1}{field.nullable ? " · Clinical null permitted" : ""}</dd>
-      </div>)}
-    </dl>
-    <p>{publicSubmissionLimit} counted test attempts on {publicReportDescription}. One locked final submission on {privateReportDescription}.</p>
+function TaskSidebar({ fields }: { fields: PublicChallengeModeMetadata["fields"] }) {
+  return <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300">
+    {fields.map(field => <details key={field.key} className="min-w-0 rounded-lg bg-slate-50 dark:bg-slate-950 p-3">
+      <summary className="cursor-pointer font-semibold text-slate-900 dark:text-slate-100">{field.label}</summary>
+      <p className="mt-2 break-words leading-6"><strong>Allowed values: </strong>{field.type === "number" ? `Number in ${field.unit}${field.minimum !== undefined ? `; minimum ${field.minimum}` : ""}${field.maximum !== undefined ? `; maximum ${field.maximum}` : ""}` : field.allowedValues.map(value => value.replaceAll("_", " ")).join(" · ")}{field.nullable ? " · null" : ""}</p>
+    </details>)}
   </div>;
 }
 
@@ -1133,7 +1175,7 @@ function DataSourceStatus({
 }) {
   if (error) {
     return (
-      <div className="mt-2 max-w-2xl rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+      <div className="mt-2 max-w-2xl rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs leading-5 text-amber-900 dark:text-amber-300">
         Challenge details are temporarily unavailable. You can continue working
         in the challenge workspace.
       </div>
@@ -1142,16 +1184,16 @@ function DataSourceStatus({
 
   if (!status) {
     return (
-      <div className="mt-2 w-fit rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500">
+      <div className="mt-2 w-fit rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
         Loading challenge metadata...
       </div>
     );
   }
 
   return (
-    <div className="mt-2 max-w-3xl rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+    <div className="mt-2 max-w-3xl rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="font-semibold text-slate-800">
+        <span className="font-semibold text-slate-800 dark:text-slate-100">
           {status.challenge?.title || challenge.title}
         </span>
         <span>
@@ -1165,68 +1207,50 @@ function DataSourceStatus({
 }
 
 function PromptEditor({
-  canSubmitFinal,
-  canSubmitPublic,
   clinicalInstructions,
   fieldCount,
-  finalSubmissionUsed,
-  onSubmitFinal,
-  onSubmitPublic,
-  participantReady,
-  pendingAction,
   promptLength,
   promptOverLimit,
-  privateReportDescription,
-  publicReportDescription,
   publicSubmissionLimit,
   remainingPublicSubmissions,
   setClinicalInstructions,
 }: {
-  canSubmitFinal: boolean;
-  canSubmitPublic: boolean;
   clinicalInstructions: string;
   fieldCount: number;
-  finalSubmissionUsed: boolean;
-  onSubmitFinal: () => void;
-  onSubmitPublic: () => void;
-  participantReady: boolean;
-  pendingAction: "public" | "final" | null;
   promptLength: number;
   promptOverLimit: boolean;
-  privateReportDescription: string;
-  publicReportDescription: string;
   publicSubmissionLimit: number;
   remainingPublicSubmissions: number;
   setClinicalInstructions: (value: string) => void;
 }) {
   return (
-    <section className="h-full rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="h-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Prompt editor
           </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+          <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
             Write your team instructions
           </h2>
         </div>
-        <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+        <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
           Clinical strategy
         </span>
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-600">
+      <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
         Make your clinical rules explicit. Only your instructions are submitted as the team strategy; formatting is automatic.
       </p>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-        <span><strong className="text-teal-800">{remainingPublicSubmissions} of {publicSubmissionLimit}</strong> test attempts left</span>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
+        <span><strong className="text-teal-800 dark:text-teal-300">{remainingPublicSubmissions} of {publicSubmissionLimit}</strong> test attempts left</span>
         <span>Draft saved in this browser · Budget shared with your team</span>
       </div>
       <div className="mt-4 grid gap-4">
         <label className="grid gap-2">
-          <span className="text-sm font-semibold text-slate-800">
+          <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
             Clinical extraction instructions
           </span>
-          <span className="text-sm leading-6 text-slate-500">
+          <span className="text-sm leading-6 text-slate-500 dark:text-slate-400">
             Describe how the model should identify the {fieldCount} findings
             from the reports.
           </span>
@@ -1235,52 +1259,20 @@ function PromptEditor({
             onChange={(event) => setClinicalInstructions(event.target.value)}
             placeholder="Write your clinical extraction strategy here..."
             spellCheck={false}
-            className="min-h-[320px] w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-base leading-7 text-slate-900 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 lg:min-h-[380px]"
+            className="min-h-[320px] w-full resize-y rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-4 text-base leading-7 text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800 lg:min-h-[380px]"
           />
         </label>
       </div>
       <div
         className={`mt-3 text-xs ${
-          promptOverLimit ? "text-red-700" : "text-slate-500"
+          promptOverLimit ? "text-red-700 dark:text-red-300" : "text-slate-500 dark:text-slate-400"
         }`}
       >
         Clinical prompt length: {promptLength.toLocaleString()} /{" "}
         {MAX_PROMPT_CHARS.toLocaleString()} characters
         {promptOverLimit ? `. ${promptTooLongMessage}` : ""}
       </div>
-      <p className="mt-2 text-xs leading-5 text-slate-500">Test attempts evaluate {publicReportDescription}. The final runs once on {privateReportDescription} and opens when the organizer starts the final phase.</p>
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-        <button
-          type="button"
-          onClick={onSubmitPublic}
-          disabled={
-            !participantReady ||
-            !clinicalInstructions.trim() ||
-            !canSubmitPublic ||
-            remainingPublicSubmissions === 0 ||
-            promptOverLimit ||
-            pendingAction !== null
-          }
-          className="min-h-11 rounded-lg bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-        >
-          {pendingAction === "public" ? "Submitting..." : "Use test attempt"}
-        </button>
-        <button
-          type="button"
-          onClick={onSubmitFinal}
-          disabled={
-            !participantReady ||
-            !clinicalInstructions.trim() ||
-            !canSubmitFinal ||
-            finalSubmissionUsed ||
-            promptOverLimit ||
-            pendingAction !== null
-          }
-          className="h-11 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-        >
-          {pendingAction === "final" ? "Submitting final..." : "Submit final"}
-        </button>
-      </div>
+
     </section>
   );
 }
@@ -1299,15 +1291,15 @@ function ReportViewer({
   setActiveReportId: (id: string) => void;
 }) {
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
         Public test reports
       </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">
+      <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
         {reports.length} public test report{reports.length === 1 ? "" : "s"}
       </h2>
       {!canViewReports ? (
-        <div className="mt-4 flex min-h-[360px] flex-1 items-center rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+        <div className="mt-4 flex min-h-[360px] flex-1 items-center rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 p-4 text-sm leading-6 text-amber-950 dark:text-amber-300">
           {phaseMessage}
         </div>
       ) : (
@@ -1322,15 +1314,15 @@ function ReportViewer({
             aria-pressed={report.id === activeReport.id}
             className={`h-10 rounded-md border text-sm font-semibold ${
               activeReport.id === report.id
-                ? "border-teal-700 bg-teal-50 text-teal-800"
-                : "border-slate-200 text-slate-600 hover:border-slate-300"
+                ? "border-teal-700 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300"
+                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
             }`}
           >
             {String(index + 1).padStart(3, "0")}
           </button>
         ))}
       </div>
-      <article className="mt-4 min-h-[260px] max-h-[560px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-5 text-base leading-7 text-slate-800">
+      <article className="mt-4 min-h-[260px] max-h-[560px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-5 text-base leading-7 text-slate-800 dark:text-slate-100">
         {activeReport.text}
       </article>
         </>
@@ -1339,55 +1331,73 @@ function ReportViewer({
   );
 }
 
-function SubmissionPanel({ finalSubmissionUsed, finalScore, latestPublicScore, message, pendingAction,
-  privateReportDescription, promptDebug, feedback, publicSubmissionLimit, publicReportDescription,
+function SubmissionPanel({ reports, selectedReportLabel, onSelectReport, latestPublicScore, message, pendingAction,
+  promptDebug, feedback, publicSubmissionLimit, publicReportDescription,
   publicSubmissionsUsed, remainingPublicSubmissions,
 }: {
-  finalSubmissionUsed: boolean; finalScore: number | null; latestPublicScore: number | null;
+  reports: PublicChallengeReport[]; selectedReportLabel?: string; onSelectReport: (label: string) => void; latestPublicScore: number | null;
   message: string; pendingAction: "public" | "final" | null;
-  privateReportDescription: string; promptDebug: SubmissionPromptDebug | null;
+  promptDebug: SubmissionPromptDebug | null;
   feedback: SafeSubmissionFeedback | null; publicSubmissionLimit: number;
   publicReportDescription: string; publicSubmissionsUsed: number; remainingPublicSubmissions: number;
 }) {
-  return <section aria-label="Practice and final results" className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-    <h2 className="text-xl font-semibold text-slate-950">Results and feedback</h2>
-    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-      <div className="rounded-lg bg-slate-50 p-3"><p className="text-sm text-slate-600">Test attempts remaining</p><p className="mt-1 text-2xl font-semibold">{remainingPublicSubmissions}</p><p className="text-xs text-slate-500">{publicSubmissionsUsed} of {publicSubmissionLimit} used</p></div>
-      <div className="rounded-lg bg-slate-50 p-3"><p className="text-sm text-slate-600">Latest test score</p><p className="mt-1 text-2xl font-semibold">{latestPublicScore === null ? "Not evaluated" : `${Math.round(latestPublicScore)}%`}</p><p className="text-xs text-slate-500">{publicReportDescription}</p></div>
-      <div className="rounded-lg bg-slate-50 p-3"><p className="text-sm text-slate-600">Final submission</p><p className="mt-1 font-semibold">{finalSubmissionUsed ? "Final submitted" : "Not submitted"}</p><p className="text-xs text-slate-500">{finalScore !== null ? `Final score: ${Math.round(finalScore)}%` : finalSubmissionUsed ? "Results await organizer reveal" : privateReportDescription}</p></div>
+  // Match feedback by identity, never by evaluation completion order or filename digits.
+  const reportLabels = new Map<string, string>();
+  reports.forEach((report, index) => {
+    const label = `Report ${String(index + 1).padStart(3, "0")}`;
+    reportLabels.set(report.id, label);
+    if (report.filename) reportLabels.set(report.filename, label);
+  });
+  const displayLabel = (identity: string) => reportLabels.get(identity) ?? "Unmatched report";
+  const comparisons = feedback?.clinicalComparisons?.slice().sort((a, b) =>
+    displayLabel(a.report).localeCompare(displayLabel(b.report), undefined, { numeric: true }));
+  return <section aria-label="Public test results" className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+    <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">Results and feedback</h2>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-3"><p className="text-sm text-slate-600 dark:text-slate-300">Test attempts remaining</p><p className="mt-1 text-2xl font-semibold">{remainingPublicSubmissions}</p><p className="text-xs text-slate-500 dark:text-slate-400">{publicSubmissionsUsed} of {publicSubmissionLimit} used</p></div>
+      <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-3"><p className="text-sm text-slate-600 dark:text-slate-300">Latest test score</p><p className="mt-1 text-2xl font-semibold">{latestPublicScore === null ? "Not evaluated" : `${Math.round(latestPublicScore)}%`}</p><p className="text-xs text-slate-500 dark:text-slate-400">{publicReportDescription}</p></div>
+
     </div>
-    <div role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-slate-700">
+    <div role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
       {pendingAction ? "Evaluating your instructions. Please keep this page open and wait before submitting again." : message || (!feedback ? "Your next test result and field-by-field feedback will appear here." : "")}
     </div>
-    {feedback ? <SafeFeedbackPanel feedback={feedback} /> : null}
-    {promptDebug ? <details className="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold">Last submitted instructions</summary><p className="mt-2 whitespace-pre-wrap break-words">{promptDebug.promptPreview}</p><p className="mt-1 text-xs">{promptDebug.promptLength} characters</p></details> : null}
+    {feedback ? <>
+      {feedback.clinicalComparisons?.length ? <label className="mt-4 grid gap-2 text-sm font-semibold">Review report results<select aria-label="Review report results" value={selectedReportLabel ?? ""} onChange={e => onSelectReport(e.target.value)} className="w-full min-w-0 rounded border p-2"><option value={selectedReportLabel ?? ""} disabled>Select a report result</option>{comparisons?.map(r => <option key={r.report} value={r.report}>{displayLabel(r.report)} · {r.fields.filter(f => f.correct).length}/{r.fields.length} correct</option>)}</select></label> : null}
+      {feedback.clinicalComparisons && selectedReportLabel && !feedback.clinicalComparisons.some(r => r.report === selectedReportLabel) ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">No feedback for the selected report in this result. Choose a report with a result above.</p> : <SafeFeedbackPanel feedback={feedback} selectedReportLabel={selectedReportLabel} reportLabels={reportLabels} /> }
+    </> : null}
+    {promptDebug ? <details className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300"><summary className="cursor-pointer font-semibold">Last submitted instructions</summary><p className="mt-2 whitespace-pre-wrap break-words">{promptDebug.promptSnapshot}</p><p className="mt-1 text-xs">{promptDebug.promptLength} characters</p></details> : null}
   </section>;
 }
 
-function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
+function SafeFeedbackPanel({ feedback, selectedReportLabel, reportLabels }: { feedback: SafeSubmissionFeedback; selectedReportLabel?: string; reportLabels?: Map<string, string> }) {
+  const displayLabel = (identity: string) => reportLabels?.get(identity) ?? "Unmatched report";
+  const legacyLabel = (label: string) => {
+    const detail = feedback.reportDetails?.find(report => report.reportLabel === label);
+    return detail ? displayLabel(detail.filename) : "Unmatched report";
+  };
   const isPublic = feedback.kind === "public";
-  if (isPublic && feedback.clinicalComparisons) return <section className="mt-4 text-slate-900"><h3 className="font-semibold">Practice clinical feedback</h3><p className="mt-1 text-sm text-slate-600">Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Compare the model’s extraction with the reference for each report.</p><div className="mt-3 grid gap-2">{feedback.clinicalComparisons.map(r => <details key={r.report} className="min-w-0 rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer font-semibold">{r.report}</summary><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[440px] text-left text-sm"><caption className="sr-only">Field comparison for {r.report}</caption><thead className="bg-slate-50"><tr>{["Field", "Extraction", "Reference", "Match"].map(h => <th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{r.fields.map(f => <tr key={f.field} className="border-t border-slate-100"><th scope="row" className="p-2 font-medium">{f.field.replaceAll("_", " ")}</th><td className="p-2">{f.noDecision ? "No decision" : String(f.actual).replaceAll("_", " ")}</td><td className="p-2">{String(f.expected).replaceAll("_", " ")}</td><td className={`p-2 font-semibold ${f.correct ? "text-teal-700" : "text-amber-800"}`}>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></div></details>)}</div></section>;
+  if (isPublic && feedback.clinicalComparisons) return <section className="mt-4 text-slate-900 dark:text-slate-100"><h3 className="font-semibold">Practice clinical feedback</h3><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Compare the model’s extraction with the reference for each report.</p><div className="mt-3 grid gap-2">{feedback.clinicalComparisons.filter(r => !selectedReportLabel || r.report === selectedReportLabel).map(r => <details open key={r.report} className="min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 p-3"><summary className="cursor-pointer font-semibold">{displayLabel(r.report)}</summary><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[440px] text-left text-sm"><caption className="sr-only">Field comparison for {displayLabel(r.report)}</caption><thead className="bg-slate-50 dark:bg-slate-950"><tr>{["Field", "Extraction", "Reference", "Match"].map(h => <th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{r.fields.map(f => <tr key={f.field} className="border-t border-slate-100 dark:border-slate-800"><th scope="row" className="p-2 font-medium">{f.field.replaceAll("_", " ")}</th><td className="p-2">{f.noDecision ? "No decision" : String(f.actual).replaceAll("_", " ")}</td><td className="p-2">{String(f.expected).replaceAll("_", " ")}</td><td className={`p-2 font-semibold ${f.correct ? "text-teal-700 dark:text-teal-300" : "text-amber-800 dark:text-amber-300"}`}>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></div></details>)}</div></section>;
 
 
   return (
-    <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-      <p className="font-semibold text-slate-800">
+    <div className="mt-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3 text-xs leading-5 text-slate-600 dark:text-slate-300">
+      <p className="font-semibold text-slate-800 dark:text-slate-100">
         {isPublic ? "Last test attempt feedback" : "Final feedback"}
       </p>
       <div className="mt-2 grid gap-2">
         <div className="grid grid-cols-2 gap-2">
           <span>Score</span>
-          <span className="text-right font-semibold text-slate-800">
+          <span className="text-right font-semibold text-slate-800 dark:text-slate-100">
             {Math.round(feedback.score)}%
           </span>
           <span>Fields correct</span>
-          <span className="text-right font-semibold text-slate-800">
+          <span className="text-right font-semibold text-slate-800 dark:text-slate-100">
             {feedback.correctFields} / {feedback.totalFields}
           </span>
           {typeof feedback.validJsonCount === "number" ? (
             <>
               <span>Valid JSON reports</span>
-              <span className="text-right font-semibold text-slate-800">
+              <span className="text-right font-semibold text-slate-800 dark:text-slate-100">
                 {feedback.validJsonCount} / {feedback.reportCount}
               </span>
             </>
@@ -1395,7 +1405,7 @@ function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
           {typeof feedback.missingFieldsCount === "number" ? (
             <>
               <span>Missing fields</span>
-              <span className="text-right font-semibold text-slate-800">
+              <span className="text-right font-semibold text-slate-800 dark:text-slate-100">
                 {feedback.missingFieldsCount}
               </span>
             </>
@@ -1403,23 +1413,23 @@ function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
           {typeof feedback.invalidValuesCount === "number" ? (
             <>
               <span>Invalid values</span>
-              <span className="text-right font-semibold text-slate-800">
+              <span className="text-right font-semibold text-slate-800 dark:text-slate-100">
                 {feedback.invalidValuesCount}
               </span>
             </>
           ) : null}
         </div>
         {isPublic && feedback.reportScores?.length ? (
-          <div className="mt-2 border-t border-slate-200 pt-2">
-            <p className="font-semibold text-slate-800">Per-report score</p>
+          <div className="mt-2 border-t border-slate-200 dark:border-slate-700 pt-2">
+            <p className="font-semibold text-slate-800 dark:text-slate-100">Per-report score</p>
             <div className="mt-1 grid gap-1">
               {feedback.reportScores.map((report) => (
                 <div
                   key={report.reportLabel}
                   className="flex items-center justify-between"
                 >
-                  <span>{report.reportLabel}</span>
-                  <span className="font-semibold text-slate-800">
+                  <span>{legacyLabel(report.reportLabel)}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">
                     {formatFieldScore(
                       report.correctFields,
                       report.totalFields,
@@ -1431,22 +1441,22 @@ function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
           </div>
         ) : null}
         {isPublic && feedback.reportDetails?.length ? (
-          <div className="mt-2 border-t border-slate-200 pt-2">
-            <p className="font-semibold text-slate-800">AI response details</p>
+          <div className="mt-2 border-t border-slate-200 dark:border-slate-700 pt-2">
+            <p className="font-semibold text-slate-800 dark:text-slate-100">AI response details</p>
             <div className="mt-2 grid gap-2">
               {feedback.reportDetails.map((report) => (
                 <details
                   key={report.reportLabel}
-                  className="rounded-md border border-slate-200 bg-white p-2"
+                  className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2"
                 >
-                  <summary className="cursor-pointer text-xs font-semibold text-slate-800">
-                    {report.reportLabel} ({report.correctFields}/
-                    {report.totalFields}) - {report.filename}
+                  <summary className="cursor-pointer text-xs font-semibold text-slate-800 dark:text-slate-100">
+                    {displayLabel(report.filename)} ({report.correctFields}/
+                    {report.totalFields})
                   </summary>
-                  <div className="mt-2 grid gap-2 text-xs leading-5 text-slate-600">
+                  <div className="mt-2 grid gap-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
                     <div className="grid grid-cols-2 gap-2">
                       <span>Strict JSON on first pass?</span>
-                      <span className="text-right font-semibold text-slate-800">
+                      <span className="text-right font-semibold text-slate-800 dark:text-slate-100">
                         {report.strictJsonValid
                           ? "Yes"
                           : report.recoveredJsonUsed ||
@@ -1456,7 +1466,7 @@ function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
                             : "No"}
                       </span>
                       <span>Accepted after formatting cleanup?</span>
-                      <span className="text-right font-semibold text-slate-800">
+                      <span className="text-right font-semibold text-slate-800 dark:text-slate-100">
                         {report.recoveredJsonUsed ||
                         report.nestedObjectUsed ||
                         report.normalizationUsed
@@ -1467,14 +1477,14 @@ function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
                     {report.recoveredJsonUsed ||
                     report.nestedObjectUsed ||
                     report.normalizationUsed ? (
-                      <p className="rounded-md bg-teal-50 p-2 text-teal-900">
+                      <p className="rounded-md bg-teal-50 dark:bg-teal-950 p-2 text-teal-900 dark:text-teal-300">
                         Accepted after formatting cleanup.
                       </p>
                     ) : null}
                     {report.missingFields.length ||
                     report.invalidFields.length ||
                     report.ignoredExtraFields.length ? (
-                      <p className="rounded-md bg-amber-50 p-2 text-amber-900">
+                      <p className="rounded-md bg-amber-50 dark:bg-amber-950 p-2 text-amber-900 dark:text-amber-300">
                         This output may not score because required fields were
                         missing or answer choices were not in the accepted
                         format.
@@ -1511,8 +1521,8 @@ function SafeFeedbackPanel({ feedback }: { feedback: SafeSubmissionFeedback }) {
                       label="Extra fields returned"
                       values={report.ignoredExtraFields}
                     />
-                    <details className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                      <summary className="cursor-pointer font-semibold text-slate-800">
+                    <details className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2">
+                      <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">
                         View raw AI response
                       </summary>
                       <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-md bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-50">
@@ -1539,7 +1549,7 @@ function DiagnosticList({
 }) {
   return (
     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
-      <span className="font-semibold text-slate-700">{label}</span>
+      <span className="font-semibold text-slate-700 dark:text-slate-200">{label}</span>
       <span className="break-words">{values.length ? values.join(", ") : "None"}</span>
     </div>
   );
@@ -1563,40 +1573,40 @@ function Leaderboard({
   visible: boolean;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
         Leaderboard
       </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">
-        Final leaderboard
+      <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
+        Leaderboard
       </h2>
       {!visible ? (
-        <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+        <p className="mt-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
           Leaderboard is hidden by the organizer.
         </p>
       ) : (
-      <div className="mt-4 overflow-hidden rounded-md border border-slate-200">
+      <div className="mt-4 overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
         {rows.length === 0 ? (
-          <p className="bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-            Final submissions will appear here after participants submit.
+          <p className="bg-slate-50 dark:bg-slate-950 p-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Scores will appear here when available under the organizer’s visibility settings.
           </p>
         ) : rows.map((row) => (
           <div
             key={row.participant}
-            className={`grid grid-cols-[46px_minmax(0,1fr)_60px] items-center border-b border-slate-100 px-3 py-3 text-sm last:border-b-0 ${
-              row.participant === participantId ? "bg-teal-50" : "bg-white"
+            className={`grid grid-cols-[46px_minmax(0,1fr)_60px] items-center border-b border-slate-100 dark:border-slate-800 px-3 py-3 text-sm last:border-b-0 ${
+              row.participant === participantId ? "bg-teal-50 dark:bg-teal-950" : "bg-white dark:bg-slate-900"
             }`}
           >
-            <span className="font-semibold text-slate-500">#{row.rank}</span>
+            <span className="font-semibold text-slate-500 dark:text-slate-400">#{row.rank}</span>
             <div className="min-w-0">
-              <p className="truncate font-semibold text-slate-800">
+              <p className="truncate font-semibold text-slate-800 dark:text-slate-100">
                 {row.participant}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {row.final ? "Final submitted" : "Test attempt"}
               </p>
             </div>
-            <span className="text-right font-semibold text-slate-950">
+            <span className="text-right font-semibold text-slate-950 dark:text-slate-50">
               {row.score}%
             </span>
           </div>

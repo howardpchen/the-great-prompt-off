@@ -155,7 +155,7 @@ Configure these values without committing `.env.local`:
 | `USE_REAL_LLM` | Yes | `true` uses OpenRouter; any other value uses the deterministic local evaluator. |
 | `OPENROUTER_API_KEY` | When `USE_REAL_LLM=true` | Server-only OpenRouter credential. |
 | `OPENROUTER_MODEL` | Recommended | Fallback model when the active challenge has no approved override. |
-| `OPENROUTER_CONCURRENCY` | Optional | Shared concurrent provider calls across sandbox/scored traffic (single app process), clamped from 1 to 20; default 20. Excess work queues; retryable admission failures use bounded backoff. |
+| `OPENROUTER_CONCURRENCY` | Optional | Shared concurrent provider calls across sandbox/scored traffic (single app process), clamped from 1 to 50; default 20. Set 50 only after capacity calibration. Per-submission fanout remains at most 20. Excess work queues; explicit 429/503 and identified in-flight-budget 402 with Retry-After use at most three retries after 5/15/30 seconds plus positive jitter, honoring larger Retry-After values. Cumulative retry sleep is capped at 120 seconds; longer waits fail rather than retry early. |
 | `ALLOW_LOCAL_FALLBACK` | Optional | Development-only fallback. Keep `false` in production so database failures fail closed. |
 | `KEEPALIVE_SECRET` | Optional | Protects the read-only Supabase health endpoint and scheduled pings. |
 
@@ -253,3 +253,11 @@ This project is available under the [MIT License](LICENSE).
 ### Prompt Sandbox
 
 See [sandbox design and operational limits](docs/prompt-sandbox.md). Sandbox is disabled by default: select three held-out reports in an unused, paused educational contest, enable sandbox, then open practice. Sandbox never spends scored attempts.
+
+### Provider retry limitations
+
+The concurrency setting is an application ceiling, not a provider capacity guarantee. Backoff releases the provider slot and reacquires it through the shared scheduler; scored requests carry team identifiers for fair interleaving. Adaptive admission starts at min(20, ceiling), halves the effective limit on explicit admission failures (floor 1), and pauses new admissions for at least 5 seconds or a longer Retry-After. In-flight requests finish normally. Concurrent failures from one admission generation cause only one multiplicative decrease. With queued demand, at least one effective-window of successful completions and 30 throttle/error-free seconds allow one additional slot, up to the configured ceiling. Backoff remains bounded per request; recovery is deliberately gradual, not a throughput guarantee. State is process-local and resets on restart; this is not a fleet-wide circuit breaker. Multiple app replicas still require distributed limits. A 50-slot process with fifty active submissions admits at most 1,000 report workers (20 per submission), but extra traffic can still hit the existing 1,000-waiter queue bound.
+
+Automatic retries are deliberately selective: ordinary exhausted-credit 402, 400/401/403, timeout/network failures, malformed outputs and late errors inside HTTP 200 responses are not replayed. Such failures may be permanent or have ambiguous billing/completion. Each HTTP attempt retains its 60-second timeout; the 120-second backoff budget is **sleep only**, excluding queue wait and request time. No durable background job or early final receipt is added by this change.
+
+Reference: [OpenRouter error handling](https://openrouter.ai/docs/api-reference/errors), including Retry-After on 429/503 and explicit in-flight-budget 402. Retry-After dates and seconds are supported. OpenRouter availability varies; measure throughput before promising turnaround times.

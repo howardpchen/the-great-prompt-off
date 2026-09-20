@@ -78,23 +78,23 @@ export function AdminProgressMonitor({
 
   return (
     <section className="grid gap-3">
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_220px_240px]">
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
             Search
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search code or display name"
-              className="h-10 rounded-md border border-slate-300 px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+              className="h-10 rounded-md border border-slate-300 dark:border-slate-600 px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800"
             />
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
             Status
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+              className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800"
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -103,12 +103,12 @@ export function AdminProgressMonitor({
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
             Sort by
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+              className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 font-normal outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100 dark:focus:ring-teal-800"
             >
               {sortOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -118,13 +118,13 @@ export function AdminProgressMonitor({
             </select>
           </label>
         </div>
-        <p className="mt-3 text-sm text-slate-600">
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
           Showing {filteredParticipants.length} of {participants.length} participants.
         </p>
       </div>
 
       {filteredParticipants.length === 0 ? (
-        <p className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600 shadow-sm">
+        <p className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm leading-6 text-slate-600 dark:text-slate-300 shadow-sm">
           No participants match the current search and filter.
         </p>
       ) : null}
@@ -232,10 +232,10 @@ function timestamp(value: string | null) {
 function ProgressStatusBadge({ status }: { status: ProgressStatus }) {
   const label = progressStatusLabel(status);
   const className = {
-    final_submitted: "border-teal-200 bg-teal-50 text-teal-800",
-    inactive: "border-slate-200 bg-slate-100 text-slate-600",
-    no_activity: "border-amber-200 bg-amber-50 text-amber-800",
-    practicing: "border-cyan-200 bg-cyan-50 text-cyan-800",
+    final_submitted: "border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300",
+    inactive: "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
+    no_activity: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300",
+    practicing: "border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300",
   }[status];
 
   return (

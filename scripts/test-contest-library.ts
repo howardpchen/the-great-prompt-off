@@ -11,7 +11,13 @@ import { submitToSupabase } from "../app/lib/supabase/submission-workflow";
 async function main() {
  if(process.env.PGDATABASE!=="gpo_library_test" || process.env.USE_REAL_LLM==="true") throw new Error("Disposable fixture only.");
  const db=createDatabase();
- const old=await contestSchemaState(db);
+ // The active seeded contest is permanently frozen. Exercise legacy edit fencing
+ // on an inactive draft with the legacy NULL-schema representation instead.
+ const active=await contestSchemaState(db);
+ const fork=await saveContestSchema(db,{action:'fork',contestId:active.contestId,expectedVersion:active.schema.version,expectedRevision:active.revision});
+ await db.sql("UPDATE challenges SET contest_schema=NULL,mode_id=$2,schema_version=$3 WHERE id=$1",[fork.contestId,active.schema.id,active.schema.version]);
+ await db.sql("UPDATE answer_keys SET mode_id=$2,schema_version=$3,acl_tear=(answer_values->>'acl_tear')::finding_value,mcl_injury=(answer_values->>'mcl_injury')::finding_value,meniscus_tear=(answer_values->>'meniscus_tear')::finding_value,fracture=(answer_values->>'fracture')::finding_value,osteoarthritis=(answer_values->>'osteoarthritis')::finding_value,effusion=(answer_values->>'effusion')::finding_value WHERE report_id IN (SELECT id FROM reports WHERE challenge_id=$1)",[fork.contestId,active.schema.id,active.schema.version]);
+ const old=await contestSchemaState(db,fork.contestId);
  const before=await db.sql("SELECT id,participant_code,access_code FROM participants ORDER BY id");
  // Two organizer tabs editing an already-ready legacy contest must not lose updates.
  const [legacy] = await db.sql<{contest_schema: unknown; schema_ready: boolean; schema_locked: boolean}>(
@@ -44,6 +50,7 @@ async function main() {
  assert.deepEqual(await contestSchemaState(db,old.contestId), afterSecondImport);
  console.log('PASS legacy ready/null-schema import revision, stale overwrite rejection, fresh retry, invalid-import rollback.');
 
+ await mutateContestLibrary(db,{action:'activate',contestId:old.contestId,expectedVersion:old.schema.version});
  const schema={...twelveBinaryTemplate,fields:twelveBinaryTemplate.fields.map(f=>({...f,type:'multiclass',allowedValues:['not_mentioned','absent','present'],allowNull:false})),education:{version:1,pipeline:'structured-v1',baselineInstructions:'Use report evidence; output the approved categorical decisions.'}};
  const created=await mutateContestLibrary(db,{action:'create',schema,title:'Synthetic 100 x 12',evaluationModel:'qwen/qwen3.5-9b',practiceBudget:3});
  let state=await contestSchemaState(db,created.contestId);
@@ -85,7 +92,7 @@ async function main() {
  await Promise.all([mutateContestLibrary(db,{action:'activate',contestId:old.contestId,expectedVersion:old.schema.version}),mutateContestLibrary(db,{action:'activate',contestId:state.contestId,expectedVersion:state.schema.version})]);
  assert.equal((await db.sql<{n:number}>("SELECT count(*)::int n FROM challenges WHERE is_active"))[0].n,1);
  assert.deepEqual(await db.sql("SELECT id,participant_code,access_code FROM participants ORDER BY id"),before);
- assert.equal((await listContests(db)).length,2);
+ assert.equal((await listContests(db)).length,3);
  await assert.rejects(mutateContestLibrary(db,{action:'archive',contestId:state.contestId,expectedVersion:999}),/changed/);
  await mutateContestLibrary(db,{action:'activate',contestId:old.contestId,expectedVersion:old.schema.version});
  await mutateContestLibrary(db,{action:'archive',contestId:state.contestId,expectedVersion:state.schema.version});

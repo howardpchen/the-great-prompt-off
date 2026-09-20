@@ -21,7 +21,7 @@ describe("challenge configuration locking", () => {
 
   it("keeps the participant-safe lock message stable", () => {
     expect(CHALLENGE_CONFIGURATION_LOCK_MESSAGE).toContain(
-      "first successful submission",
+      "frozen after activation",
     );
   });
 });

@@ -48,7 +48,7 @@ export function AdminAutoRefresh({
   }, [intervalSeconds, refreshIfSafe]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-500 dark:text-slate-400 shadow-sm">
       <span>
         {autoRefreshEnabled
           ? `Auto-refresh: ${intervalSeconds}s`
@@ -69,7 +69,7 @@ export function AdminAutoRefresh({
         type="button"
         onClick={refreshNow}
         disabled={isPending}
-        className="ml-auto h-7 rounded-md border border-slate-300 px-2 font-semibold text-slate-600 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+        className="ml-auto h-7 rounded-md border border-slate-300 dark:border-slate-600 px-2 font-semibold text-slate-600 dark:text-slate-300 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
       >
         {isPending ? "Refreshing..." : "Refresh now"}
       </button>
