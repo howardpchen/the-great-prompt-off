@@ -20,3 +20,14 @@ describe("shared report scheduler",()=>{
   await expect(scheduler.run(async()=>{})).rejects.toThrow("wait exceeded");release();await running;expect(scheduler.stats).toEqual({active:0,waiting:0});
  });
 });
+
+it("completes fifty 77-report submissions with bounded fanout and no queue overflow",async()=>{
+ const scheduler=new ProviderScheduler(50);let peak=0,completed=0,maxWaiting=0;
+ await Promise.all(Array.from({length:50},async(_,team)=>{
+  let next=0;
+  await Promise.all(Array.from({length:20},async()=>{
+   while(next<77){const report=next++;await scheduler.run(async()=>{peak=Math.max(peak,scheduler.stats.active);maxWaiting=Math.max(maxWaiting,scheduler.stats.waiting);await sleep(1);completed++;},{group:`team-${team}`});expect(report).toBeLessThan(77);}
+  }));
+ }));
+ expect(completed).toBe(3850);expect(peak).toBe(50);expect(maxWaiting).toBeLessThanOrEqual(950);expect(scheduler.stats).toEqual({active:0,waiting:0});
+});

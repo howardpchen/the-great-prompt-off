@@ -7,7 +7,7 @@ import { buildOutputSchema, resolveChallengeMode, validateAnswerValues } from ".
 import { isApprovedEvaluationModel } from "../model-options";
 
 export async function listContests(db: Database) {
-  return db.sql(`SELECT c.id,c.title,c.is_active,c.event_phase,c.schema_version,c.schema_ready,c.schema_locked,c.archived_at,
+  return db.sql(`SELECT c.id,c.title,c.is_active,c.event_phase,c.schema_version,c.schema_ready,c.schema_locked,c.configuration_frozen_at,c.archived_at,
     c.evaluation_model,c.public_submission_limit,c.final_submission_limit,
     (SELECT count(*)::int FROM reports r WHERE r.challenge_id=c.id) report_count,
     (SELECT count(*)::int FROM submissions s WHERE s.challenge_id=c.id) submission_count
@@ -72,6 +72,7 @@ export async function mutateContestLibrary(db: Database, input: unknown) {
     const pending=await tx.sql("SELECT id FROM attempt_reservations WHERE status='pending' UNION ALL SELECT id FROM sandbox_jobs WHERE status='running' LIMIT 1");
     if (pending.length) throw new Error('Wait for in-flight evaluations to finish before switching contests.');
     if (p.action==='activate') {
+      if (c.is_active) return {ok:true,contestId:c.id};
       if (!c.schema_ready) throw new Error('Contest must be structurally ready before activation.');
       const schema=resolveChallengeMode(c.mode_id,c.schema_version,c.contest_schema);
       const counts=await tx.sql<{split:string;n:number}>("SELECT split,count(*)::int n FROM reports WHERE challenge_id=$1 AND split IN ('public','private') GROUP BY split",[c.id]);

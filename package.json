@@ -19,7 +19,8 @@
     "test:education-provider": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-education-provider.ts",
     "test:admin-page-snapshot": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-admin-page-snapshot.ts",
     "test:contest-library": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-contest-library.ts",
-    "test:sandbox": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-sandbox.ts"
+    "test:sandbox": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-sandbox.ts",
+    "test:activation-freeze": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-activation-freeze.ts"
   },
   "dependencies": {
     "next": "^16.3.4",

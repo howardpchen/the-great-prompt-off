@@ -5,7 +5,7 @@ export const adminBuildMarker = "admin-health-v1";
 
 export function AdminPageFrame({ children }: { children: ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#f7f9f8] px-6 py-6 text-slate-950">
+    <main className="min-h-screen bg-[#f7f9f8] dark:bg-slate-950 px-6 py-6 text-slate-950 dark:text-slate-50">
       <div className="mx-auto grid w-full max-w-[1500px] gap-5">{children}</div>
     </main>
   );
@@ -23,25 +23,25 @@ export function AdminHeader({
   title: string;
 }) {
   return (
-    <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
+    <header className="flex flex-col gap-4 border-b border-slate-200 dark:border-slate-700 pb-4 lg:flex-row lg:items-center lg:justify-between">
       <div>
         <Link
           href={backHref || "/"}
           className={
             backHref
-              ? "inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700"
-              : "text-sm font-semibold text-teal-700"
+              ? "inline-flex h-9 items-center rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
+              : "text-sm font-semibold text-teal-700 dark:text-teal-300"
           }
         >
           {backHref ? "Back to admin dashboard" : "The Great Prompt-Off"}
         </Link>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-950">{title}</h1>
+        <h1 className="mt-1 text-3xl font-semibold text-slate-950 dark:text-slate-50">{title}</h1>
         {subtitle ? (
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
             {subtitle}
           </p>
         ) : null}
-        <p className="mt-2 w-fit rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+        <p className="mt-2 w-fit rounded-md border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:text-teal-300">
           Build: {adminBuildMarker}
         </p>
       </div>
@@ -74,8 +74,8 @@ export function AdminNavigationCards() {
     },
     {
       href: "/admin/cases",
-      label: "Cases",
-      text: "Create, view, edit, and safely delete reports and answer keys.",
+      label: "Reference cases",
+      text: "Inspect the active contest’s fixed reports and reference answers.",
     },
     {
       href: "/admin/help",
@@ -90,10 +90,10 @@ export function AdminNavigationCards() {
         <Link
           key={item.href}
           href={item.href}
-          className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-teal-500 hover:shadow-md"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm hover:border-teal-500 hover:shadow-md"
         >
-          <h2 className="text-lg font-semibold text-slate-950">{item.label}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{item.label}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.text}</p>
         </Link>
       ))}
     </section>
@@ -102,19 +102,20 @@ export function AdminNavigationCards() {
 
 export function AdminSectionNav({ currentHref }: { currentHref: string }) {
   const items = [
-    { href: "/admin", label: "Overview" },
+    { href: "/admin", label: "Run" },
+    { href: "/admin/contests", label: "Contest Library" },
     { href: "/admin/participants", label: "Participants" },
     { href: "/admin/results", label: "Results" },
     { href: "/admin/analytics", label: "Analytics" },
     { href: "/admin/simulations", label: "Simulations" },
-    { href: "/admin/cases", label: "Cases" },
+    { href: "/admin/cases", label: "Reference cases" },
     { href: "/admin/help", label: "Help" },
   ];
 
   return (
     <nav
       aria-label="Admin pages"
-      className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm"
+      className="flex flex-wrap gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 shadow-sm"
     >
       {items.map((item) => {
         const isCurrent = item.href === currentHref;
@@ -127,7 +128,7 @@ export function AdminSectionNav({ currentHref }: { currentHref: string }) {
             className={`inline-flex h-9 items-center rounded-md px-3 text-sm font-semibold ${
               isCurrent
                 ? "bg-teal-700 text-white"
-                : "text-slate-700 hover:bg-slate-100 hover:text-teal-700"
+                : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-teal-700 dark:hover:text-teal-300"
             }`}
           >
             {item.label}
@@ -146,22 +147,22 @@ export function MetricCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-50">{value}</p>
     </div>
   );
 }
 
 export function HealthItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
       </p>
-      <p className="mt-1 break-words font-semibold text-slate-900">{value}</p>
+      <p className="mt-1 break-words font-semibold text-slate-900 dark:text-slate-100">{value}</p>
     </div>
   );
 }
@@ -176,13 +177,13 @@ export function AdminTable({
   title: string;
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+    <section className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+      <div className="border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+        <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{title}</h2>
       </div>
       <div className="overflow-auto">
         <table className="w-full min-w-[900px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <tr>
               {columns.map((column) => (
                 <th key={column} className="px-3 py-3 font-semibold">
@@ -193,7 +194,7 @@ export function AdminTable({
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={rowIndex} className="border-t border-slate-100">
+              <tr key={rowIndex} className="border-t border-slate-100 dark:border-slate-800">
                 {row.map((cell, cellIndex) => (
                   <td key={`${rowIndex}-${cellIndex}`} className="px-3 py-3">
                     {cell || "-"}

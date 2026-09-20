@@ -1,15 +1,18 @@
 /** Database-integrated provider failure simulation. fetch is replaced before real-mode branch. */
 import assert from "node:assert/strict";
 import {createDatabase} from "../app/lib/db/database";
+import {mutateContestLibrary} from "../app/lib/db/contest-library";
 import {getPool} from "../app/lib/db/pool";
 import {contestSchemaState,saveContestSchema} from "../app/lib/db/contest-schema";
 import {submitToSupabase,getSupabaseSubmissionStatus} from "../app/lib/supabase/submission-workflow";
 async function main(){
  if(process.env.PGDATABASE!=="gpo_edu_provider") throw new Error("Disposable gpo_edu_provider only.");
  const db=createDatabase();let state=await contestSchemaState(db);
- await forkAndSelectFixture(db,state);state=await contestSchemaState(db);
- await saveContestSchema(db,{action:"schema",contestId:state.contestId,expectedVersion:state.schema.version,schema:{...state.schema,education:{...state.schema.education,evaluationMode:"real"}}});state=await contestSchemaState(db);
+ state=await forkFixture(db,state);
+ await saveContestSchema(db,{action:"schema",contestId:state.contestId,expectedVersion:state.schema.version,schema:{...state.schema,education:{version:1,pipeline:"structured-v1",baselineInstructions:"Use explicit evidence",...state.schema.education,evaluationMode:"real"}}});state=await contestSchemaState(db,state.contestId);
  await saveContestSchema(db,{action:"answers",contestId:state.contestId,expectedVersion:state.schema.version,answers:state.reports.map(r=>({report_id_or_filename:r.id,answer_values:Object.fromEntries(state.schema.fields.map(f=>[f.key,f.allowedValues[0]]))}))});
+  await db.sql("UPDATE challenges SET evaluation_model='qwen/qwen3.5-9b' WHERE id=$1",[state.contestId]);
+  await mutateContestLibrary(db,{action:'activate',contestId:state.contestId,expectedVersion:state.schema.version});
  await db.sql("UPDATE challenges SET event_phase='practice_open' WHERE id=$1",[state.contestId]);
  let malformed=true,active=0;
  globalThis.fetch=async()=>{active++;await new Promise(r=>setTimeout(r,5));active--;return new Response(JSON.stringify({choices:[{message:{content:malformed?"{}":JSON.stringify(Object.fromEntries(state.schema.fields.map(f=>[f.key,{status:"no_decision",value:null}])))}}]}));};
@@ -23,9 +26,8 @@ async function main(){
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>getPool().end());
 
-// Legacy regression fixture requires an active unready draft to exercise low-level guards.
-// Production forks stay inactive; production activation is readiness-gated (test-contest-library).
-async function forkAndSelectFixture(db: ReturnType<typeof createDatabase>, state: Awaited<ReturnType<typeof contestSchemaState>>) {
+// Prepare inactive child before activation; never bypass lifecycle guards.
+async function forkFixture(db: ReturnType<typeof createDatabase>, state: Awaited<ReturnType<typeof contestSchemaState>>) {
  const created=await saveContestSchema(db,{action:"fork",contestId:state.contestId,expectedVersion:state.schema.version});
- await db.transaction(async tx=>{await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");await tx.sql("UPDATE challenges SET is_active=false WHERE is_active");await tx.sql("UPDATE challenges SET is_active=true WHERE id=$1",[created.contestId]);});
+ return contestSchemaState(db,created.contestId);
 }

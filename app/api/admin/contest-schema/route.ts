@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "Admin session required." }, { status: 401 });
   }
   try {
-    return Response.json(await contestSchemaState(createDatabase(), new URL(request.url).searchParams.get("contestId") || undefined));
+    return Response.json(await contestSchemaState(createDatabase(), new URL(request.url).searchParams.get("contestId") || undefined, new URL(request.url).searchParams.get("includeReports") === "true"));
   } catch {
     return Response.json(
       { error: "Could not load contest schema." },

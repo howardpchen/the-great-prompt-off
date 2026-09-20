@@ -14,7 +14,7 @@ import {
 } from "@/app/lib/leaderboard-visibility";
 import {
   extractReportWithOpenRouter,
-  getOpenRouterConcurrency,
+  getOpenRouterSubmissionConcurrency,
   hasOpenRouterApiKey,
   resolveOpenRouterModel,
   shouldUseRealLlm,
@@ -313,6 +313,7 @@ export async function submitToSupabase({
     prompt,
     model: resolveOpenRouterModel(challenge.evaluation_model),
     mode: challengeMode,
+    providerGroup: participant.id,
   });
   return await supabase.transaction(async (supabase) => {
   const [held] = await supabase.sql<{status:string}>('SELECT status FROM attempt_reservations WHERE id=$1 FOR UPDATE',[reservation.id]);
@@ -579,16 +580,18 @@ async function evaluateSubmission({
   prompt,
   model,
   mode,
+  providerGroup,
 }: {
   answerKeys: RuntimeAnswerKeyItem[];
   kind: SubmissionKind;
   prompt: string;
   model: string;
   mode: ChallengeModeDefinition;
+  providerGroup: string;
 }): Promise<EvaluationResult> {
   if (mode.education && (mode.education.evaluationMode ?? "simulation") !== (shouldUseRealLlm() ? "real" : "simulation")) throw new RealLlmEvaluationError("Contest evaluator mode does not match this server. Ask the organizer to create the correct contest version; no attempt was charged.");
   if (shouldUseRealLlm()) {
-    return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode);
+    return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode, providerGroup);
   }
 
   if (kind === "public" || kind === "final") {
@@ -628,6 +631,7 @@ async function evaluateWithRealLlm(
   kind: SubmissionKind,
   model: string,
   mode: ChallengeModeDefinition,
+  providerGroup: string,
 ): Promise<EvaluationResult> {
   if (!hasOpenRouterApiKey()) {
     console.error(
@@ -638,7 +642,7 @@ async function evaluateWithRealLlm(
     );
   }
 
-  const concurrency = getOpenRouterConcurrency();
+  const concurrency = getOpenRouterSubmissionConcurrency();
 
   try {
     // Final submissions can evaluate many private reports. Limit OpenRouter
@@ -656,7 +660,7 @@ async function evaluateWithRealLlm(
           reportText: item.text,
           model,
           mode,
-        });
+        }, { priority: "scored", group: providerGroup });
         const score = scoreModelOutput(mode.education ? JSON.stringify(parseEducationOutput(modelOutput, mode).values) : modelOutput, item.answer_key, mode);
 
         return {

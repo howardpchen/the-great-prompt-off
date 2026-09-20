@@ -120,16 +120,16 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-300">
             Case manager
           </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+          <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
             Live case library
           </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
             Admin-only live editing for seeded synthetic reports and answer keys.
             File-based import remains safer for bulk changes.
           </p>
@@ -145,9 +145,9 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="overflow-auto rounded-md border border-slate-200">
+        <div className="overflow-auto rounded-md border border-slate-200 dark:border-slate-700">
           <table className="w-full min-w-[1100px] text-left text-xs">
-            <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50 dark:bg-slate-950 uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-3 font-semibold">Filename</th>
                 <th className="px-3 py-3 font-semibold">ID/order</th>
@@ -164,20 +164,20 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
             </thead>
             <tbody>
               {sortedCases.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100 align-top">
-                  <td className="px-3 py-3 font-semibold text-slate-900">
+                <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800 align-top">
+                  <td className="px-3 py-3 font-semibold text-slate-900 dark:text-slate-100">
                     {item.filename}
                     {expandedReportId === item.id ? (
-                      <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-3 font-mono text-xs font-normal leading-5 text-slate-700">
+                      <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3 font-mono text-xs font-normal leading-5 text-slate-700 dark:text-slate-200">
                         {item.reportText}
                       </pre>
                     ) : null}
                   </td>
-                  <td className="px-3 py-3 font-mono text-slate-600">
+                  <td className="px-3 py-3 font-mono text-slate-600 dark:text-slate-300">
                     {item.externalId}
                   </td>
                   <td className="px-3 py-3">
-                    <span className="rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
+                    <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-1 font-semibold text-slate-700 dark:text-slate-200">
                       {item.split}
                     </span>
                   </td>
@@ -199,7 +199,7 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                             current === item.id ? null : item.id,
                           )
                         }
-                        className="h-8 rounded-md border border-slate-300 px-2 font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700"
+                        className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
                       >
                         View
                       </button>
@@ -207,7 +207,7 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                         type="button"
                         onClick={() => editCase(item)}
                         disabled={isPending}
-                        className="h-8 rounded-md border border-slate-300 px-2 font-semibold text-slate-700 hover:border-teal-600 hover:text-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
                       >
                         Edit
                       </button>
@@ -215,7 +215,7 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                         type="button"
                         onClick={() => deleteCase(item)}
                         disabled={isPending}
-                        className="h-8 rounded-md border border-slate-300 px-2 font-semibold text-slate-700 hover:border-rose-600 hover:text-rose-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        className="h-8 rounded-md border border-slate-300 dark:border-slate-600 px-2 font-semibold text-slate-700 dark:text-slate-200 hover:border-rose-600 hover:text-rose-700 dark:hover:text-rose-300 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
                       >
                         Delete
                       </button>
@@ -227,12 +227,12 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
           </table>
         </div>
 
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-semibold text-slate-950">
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-4">
+          <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-50">
             {isEditing ? "Edit case" : "Create case"}
           </h3>
           <div className="mt-3 grid gap-3">
-            <label className="grid gap-1 text-xs font-semibold text-slate-600">
+            <label className="grid gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
               Filename
               <input
                 value={draft.filename}
@@ -243,10 +243,10 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                   }))
                 }
                 placeholder="synthetic_report_051.txt"
-                className="h-10 rounded-md border border-slate-300 bg-white px-3 font-normal text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 font-normal text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 dark:focus:ring-teal-800"
               />
             </label>
-            <label className="grid gap-1 text-xs font-semibold text-slate-600">
+            <label className="grid gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
               Split
               <select
                 value={draft.split}
@@ -256,13 +256,13 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                     split: event.target.value as AdminCaseSplit,
                   }))
                 }
-                className="h-10 rounded-md border border-slate-300 bg-white px-3 font-normal text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 font-normal text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 dark:focus:ring-teal-800"
               >
                 <option value="public">public</option>
                 <option value="private">private</option>
               </select>
             </label>
-            <label className="grid gap-1 text-xs font-semibold text-slate-600">
+            <label className="grid gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
               Report text
               <textarea
                 value={draft.reportText}
@@ -272,15 +272,15 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                     reportText: event.target.value,
                   }))
                 }
-                className="h-56 resize-y rounded-md border border-slate-300 bg-white p-3 font-mono text-xs font-normal leading-5 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                className="h-56 resize-y rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 font-mono text-xs font-normal leading-5 text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 dark:focus:ring-teal-800"
               />
             </label>
             <div className="grid gap-2">
-              <p className="text-xs font-semibold text-slate-600">Answer key</p>
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Answer key</p>
               {findingFields.map((field) => (
                 <label
                   key={field}
-                  className="grid grid-cols-[minmax(0,1fr)_150px] items-center gap-2 text-xs text-slate-600"
+                  className="grid grid-cols-[minmax(0,1fr)_150px] items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
                 >
                   <span className="font-mono">{field}</span>
                   {data.fields.find(f=>f.key===field)?.type === 'number' ? <input type="number" step="any" aria-label={field} value={draft.answerKey[field] ?? ''} onChange={e=>setDraft({...draft,answerKey:{...draft.answerKey,[field]:e.target.value === '' ? null : Number(e.target.value)}})}/> : <select
@@ -294,7 +294,7 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                         },
                       }))
                     }
-                    className="h-9 rounded-md border border-slate-300 bg-white px-2 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className="h-9 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 dark:focus:ring-teal-800"
                   >
                     {data.fields.find(f=>f.key===field)?.nullable && <option value="__null__">Missing / uncertain (null)</option>}
                     {(data.fields.find(f=>f.key===field)?.allowedValues || []).map((value) => (
@@ -311,7 +311,7 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                 type="button"
                 onClick={saveCase}
                 disabled={isPending}
-                className="h-10 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="h-10 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
               >
                 {isPending ? "Saving..." : isEditing ? "Save case" : "Create case"}
               </button>
@@ -320,14 +320,14 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
                   type="button"
                   onClick={resetDraft}
                   disabled={isPending}
-                  className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-slate-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
                 >
                   Cancel edit
                 </button>
               ) : null}
             </div>
             {message ? (
-              <p className="rounded-md bg-white p-3 text-sm leading-6 text-slate-700">
+              <p className="rounded-md bg-white dark:bg-slate-900 p-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
                 {message}
               </p>
             ) : null}
@@ -340,11 +340,11 @@ export function AdminCaseManager({ data }: { data: AdminCaseManagerData }) {
 
 function CaseMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
       </p>
-      <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{value}</p>
     </div>
   );
 }

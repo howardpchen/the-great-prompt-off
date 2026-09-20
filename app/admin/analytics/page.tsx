@@ -23,7 +23,7 @@ export default async function AdminAnalyticsPage() {
 
   if (!authed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 py-10 text-slate-950">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 py-10 text-slate-950 dark:text-slate-50">
         <AdminLoginForm />
       </main>
     );
@@ -90,7 +90,7 @@ export default async function AdminAnalyticsPage() {
               value={data.practiceImprovement.participantsWithNoImprovement}
             />
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
             Improvement compares each participant&apos;s first Test Attempt score
             with their best Test Attempt score.
           </p>
@@ -130,14 +130,14 @@ export default async function AdminAnalyticsPage() {
           </div>
           {data.diagnostics.commonInvalidFields.length > 0 ? (
             <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Common invalid fields
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {data.diagnostics.commonInvalidFields.map((field) => (
                   <span
                     key={field.field}
-                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700"
+                    className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200"
                   >
                     {field.field}: {field.count}
                   </span>
@@ -145,7 +145,7 @@ export default async function AdminAnalyticsPage() {
               </div>
             </div>
           ) : (
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
               No invalid field diagnostics have been stored yet.
             </p>
           )}
@@ -193,7 +193,7 @@ export default async function AdminAnalyticsPage() {
         ])}
       />
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600 shadow-sm">
+      <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-sm leading-6 text-slate-600 dark:text-slate-300 shadow-sm">
         Analytics are computed from participants, submissions, and aggregate
         prompt-run item diagnostics. This page does not load answer keys, report
         text, raw model outputs, access codes, or secrets.
@@ -210,8 +210,8 @@ function InsightCard({
   title: string;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -219,11 +219,11 @@ function InsightCard({
 
 function SmallMetric({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
       </p>
-      <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{value}</p>
     </div>
   );
 }
@@ -257,14 +257,14 @@ function BarList({ rows }: { rows: Array<{ label: string; value: number }> }) {
           key={row.label}
           className="grid grid-cols-[90px_minmax(0,1fr)_40px] items-center gap-3"
         >
-          <span className="text-sm font-medium text-slate-600">{row.label}</span>
-          <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+          <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{row.label}</span>
+          <div className="h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
             <div
               className="h-full rounded-full bg-teal-600"
               style={{ width: `${(row.value / max) * 100}%` }}
             />
           </div>
-          <span className="text-right text-sm font-semibold text-slate-900">
+          <span className="text-right text-sm font-semibold text-slate-900 dark:text-slate-100">
             {row.value}
           </span>
         </div>

@@ -13,7 +13,7 @@ export default async function AdminSimulationsPage() {
 
   if (!authed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] px-6 py-10 text-slate-950">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f9f8] dark:bg-slate-950 px-6 py-10 text-slate-950 dark:text-slate-50">
         <AdminLoginForm />
       </main>
     );

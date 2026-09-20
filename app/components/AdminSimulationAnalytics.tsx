@@ -187,15 +187,15 @@ export function AdminSimulationAnalytics({
 
   if (loading && !analytics) {
     return (
-      <section className="rounded-lg border border-slate-200 bg-white px-5 py-8 shadow-sm">
-        <p className="text-sm text-slate-600">Loading simulation-only analytics...</p>
+      <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-8 shadow-sm">
+        <p className="text-sm text-slate-600 dark:text-slate-300">Loading simulation-only analytics...</p>
       </section>
     );
   }
 
   if (!analytics) {
     return (
-      <section className="rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
+      <section className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 px-5 py-4 text-sm text-rose-800 dark:text-rose-300">
         {error || "Simulation analytics are unavailable."}
       </section>
     );
@@ -206,21 +206,21 @@ export function AdminSimulationAnalytics({
     .reverse();
 
   return (
-    <section aria-labelledby="simulation-analytics-heading" className="grid gap-5 border-y border-slate-200 py-6">
+    <section aria-labelledby="simulation-analytics-heading" className="grid gap-5 border-y border-slate-200 dark:border-slate-700 py-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Simulation-only analytics</p>
-          <h2 id="simulation-analytics-heading" className="mt-2 text-2xl font-semibold text-slate-950">Deterministic rehearsal trends</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">Simulation-only analytics</p>
+          <h2 id="simulation-analytics-heading" className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-50">Deterministic rehearsal trends</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
             These aggregates use isolated deterministic simulation batches only. They are not workshop results or a real LLM benchmark.
           </p>
         </div>
-        <span className="w-fit rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-900">
+        <span className="w-fit rounded-md border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950 px-3 py-2 text-xs font-semibold text-cyan-900 dark:text-cyan-300">
           {analytics.summary.completedBatchCount} completed of {analytics.summary.batchCount} batches
         </span>
       </div>
 
-      {error ? <p role="alert" className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p> : null}
+      {error ? <p role="alert" className="rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 px-4 py-3 text-sm text-rose-800 dark:text-rose-300">{error}</p> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AnalyticsMetric label="Average score" value={formatPercent(analytics.summary.averageScore)} />
@@ -232,12 +232,12 @@ export function AdminSimulationAnalytics({
         <AnalyticsMetric label="Strong average" value={formatPercent(analytics.summary.strongAverageScore)} />
         <AnalyticsMetric label="Strong minus weak" value={formatSignedPoints(analytics.summary.weakStrongSeparation)} />
       </div>
-      <p className="text-xs leading-5 text-slate-500">
+      <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
         Weak profiles are blank, nonsense, and vague. Strong profiles are the basic and strong all-fields strategies. The partial-field profile is excluded from separation.
       </p>
 
       {analytics.summary.batchCount === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-5 py-10 text-sm text-slate-600 shadow-sm">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-10 text-sm text-slate-600 dark:text-slate-300 shadow-sm">
           Run and save at least one deterministic simulation batch to populate trends and comparisons.
         </div>
       ) : (
@@ -307,9 +307,9 @@ export function AdminSimulationAnalytics({
 
 function AnalyticsMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-50">{value}</p>
     </div>
   );
 }
@@ -322,20 +322,20 @@ function AnalyticsBars({
   rows: Array<{ key: string; label: string; detail: string; value: number }>;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{title}</h3>
       <div className="mt-4 grid gap-4">
         {rows.length ? rows.map((row) => (
           <div key={row.key}>
             <div className="flex items-end justify-between gap-3 text-sm">
-              <span className="min-w-0 font-semibold text-slate-800"><span className="block truncate">{row.label}</span><span className="block text-xs font-normal text-slate-500">{row.detail}</span></span>
-              <span className="shrink-0 font-semibold text-slate-950">{formatPercent(row.value)}</span>
+              <span className="min-w-0 font-semibold text-slate-800 dark:text-slate-100"><span className="block truncate">{row.label}</span><span className="block text-xs font-normal text-slate-500 dark:text-slate-400">{row.detail}</span></span>
+              <span className="shrink-0 font-semibold text-slate-950 dark:text-slate-50">{formatPercent(row.value)}</span>
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-full rounded-full bg-teal-600" style={{ width: `${clampPercent(row.value)}%` }} />
             </div>
           </div>
-        )) : <p className="text-sm text-slate-600">No aggregate data available.</p>}
+        )) : <p className="text-sm text-slate-600 dark:text-slate-300">No aggregate data available.</p>}
       </div>
     </section>
   );
@@ -351,12 +351,12 @@ function AggregateTable({
   rows: string[][];
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <h3 className="border-b border-slate-200 px-5 py-4 text-lg font-semibold text-slate-950">{title}</h3>
+    <section className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+      <h3 className="border-b border-slate-200 dark:border-slate-700 px-5 py-4 text-lg font-semibold text-slate-950 dark:text-slate-50">{title}</h3>
       <div className="overflow-auto">
         <table className="w-full min-w-[520px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{headers.map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr></thead>
-          <tbody>{rows.map((row) => <tr key={row.join(":")} className="border-t border-slate-100">{row.map((cell, index) => <td key={`${cell}:${index}`} className="px-4 py-3">{cell}</td>)}</tr>)}</tbody>
+          <thead className="bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"><tr>{headers.map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr></thead>
+          <tbody>{rows.map((row) => <tr key={row.join(":")} className="border-t border-slate-100 dark:border-slate-800">{row.map((cell, index) => <td key={`${cell}:${index}`} className="px-4 py-3">{cell}</td>)}</tr>)}</tbody>
         </table>
       </div>
     </section>
@@ -381,13 +381,13 @@ function BatchComparisonForm({
   onCompare: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-950">Compare two batches</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">Compare safe per-profile scores and aggregate diagnostics from two isolated deterministic batches.</p>
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Compare two batches</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Compare safe per-profile scores and aggregate diagnostics from two isolated deterministic batches.</p>
       <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
         <BatchSelect label="Left batch" value={leftBatchId} options={options} onChange={setLeftBatchId} />
         <BatchSelect label="Right batch" value={rightBatchId} options={options} onChange={setRightBatchId} />
-        <button type="button" onClick={onCompare} disabled={comparing || options.length < 2 || !leftBatchId || !rightBatchId || leftBatchId === rightBatchId} className="inline-flex h-11 items-center justify-center rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300">
+        <button type="button" onClick={onCompare} disabled={comparing || options.length < 2 || !leftBatchId || !rightBatchId || leftBatchId === rightBatchId} className="inline-flex h-11 items-center justify-center rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700">
           {comparing ? "Comparing..." : "Compare batches"}
         </button>
       </div>
@@ -397,9 +397,9 @@ function BatchComparisonForm({
 
 function BatchSelect({ label, value, options, onChange }: { label: string; value: string; options: AnalyticsResponse["batchesOverTime"]; onChange: (value: string) => void }) {
   return (
-    <label className="grid gap-2 text-sm font-semibold text-slate-800">
+    <label className="grid gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
       {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 min-w-0 rounded-md border border-slate-300 bg-white px-3 font-normal text-slate-950">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 min-w-0 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 font-normal text-slate-950 dark:text-slate-50">
         <option value="">Select a batch</option>
         {options.map((batch) => <option key={batch.batchId} value={batch.batchId}>{formatTimestamp(batch.createdAt)} · {batch.modeId} · {batch.reportScope}</option>)}
       </select>
@@ -409,12 +409,12 @@ function BatchSelect({ label, value, options, onChange }: { label: string; value
 
 function BatchComparisonResult({ comparison }: { comparison: ComparisonResponse }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h3 className="text-lg font-semibold text-slate-950">Batch comparison</h3>
-        <p className="mt-1 text-sm text-slate-600">Delta is right batch minus left batch.</p>
+    <section className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+      <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-4">
+        <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Batch comparison</h3>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Delta is right batch minus left batch.</p>
       </div>
-      <div className="grid gap-3 border-b border-slate-200 p-5 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 border-b border-slate-200 dark:border-slate-700 p-5 sm:grid-cols-2 xl:grid-cols-5">
         <ComparisonMetric label="Average score delta" value={formatSignedPoints(comparison.deltas.averageScore)} />
         <ComparisonMetric label="Evaluation delta" value={formatSignedNumber(comparison.deltas.totalEvaluations)} />
         <ComparisonMetric label="JSON validity delta" value={formatSignedPoints(comparison.deltas.jsonValidityRate)} />
@@ -423,8 +423,8 @@ function BatchComparisonResult({ comparison }: { comparison: ComparisonResponse 
       </div>
       <div className="overflow-auto">
         <table className="w-full min-w-[920px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Profile</th><th className="px-4 py-3">Left score</th><th className="px-4 py-3">Right score</th><th className="px-4 py-3">Delta</th><th className="px-4 py-3">Missing left / right</th><th className="px-4 py-3">Invalid left / right</th></tr></thead>
-          <tbody>{comparison.profiles.map((profile) => <tr key={`${profile.profileId}:${profile.profileVersion}`} className="border-t border-slate-100"><td className="px-4 py-3 font-semibold text-slate-900">{profile.profileLabel}</td><td className="px-4 py-3">{formatPercent(profile.leftScore)}</td><td className="px-4 py-3">{formatPercent(profile.rightScore)}</td><td className="px-4 py-3 font-semibold">{formatSignedPoints(profile.scoreDelta)}</td><td className="px-4 py-3">{formatPair(profile.leftMissingFieldCount, profile.rightMissingFieldCount)}</td><td className="px-4 py-3">{formatPair(profile.leftInvalidValueCount, profile.rightInvalidValueCount)}</td></tr>)}</tbody>
+          <thead className="bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"><tr><th className="px-4 py-3">Profile</th><th className="px-4 py-3">Left score</th><th className="px-4 py-3">Right score</th><th className="px-4 py-3">Delta</th><th className="px-4 py-3">Missing left / right</th><th className="px-4 py-3">Invalid left / right</th></tr></thead>
+          <tbody>{comparison.profiles.map((profile) => <tr key={`${profile.profileId}:${profile.profileVersion}`} className="border-t border-slate-100 dark:border-slate-800"><td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{profile.profileLabel}</td><td className="px-4 py-3">{formatPercent(profile.leftScore)}</td><td className="px-4 py-3">{formatPercent(profile.rightScore)}</td><td className="px-4 py-3 font-semibold">{formatSignedPoints(profile.scoreDelta)}</td><td className="px-4 py-3">{formatPair(profile.leftMissingFieldCount, profile.rightMissingFieldCount)}</td><td className="px-4 py-3">{formatPair(profile.leftInvalidValueCount, profile.rightInvalidValueCount)}</td></tr>)}</tbody>
         </table>
       </div>
     </section>
@@ -432,18 +432,18 @@ function BatchComparisonResult({ comparison }: { comparison: ComparisonResponse 
 }
 
 function ComparisonMetric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-lg font-semibold text-slate-950">{value}</p></div>;
+  return <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p><p className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">{value}</p></div>;
 }
 
 function BatchRankings({ rankings }: { rankings: AnalyticsResponse["batchRankings"] }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4"><h3 className="text-lg font-semibold text-slate-950">Profile ranking within each batch</h3><p className="mt-1 text-sm text-slate-600">Latest ten batches, ranked by score with diagnostic counts as tie-breakers.</p></div>
-      <div className="divide-y divide-slate-200">
+    <section className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+      <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-4"><h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Profile ranking within each batch</h3><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Latest ten batches, ranked by score with diagnostic counts as tie-breakers.</p></div>
+      <div className="divide-y divide-slate-200 dark:divide-slate-700">
         {rankings.map((batch) => (
           <div key={batch.batchId} className="grid gap-3 px-5 py-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-            <div><p className="text-sm font-semibold text-slate-900">{formatTimestamp(batch.createdAt)}</p><p className="mt-1 break-all text-xs text-slate-500">{batch.modeId} v{batch.schemaVersion} · {batch.reportScope}<br />{batch.batchId}</p></div>
-            <ol className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{batch.rankings.map((ranking) => <li key={`${ranking.profileId}:${ranking.profileVersion}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold text-slate-900">{ranking.rank}. {ranking.profileLabel}</span><span className="mt-1 block text-xs text-slate-600">{formatPercent(ranking.score)} · {ranking.correctFields}/{ranking.totalFields} correct · {ranking.missingFieldCount} missing · {ranking.invalidValueCount} invalid</span></li>)}</ol>
+            <div><p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatTimestamp(batch.createdAt)}</p><p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">{batch.modeId} v{batch.schemaVersion} · {batch.reportScope}<br />{batch.batchId}</p></div>
+            <ol className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{batch.rankings.map((ranking) => <li key={`${ranking.profileId}:${ranking.profileVersion}`} className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-sm"><span className="font-semibold text-slate-900 dark:text-slate-100">{ranking.rank}. {ranking.profileLabel}</span><span className="mt-1 block text-xs text-slate-600 dark:text-slate-300">{formatPercent(ranking.score)} · {ranking.correctFields}/{ranking.totalFields} correct · {ranking.missingFieldCount} missing · {ranking.invalidValueCount} invalid</span></li>)}</ol>
           </div>
         ))}
       </div>

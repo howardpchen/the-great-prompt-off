@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
+/* Explicit root theme: consistent first paint, independent of device settings. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #f7f9f8;
-  --foreground: #0f172a;
+  --background: #020617;
+  --foreground: #f1f5f9;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -27,21 +31,21 @@ textarea {
 /* Scoped organizer form layout; participant pages retain their own styles. */
 .contest-library { min-width: 0; }
 .contest-library p { line-height: 1.65; }
-.contest-library > p { color: #475569; font-size: .875rem; }
+.contest-library > p { color: #cbd5e1; font-size: .875rem; }
 .contest-library h3 { padding-top: .75rem; font-size: 1.125rem; font-weight: 650; }
 .contest-library label { display: flex; min-width: 0; flex-direction: column; gap: .5rem; font-size: .875rem; font-weight: 500; }
 .contest-library label:has(> input[type="checkbox"]) { flex-direction: row; align-items: flex-start; gap: .625rem; line-height: 1.5; }
 .contest-library input:not([type="checkbox"]),
 .contest-library select, .contest-library textarea {
   display: block; width: 100%; min-width: 0; max-width: 100%;
-  border: 1px solid #cbd5e1; border-radius: .5rem; background: white;
+  border: 1px solid #475569; border-radius: .5rem; background: #0f172a;
   padding: .625rem .75rem; font-size: .875rem; line-height: 1.5; font-weight: 400;
 }
 .contest-library input[type="checkbox"] { flex: none; margin-top: .25rem; accent-color: #0f766e; }
 .contest-library textarea { min-height: 7rem; resize: vertical; }
 .contest-library :is(input, select, textarea, button, summary):focus-visible { outline: 2px solid #0d9488; outline-offset: 3px; }
 .contest-library button {
-  max-width: 100%; min-height: 2.75rem; border: 1px solid #cbd5e1; border-radius: .5rem;
+  max-width: 100%; min-height: 2.75rem; border: 1px solid #475569; border-radius: .5rem;
   padding: .625rem 1rem; font-size: .875rem; font-weight: 600; line-height: 1.5;
   text-align: left; white-space: normal; cursor: pointer;
 }
@@ -49,20 +53,28 @@ textarea {
 .contest-library :disabled { cursor: not-allowed; opacity: .55; }
 .contest-library-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 .contest-library fieldset, .contest-library details {
-  min-width: 0; border: 1px solid #e2e8f0; border-radius: .75rem; padding: 1.25rem; background: #f8fafc;
+  min-width: 0; border: 1px solid #334155; border-radius: .75rem; padding: 1.25rem; background: #020617;
 }
 .contest-library fieldset { display: grid; gap: 1.25rem; }
 .contest-library legend { padding: 0 .375rem; font-size: .95rem; font-weight: 650; }
 .contest-library summary { cursor: pointer; font-size: .9rem; font-weight: 600; line-height: 1.5; }
 .contest-library details[open] > :not(summary) { margin-top: 1rem; }
-.contest-library label > span { color: #64748b; font-weight: 400; line-height: 1.6; }
-.contest-field-card { display: grid; min-width: 0; gap: 1rem; border: 1px solid #cbd5e1; border-radius: .75rem; padding: 1rem; background: white; }
+.contest-library label > span { color: #94a3b8; font-weight: 400; line-height: 1.6; }
+.contest-field-card { display: grid; min-width: 0; gap: 1rem; border: 1px solid #475569; border-radius: .75rem; padding: 1rem; background: #0f172a; }
 .contest-library pre { max-width: 100%; overflow: auto; max-height: 20rem; font-size: .8rem; }
 .contest-library details:has(table) { overflow-x: auto; }
 .contest-library table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-.contest-library th, .contest-library td { padding: .75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
-.contest-library [role="status"]:not(:empty) { border-radius: .5rem; background: #f0fdfa; border: 1px solid #99f6e4; padding: 1rem; }
+.contest-library th, .contest-library td { padding: .75rem; text-align: left; border-bottom: 1px solid #334155; }
+.contest-library [role="status"]:not(:empty) { border-radius: .5rem; background: #042f2e; border: 1px solid #115e59; padding: 1rem; }
 @media (min-width: 768px) {
   .contest-field-card { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 1.25rem; }
   .contest-field-wide { grid-column: 1 / -1; }
+}
+
+/* Native controls inherit the same dark surface as custom panels. */
+input, textarea, select { color: inherit; accent-color: #2dd4bf; }
+input::placeholder, textarea::placeholder { color: #94a3b8; opacity: 1; }
+::selection { background: #115e59; color: #f0fdfa; }
+:where(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #2dd4bf; outline-offset: 3px;
 }
