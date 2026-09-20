@@ -36,14 +36,13 @@ export function buildOutputSchema(
               type: f.nullable ? ["number", "null"] : "number",
               minimum: f.minimum,
               maximum: f.maximum,
-              description: `${f.description || f.label}; unit: ${f.unit}; tolerance: ${f.tolerance}`,
+              description: `${f.label}; unit: ${f.unit}`,
             }
           : {
               type: f.nullable ? ["string", "null"] : "string",
               enum: f.nullable
                 ? [...f.allowedValues, null]
                 : [...f.allowedValues],
-              ...(f.description ? { description: f.description } : {}),
             },
       ]),
     ),

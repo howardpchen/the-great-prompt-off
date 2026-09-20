@@ -210,13 +210,14 @@ export function LandingPage() {
               Knee MRI extraction
             </p>
             <h1 className="max-w-3xl text-5xl font-semibold leading-[1.02] text-slate-950 md:text-6xl">
-              Prompt engineering challenge platform
+              Clinical Radiology Data Extraction Challenge
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-              Participants write prompts that extract six structured findings
-              from synthetic, non-PHI knee MRI reports. Use counted test
-              attempts on public test reports to refine your prompt before one
-              locked final submission on hidden reports.
+              Distill your clinical expertise into clear instructions that guide
+              AI to extract structured findings from radiology reports. Refine
+              your prompt using editable Sandbox samples, compare performance
+              through counted public-leaderboard attempts, then make one locked
+              final submission on hidden reports.
             </p>
           </div>
 
@@ -305,8 +306,7 @@ export function LandingPage() {
         </div>
         <footer className="flex flex-col items-center gap-2 border-t border-slate-200 pt-4 text-center text-xs text-slate-400 sm:flex-row sm:justify-between sm:text-left">
           <span>
-            Created by Ethan B. Chen under the advising of Dr. Po-Hao Chen and
-            Dr. Chintan Shah
+            Ethan B. Chen and Dr. Po-Hao Chen
           </span>
           <Link href="/admin" className="font-semibold text-slate-500 hover:text-teal-700">
             Organizer access

@@ -112,6 +112,8 @@ test("administrator configures mixed fields and imports answers; participant see
   await page
     .getByRole("button", { name: "Enter workspace", exact: true })
     .click();
+  await expect(page.getByText(/Number in mm; tolerance ±1.25/)).toBeHidden();
+  await page.getByText("Field names and allowed values", { exact: true }).click();
   await expect(page.getByText(/Number in mm; tolerance ±1.25/)).toBeVisible();
   await page.goto("/admin/cases");
   await expect(

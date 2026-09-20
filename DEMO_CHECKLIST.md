@@ -10,7 +10,7 @@ Use this checklist before rehearsal and again before the real event. See `README
   - [ ] `USE_REAL_LLM=true`
   - [ ] `OPENROUTER_API_KEY`
   - [ ] `OPENROUTER_MODEL=google/gemini-2.5-flash`
-  - [ ] `OPENROUTER_CONCURRENCY=3`
+  - [ ] `OPENROUTER_CONCURRENCY=20`
   - [ ] Supabase URL, anon key, and service-role key variables
   - [ ] `ADMIN_SECRET`
   - [ ] `PARTICIPANT_SESSION_SECRET`

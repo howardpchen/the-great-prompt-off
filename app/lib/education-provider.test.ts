@@ -21,3 +21,19 @@ it("preserves an all-abstention response without inventing answers", async () =>
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({choices:[{message:{content:raw}}]}))));
   expect(await extractReportWithOpenRouter({mode,prompt:"brief",reportText:"synthetic"})).toBe(raw);
 });
+it("shares the twenty-call ceiling across concurrent report extractions", async () => {
+  vi.stubEnv("OPENROUTER_API_KEY", "test-only-never-real");vi.stubEnv("OPENROUTER_CONCURRENCY","20");
+  let active=0,peak=0;
+  const raw=JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:"no_decision",value:null}])));
+  vi.stubGlobal("fetch",vi.fn(async()=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,1));active--;return new Response(JSON.stringify({choices:[{message:{content:raw}}]}));}));
+  await Promise.all(Array.from({length:150},(_,i)=>extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'},{group:`team-${Math.floor(i/3)}`,priority:i%2?'sandbox':'scored'})));
+  expect(peak).toBe(20);
+});
+it("retries explicit in-flight budget rejection but not exhausted credits", async () => {
+  vi.stubEnv("OPENROUTER_API_KEY", "test-only-never-real");
+  const raw=JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:"no_decision",value:null}])));
+  const fetcher=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_in_flight_budget',reason:'in_flight_budget_exhausted'}}}),{status:402,headers:{'Retry-After':'0'}})).mockResolvedValueOnce(new Response(JSON.stringify({choices:[{message:{content:raw}}]})));
+  vi.stubGlobal('fetch',fetcher);expect(await extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'})).toBe(raw);expect(fetcher).toHaveBeenCalledTimes(2);
+  fetcher.mockReset().mockResolvedValue(new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_credits',reason:'weight_exceeds_budget'}}}),{status:402}));
+  await expect(extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'})).rejects.toThrow('402');expect(fetcher).toHaveBeenCalledTimes(1);
+});

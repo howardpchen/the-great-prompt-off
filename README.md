@@ -155,7 +155,7 @@ Configure these values without committing `.env.local`:
 | `USE_REAL_LLM` | Yes | `true` uses OpenRouter; any other value uses the deterministic local evaluator. |
 | `OPENROUTER_API_KEY` | When `USE_REAL_LLM=true` | Server-only OpenRouter credential. |
 | `OPENROUTER_MODEL` | Recommended | Fallback model when the active challenge has no approved override. |
-| `OPENROUTER_CONCURRENCY` | Optional | Concurrent report evaluations, clamped from 1 to 10; default is 3. |
+| `OPENROUTER_CONCURRENCY` | Optional | Shared concurrent provider calls across sandbox/scored traffic (single app process), clamped from 1 to 20; default 20. Excess work queues; retryable admission failures use bounded backoff. |
 | `ALLOW_LOCAL_FALLBACK` | Optional | Development-only fallback. Keep `false` in production so database failures fail closed. |
 | `KEEPALIVE_SECRET` | Optional | Protects the read-only Supabase health endpoint and scheduled pings. |
 
@@ -249,3 +249,7 @@ The repository is designed for Vercel:
 ## License
 
 This project is available under the [MIT License](LICENSE).
+
+### Prompt Sandbox
+
+See [sandbox design and operational limits](docs/prompt-sandbox.md). Sandbox is disabled by default: select three held-out reports in an unused, paused educational contest, enable sandbox, then open practice. Sandbox never spends scored attempts.

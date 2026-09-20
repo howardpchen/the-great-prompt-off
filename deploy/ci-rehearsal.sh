@@ -35,6 +35,10 @@ test -s secrets/e2e_access_code
 "${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
   -e PGDATABASE=gpo_schema_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \
   migrate npm run test:contest-schema
+"${compose[@]}" exec -T db createdb -U postgres -T prompt_off gpo_sandbox_test
+"${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
+  -e PGDATABASE=gpo_sandbox_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \
+  migrate npm run test:sandbox
 "${compose[@]}" exec -T db createdb -U postgres -T prompt_off gpo_library_test
 "${compose[@]}" run --rm -v "$PWD/secrets/db_app_password:/run/secrets/db_app_password:ro" \
   -e PGDATABASE=gpo_library_test -e PGUSER=prompt_off_app -e PGPASSWORD_FILE=/run/secrets/db_app_password \

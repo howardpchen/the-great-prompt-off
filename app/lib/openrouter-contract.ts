@@ -25,7 +25,7 @@ export function buildOpenRouterSystemInstruction(
     "A short strategy may be usable when it supplies real mapping logic. Field definitions below constrain formatting only, not an alternative extraction strategy.",
     "Apply the participant extraction strategy to the input. Return exactly one raw JSON object; no markdown or extra keys.",
     "Do not invent evidence. When usable strategy logic finds missing/uncertain evidence, use null only for fields permitting null; otherwise omit that field. Never substitute numeric zero or an unsupported label.",
-    ...mode.fields.map(f => `${f.key}: ${f.label}. ${f.description || ""} Weight ${f.weight ?? 1}. ${f.type === "number" ? `Number in ${f.unit}, inclusive absolute tolerance ${f.tolerance}.` : `Exact labels: ${f.allowedValues.join(", " )}.`} ${f.nullable ? "null is allowed for missing/uncertain evidence." : "Normal outputs require a valid non-null value; omit the field on strategy/evidence failure as specified above."}`),
+    ...mode.fields.map(f => `${f.key}: ${f.label}. Weight ${f.weight ?? 1}. ${f.type === "number" ? `Number in ${f.unit}, inclusive absolute tolerance ${f.tolerance}.` : `Exact labels: ${f.allowedValues.join(", " )}.`} ${f.nullable ? "null is allowed for missing/uncertain evidence." : "Normal outputs require a valid non-null value; omit the field on strategy/evidence failure as specified above."}`),
     JSON.stringify(buildOutputSchema(mode)),
   ].join("\n");
   const allowedValues = [
@@ -89,4 +89,10 @@ export function buildOpenRouterMessages({
       content: ["Input report:", reportText].join("\n"),
     },
   ];
+}
+
+
+/** Qwen extraction uses a visible-output budget, not an implicit thinking budget. */
+export function openRouterReasoningOptions(model: string) {
+  return model === "qwen/qwen3.5-9b" ? { reasoning: { enabled: false } } : {};
 }
