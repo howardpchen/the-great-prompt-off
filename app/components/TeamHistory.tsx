@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { TeamHistory as History } from "../lib/db/team-history";
-export function TeamHistory({ token, contestId, revision, onUseInstructions }: {
-  token: string; contestId: string; revision: string; onUseInstructions: (instructions: string) => void;
+export function TeamHistory({ token, contestId, revision, onUseInstructions, onViewResults }: {
+  token: string; contestId: string; revision: string; onUseInstructions: (instructions: string) => void; onViewResults?: (id: string) => void;
 }) {
   const [history, setHistory] = useState<History | null>(null);
   const [error, setError] = useState(false);
@@ -32,6 +32,7 @@ export function TeamHistory({ token, contestId, revision, onUseInstructions }: {
       </div> : null}
       {history.practice.length === 0 ? <p>No completed practice versions yet.</p> : history.practice.map(version => <details key={version.id} className="rounded border p-3">
         <summary>Practice {version.attemptNumber} — {Math.round(version.score)}% — {new Date(version.submittedAt).toLocaleString()}</summary>
+        {onViewResults ? <button type="button" className="my-2 rounded border px-3 py-2 font-semibold" onClick={() => onViewResults(version.id)}>View practice {version.attemptNumber} results</button> : null}
         <p>{version.correctFields}/{version.totalFields} fields correct across {version.reportCount} practice reports. Weighted scoring follows the organizer definitions.</p>
         <p className="whitespace-pre-wrap">{version.instructions}</p>
         <button type="button" className="rounded border px-3 py-1" onClick={() => restoreInstructions(version.instructions)}>Copy practice {version.attemptNumber} instructions to editor</button>
