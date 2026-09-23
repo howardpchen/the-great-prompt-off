@@ -36,7 +36,7 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
     else if(path === "/api/submissions/status") data=status();
     else if(path === "/api/leaderboard") data={source:"supabase",visible:true,rows:[]};
     else if(path === "/api/education-summary") data={simulated:true,baseline:{accuracy:50},hiddenBaseline:null};
-    else if(path === "/api/team-history") data={practice:[{id:"practice-1",attemptNumber:1,score:60,submittedAt:"2026-01-01T12:00:00Z",instructions:"Saved team strategy",correctFields:6,totalFields:12,reportCount:1}],final:null};
+    else if(path === "/api/team-history") data={practice:[{id:"practice-1",attemptNumber:1,score:60,submittedAt:"2026-01-01T12:00:00Z",instructions:"Saved participant instructions",correctFields:6,totalFields:12,reportCount:1}],final:null};
     else if(path === "/api/submissions/public") {expect(route.request().postDataJSON().prompt).toBe("My explicit clinical rules"); submissionCount++; used++; data={...status(),kind:"public",evaluationMode:"mock",score:75,feedback:{kind:"public",score:75,correctFields:9,totalFields:12,reportCount:1,clinicalComparisons:[{report:"fictional-017.txt",fields:[{field:"finding_1",actual:"absent",expected:"absent",correct:true,noDecision:false}]},{report:"fictional-942.txt",fields:[{field:"finding_1",actual:"present",expected:"absent",correct:false,noDecision:false}]}]}};}
     else if(path === "/api/submissions/final") {finalCount++;data={...status(),finalSubmissionUsed:true,resultsHidden:true,kind:"final",evaluationMode:"mock",score:0};}
     else throw new Error(`Unexpected fixture API: ${path}`);
@@ -108,9 +108,9 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   const example = JSON.parse(await page.getByLabel("Output format example").innerText());
   expect(example.finding_1).toEqual({status:"decision",value:"absent"});
   await page.getByRole("button",{name:"Copy baseline into editor",exact:true}).click(); await expect(editor).toHaveValue(baseline);
-  await page.getByText("Team instruction history",{exact:true}).click();
+  await page.getByText("Submission history",{exact:true}).click();
   await page.getByText(/^Practice 1 —/).click();
-  await page.getByRole("button",{name:"Copy practice 1 instructions to editor",exact:true}).click(); await expect(editor).toHaveValue("Saved team strategy");
+  await page.getByRole("button",{name:"Copy practice 1 instructions to editor",exact:true}).click(); await expect(editor).toHaveValue("Saved participant instructions");
   for(const width of [1280,1024,768,390]) {
     await page.setViewportSize({width,height:900}); await expect(editor).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
@@ -121,7 +121,7 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   await expect(page.getByRole("complementary",{name:"Findings and allowed values"}).getByText("Clinical finding 12",{exact:true})).toBeHidden();
   if(process.env.UI_CAPTURE_MOBILE) await page.screenshot({path:process.env.UI_CAPTURE_MOBILE,fullPage:true});
   for(const next of ["not_started","final_open","ended"]) {
-    phase=next; await page.reload(); await expect(editor).toHaveValue("Saved team strategy");
+    phase=next; await page.reload(); await expect(editor).toHaveValue("Saved participant instructions");
     await expect(page.getByRole("button",{name:"Use test attempt",exact:true})).toBeDisabled();
     if(next==="final_open") {
       await expect(page.getByRole("button",{name:"Submit final",exact:true})).toBeEnabled();

@@ -155,7 +155,7 @@ Configure these values without committing `.env.local`:
 | `USE_REAL_LLM` | Yes | `true` uses OpenRouter; any other value uses the deterministic local evaluator. |
 | `OPENROUTER_API_KEY` | When `USE_REAL_LLM=true` | Server-only OpenRouter credential. |
 | `OPENROUTER_MODEL` | Recommended | Fallback model when the active challenge has no approved override. |
-| `OPENROUTER_CONCURRENCY` | Optional | Shared concurrent provider calls across sandbox/scored traffic (single app process), clamped from 1 to 50; default 20. Set 50 only after capacity calibration. Per-submission fanout remains at most 20. Excess work queues; explicit 429/503 and identified in-flight-budget 402 with Retry-After use at most three retries after 5/15/30 seconds plus positive jitter, honoring larger Retry-After values. Cumulative retry sleep is capped at 120 seconds; longer waits fail rather than retry early. |
+| `OPENROUTER_CONCURRENCY` | Optional | Shared concurrent provider calls across sandbox/scored traffic (single app process), clamped from 1 to 50; default 10. Request starts are shared and paced at one every 250 ms (4/second), including retries. Set higher concurrency only after capacity calibration. Per-submission fanout remains at most 20. Excess work queues; explicit 429/503 and identified in-flight-budget 402 with Retry-After use at most three retries after 5/15/30 seconds plus positive jitter, honoring larger Retry-After values. Cumulative retry sleep is capped at 120 seconds; longer waits fail rather than retry early. |
 | `ALLOW_LOCAL_FALLBACK` | Optional | Development-only fallback. Keep `false` in production so database failures fail closed. |
 | `KEEPALIVE_SECRET` | Optional | Protects the read-only Supabase health endpoint and scheduled pings. |
 

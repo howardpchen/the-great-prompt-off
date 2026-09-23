@@ -1,6 +1,7 @@
 import { ProviderAdmissionError } from "./provider-retry";
 /** Single app-process scheduler. Multi-replica deployments need distributed slots. */
-export type ProviderTaskOptions = { priority?: "scored" | "sandbox"; group?: string; signal?: AbortSignal };
+export type AdmissionTiming = { queueWaitMs:number; active:number; waiting:number; ceiling:number; effective:number; startIntervalMs:number };
+export type ProviderTaskOptions = { onAdmission?: (timing:AdmissionTiming)=>void; priority?: "scored" | "sandbox"; group?: string; signal?: AbortSignal };
 type Waiter = { options: ProviderTaskOptions; grant: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout>; abort: () => void };
 export class ProviderScheduler {
   private active = 0;
@@ -14,8 +15,10 @@ export class ProviderScheduler {
   private lastChange = Date.now();
   private cooldownUntil = 0;
   private wake?: ReturnType<typeof setTimeout>;
-  constructor(readonly limit: number, private readonly maxQueue = 1000, private readonly waitMs = 900000, private readonly adaptive = false) {
+  private nextStartAt = 0;
+  constructor(readonly limit: number, private readonly maxQueue = 1000, private readonly waitMs = 900000, private readonly adaptive = false, private readonly startIntervalMs = 0) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error("Invalid provider concurrency");
+    if (!Number.isFinite(startIntervalMs) || startIntervalMs < 0) throw new Error("Invalid provider start interval");
     this.effective = adaptive ? Math.min(20, limit) : limit;
   }
   get stats() { return { active: this.active, waiting: this.waiting.length }; }
@@ -47,11 +50,19 @@ export class ProviderScheduler {
     }
   }
   private next() {
-    if (this.adaptive && Date.now() < this.cooldownUntil && this.waiting.length) {
-      if (!this.wake) this.wake = setTimeout(() => { this.wake = undefined; this.next(); }, Math.min(2147483647, this.cooldownUntil - Date.now()));
+    // One wake owns both pacing and cooldown. Recompute on every queue change,
+    // completion and throttle; never reserve a slot while waiting for either.
+    if (this.wake) { clearTimeout(this.wake); this.wake = undefined; }
+    if (this.active >= this.effective || !this.waiting.length) return;
+    const delay = Math.max(
+      this.nextStartAt - performance.now(),
+      this.adaptive ? this.cooldownUntil - Date.now() : 0,
+      0,
+    );
+    if (delay > 0) {
+      this.wake = setTimeout(() => { this.wake = undefined; this.next(); }, Math.min(2147483647, Math.ceil(delay)));
       return;
     }
-    if (this.active >= this.effective || !this.waiting.length) return;
     const hasSandbox = this.waiting.some(w => w.options.priority === "sandbox");
     const hasScored = this.waiting.some(w => w.options.priority !== "sandbox");
     const sandbox = hasSandbox && (!hasScored || this.scoredStreak >= 3);
@@ -64,9 +75,12 @@ export class ProviderScheduler {
     clearTimeout(chosen.timer); chosen.options.signal?.removeEventListener("abort", chosen.abort);
     this.groupTurns.set(groupKey(chosen), ++this.turn);
     this.scoredStreak = sandbox ? 0 : this.scoredStreak + 1;
+    // Use dispatch time, not the previous deadline: delayed timers cannot catch up.
+    this.nextStartAt = performance.now() + this.startIntervalMs;
     this.active++; chosen.grant(); this.next();
   }
   async run<T>(task: () => Promise<T>, options: ProviderTaskOptions = {}): Promise<T> {
+    const queuedAt=performance.now();
     if (options.signal?.aborted) throw new Error("Evaluation cancelled.");
     if (this.waiting.length >= this.maxQueue) throw new Error("Provider queue is full; retry later.");
     await new Promise<void>((resolve, reject) => {
@@ -74,14 +88,18 @@ export class ProviderScheduler {
         const index = this.waiting.indexOf(waiter);
         if (index < 0) return;
         this.waiting.splice(index, 1); clearTimeout(waiter.timer);
-        options.signal?.removeEventListener("abort", waiter.abort); reject(new Error(message));
+        options.signal?.removeEventListener("abort", waiter.abort); reject(new Error(message)); this.next();
       };
       const waiter: Waiter = {options, grant: resolve, reject, abort: () => remove("Evaluation cancelled."), timer: setTimeout(() => remove("Provider queue wait exceeded; retry later."), this.waitMs)};
       this.waiting.push(waiter); options.signal?.addEventListener("abort", waiter.abort, {once:true}); this.next();
     });
+    try { options.onAdmission?.({queueWaitMs:Math.max(0,Math.round(performance.now()-queuedAt)),...this.stats,ceiling:this.limit,effective:this.effective,startIntervalMs:this.startIntervalMs}); } catch { /* Observability cannot break admission. */ }
     const epoch = this.epoch;
     try {
       if (options.signal?.aborted) throw new Error("Evaluation cancelled.");
+      // Admission resumes in a microtask. Base spacing on invocation as well as
+      // reservation, so delayed continuations cannot cause catch-up starts.
+      this.nextStartAt = performance.now() + this.startIntervalMs;
       const result = await task();
       this.feedback(undefined, epoch);
       return result;
@@ -94,7 +112,7 @@ export class ProviderScheduler {
 const shared = globalThis as typeof globalThis & { __promptOffProviderScheduler?: ProviderScheduler };
 export function withProviderSlot<T>(limit: number, task: () => Promise<T>, options: ProviderTaskOptions = {}): Promise<T> {
   let scheduler = shared.__promptOffProviderScheduler;
-  if (!scheduler || (scheduler.limit !== limit && scheduler.stats.active === 0 && scheduler.stats.waiting === 0)) shared.__promptOffProviderScheduler = scheduler = new ProviderScheduler(limit, 1000, 900000, true);
+  if (!scheduler || (scheduler.limit !== limit && scheduler.stats.active === 0 && scheduler.stats.waiting === 0)) shared.__promptOffProviderScheduler = scheduler = new ProviderScheduler(limit, 1000, 900000, true, 250);
   if (scheduler.limit !== limit) return Promise.reject(new Error("Provider limit changed while evaluations are active."));
   return scheduler.run(task, options);
 }

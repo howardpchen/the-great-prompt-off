@@ -24,33 +24,37 @@ it("preserves an all-abstention response without inventing answers", async () =>
 });
 it("shares the twenty-call ceiling across concurrent report extractions", async () => {
   vi.stubEnv("OPENROUTER_API_KEY", "test-only-never-real");vi.stubEnv("OPENROUTER_CONCURRENCY","20");
+  vi.useFakeTimers({toFake:["setTimeout","clearTimeout","Date","performance"]});
   let active=0,peak=0;
   const raw=JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:"no_decision",value:null}])));
-  vi.stubGlobal("fetch",vi.fn(async()=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,1));active--;return new Response(JSON.stringify({choices:[{message:{content:raw}}]}));}));
-  await Promise.all(Array.from({length:150},(_,i)=>extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'},{group:`team-${Math.floor(i/3)}`,priority:i%2?'sandbox':'scored'})));
+  vi.stubGlobal("fetch",vi.fn(async()=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,6000));active--;return new Response(JSON.stringify({choices:[{message:{content:raw}}]}));}));
+  const pending=Promise.all(Array.from({length:150},(_,i)=>extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'},{group:`team-${Math.floor(i/3)}`,priority:i%2?'sandbox':'scored'})));
+  await vi.runAllTimersAsync();await pending;
   expect(peak).toBe(20);
 });
 it("retries explicit in-flight budget rejection but not exhausted credits", async () => {
-  vi.useFakeTimers();
+  vi.useFakeTimers({toFake:["setTimeout","clearTimeout","Date","performance"]});
   vi.stubEnv("OPENROUTER_API_KEY", "test-only-never-real");
   const raw=JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:"no_decision",value:null}])));
   const fetcher=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_in_flight_budget',reason:'in_flight_budget_exhausted'}}}),{status:402,headers:{'Retry-After':'0'}})).mockResolvedValueOnce(new Response(JSON.stringify({choices:[{message:{content:raw}}]})));
   vi.stubGlobal('fetch',fetcher);const result=extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'});await vi.advanceTimersByTimeAsync(6100);expect(await result).toBe(raw);expect(fetcher).toHaveBeenCalledTimes(2);
   fetcher.mockReset().mockResolvedValue(new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_credits',reason:'weight_exceeds_budget'}}}),{status:402}));
-  await expect(extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'})).rejects.toThrow('402');expect(fetcher).toHaveBeenCalledTimes(1);
+  const rejected=expect(extractReportWithOpenRouter({mode,prompt:'synthetic',reportText:'fixture'})).rejects.toThrow('402');await vi.advanceTimersByTimeAsync(250);await rejected;expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
 it("starts at twenty under a fifty-slot ceiling while keeping per-submission fanout at twenty",async()=>{
   vi.stubEnv("OPENROUTER_API_KEY","test-only");vi.stubEnv("OPENROUTER_CONCURRENCY","50");
   expect(getOpenRouterConcurrency()).toBe(50);expect(getOpenRouterSubmissionConcurrency()).toBe(20);
+  vi.useFakeTimers({toFake:["setTimeout","clearTimeout","Date","performance"]});
   let active=0,peak=0;
-  vi.stubGlobal("fetch",vi.fn(async()=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,1));active--;return new Response(JSON.stringify({choices:[{message:{content:"{}"}}]}));}));
-  await Promise.all(Array.from({length:250},(_,i)=>extractReportWithOpenRouter({prompt:"synthetic",reportText:"fixture"},{group:`team-${i%50}`})));
+  vi.stubGlobal("fetch",vi.fn(async()=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,6000));active--;return new Response(JSON.stringify({choices:[{message:{content:"{}"}}]}));}));
+  const pending=Promise.all(Array.from({length:50},(_,i)=>extractReportWithOpenRouter({prompt:"synthetic",reportText:"fixture"},{group:`team-${i%50}`})));
+  await vi.runAllTimersAsync();await pending;
   expect(peak).toBe(20);
   vi.stubEnv("OPENROUTER_CONCURRENCY","100");expect(getOpenRouterConcurrency()).toBe(50);
 });
 it.each([429,503])("backs off explicit HTTP %s with Retry-After",async status=>{
-  vi.useFakeTimers();vi.stubEnv("OPENROUTER_API_KEY","test-only");
+  vi.useFakeTimers({toFake:["setTimeout","clearTimeout","Date","performance"]});vi.stubEnv("OPENROUTER_API_KEY","test-only");
   const fetcher=vi.fn().mockResolvedValueOnce(new Response("unavailable",{status,headers:{"Retry-After":"10"}})).mockResolvedValueOnce(new Response(JSON.stringify({choices:[{message:{content:"{}"}}]})));
   vi.stubGlobal("fetch",fetcher);const result=extractReportWithOpenRouter({prompt:"synthetic",reportText:"fixture"});
   await vi.advanceTimersByTimeAsync(10000);expect(fetcher).toHaveBeenCalledTimes(1);
@@ -74,6 +78,6 @@ it("does not retry in-flight 402 without valid Retry-After",async()=>{
    await expect(extractReportWithOpenRouter({prompt:"synthetic",reportText:"fixture"})).rejects.toThrow("402");expect(fetcher).toHaveBeenCalledTimes(1);
   }
 });
-it("preserves default twenty without an operational override",()=>{
- vi.stubEnv("OPENROUTER_CONCURRENCY","");expect(getOpenRouterConcurrency()).toBe(20);
+it("uses default ten without an operational override",()=>{
+ vi.stubEnv("OPENROUTER_CONCURRENCY","");expect(getOpenRouterConcurrency()).toBe(10);
 });

@@ -73,7 +73,7 @@ services:
       ADMIN_SECRET_FILE: /run/secrets/admin_secret
       PARTICIPANT_SESSION_SECRET_FILE: /run/secrets/participant_secret
       APP_ORIGIN: http://localhost:3000
-      OPENROUTER_CONCURRENCY: ${OPENROUTER_CONCURRENCY:-20}
+      OPENROUTER_CONCURRENCY: ${OPENROUTER_CONCURRENCY:-10}
       NODE_OPTIONS: --max-old-space-size=256
     secrets: [db_app_password, admin_secret, participant_secret]
     ports: ["127.0.0.1:3000:3000"]

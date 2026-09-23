@@ -929,7 +929,7 @@ export function ChallengeWorkspace({
             <EducationSummary mode={activeMode} token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} />
             </details> : null}
             {education && activeParticipantToken ? <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-              <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">Team instruction history</summary>
+              <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">Submission history</summary>
             <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} />
             </details> : null}
           </div>
@@ -1231,7 +1231,7 @@ function PromptEditor({
             Prompt editor
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
-            Write your team instructions
+            Write your instructions
           </h2>
         </div>
         <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -1239,11 +1239,12 @@ function PromptEditor({
         </span>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-        Make your clinical rules explicit. Only your instructions are submitted as the team strategy; formatting is automatic.
+        Make your clinical rules explicit. Your instructions guide clinical interpretation; output formatting is automatic.
       </p>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
         <span><strong className="text-teal-800 dark:text-teal-300">{remainingPublicSubmissions} of {publicSubmissionLimit}</strong> test attempts left</span>
-        <span>Draft saved in this browser · Budget shared with your team</span>
+        <span>Draft saved in this browser · Attempts belong to your participant account</span>
+        <p className="w-full text-xs">Team membership and collaborative editing are not supported in this version.</p>
       </div>
       <div className="mt-4 grid gap-4">
         <label className="grid gap-2">

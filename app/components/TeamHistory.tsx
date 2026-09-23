@@ -15,13 +15,13 @@ export function TeamHistory({ token, contestId, revision, onUseInstructions }: {
     return () => controller.abort();
   }, [token, contestId, revision, refresh]);
   const restoreInstructions = (text: string) => {
-    if (window.confirm("Replace this browser's draft with these saved team instructions?")) onUseInstructions(text);
+    if (window.confirm("Replace this browser's draft with these saved instructions?")) onUseInstructions(text);
   };
-  return <section className="rounded border p-4 space-y-3" aria-label="Saved team instructions">
-    <h2 className="font-semibold">Saved team instructions and practice results</h2>
-    <p>Shared across browsers using your team code. Latest 100 completed practice versions; scores are for the practice cases only.</p>
-    <button type="button" className="rounded border px-3 py-1" onClick={() => { setHistory(null); setError(false); setRefresh(n => n + 1); }}>Refresh team history</button>
-    {error ? <p role="alert">Team history unavailable. Your local draft has not been changed; try refreshing history.</p> : !history ? <p>Loading saved instructions…</p> : <>
+  return <section className="rounded border p-4 space-y-3" aria-label="Saved instructions">
+    <h2 className="font-semibold">Saved instructions and practice results</h2>
+    <p>Saved submissions follow your participant account across browsers. Draft edits stay in this browser and are not synchronized. Latest 100 completed practice versions; scores are for the practice cases only.</p>
+    <button type="button" className="rounded border px-3 py-1" onClick={() => { setHistory(null); setError(false); setRefresh(n => n + 1); }}>Refresh submission history</button>
+    {error ? <p role="alert">Submission history unavailable. Your local draft has not been changed; try refreshing history.</p> : !history ? <p>Loading saved instructions…</p> : <>
       {history.final ? <div className="rounded border p-3">
         <h3 className="font-semibold">Locked final instructions</h3>
         <p>These instructions remain locked even after an infrastructure failure. Copying them does not submit or charge an attempt.</p>

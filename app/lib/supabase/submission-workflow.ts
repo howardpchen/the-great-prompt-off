@@ -1,3 +1,4 @@
+import { beginBatch, providerMetric, elapsedMs } from "../provider-telemetry";
 import { mapWithConcurrency } from "../evaluation-workers";
 import { parseEducationOutput } from "../education-contract";
 import "server-only";
@@ -273,6 +274,7 @@ export async function submitToSupabase({
   expectedContestId?: string;
   expectedSchemaVersion?: number;
 }): Promise<SubmitScoreResponse> {
+  const submittedAt=performance.now();let submittedOutcome="failed";
   const supabase = createDatabase();
   let challenge = await getActiveChallenge(supabase);
   if ((expectedContestId !== undefined && expectedContestId !== challenge.id) || (expectedSchemaVersion !== undefined && expectedSchemaVersion !== challenge.schema_version)) throw new SubmissionLimitError("Contest changed; reload before submitting.");
@@ -307,6 +309,7 @@ export async function submitToSupabase({
     split,
     challengeMode,
   );
+  const evaluationStartedAt=new Date().toISOString();
   const evaluation = await evaluateSubmission({
     answerKeys,
     kind,
@@ -314,8 +317,9 @@ export async function submitToSupabase({
     model: resolveOpenRouterModel(challenge.evaluation_model),
     mode: challengeMode,
     providerGroup: participant.id,
+    batchId: reservation.id,
   });
-  return await supabase.transaction(async (supabase) => {
+  const savedResponse = await supabase.transaction(async (supabase) => {
   const [held] = await supabase.sql<{status:string}>('SELECT status FROM attempt_reservations WHERE id=$1 FOR UPDATE',[reservation.id]);
   if(held?.status !== 'pending') throw new SubmissionLimitError('Attempt reservation is no longer active.');
   const now = new Date().toISOString();
@@ -338,6 +342,7 @@ export async function submitToSupabase({
       total_fields: evaluation.summary.total,
       field_accuracy: evaluation.summary.total ? 100 * evaluation.summary.correct / evaluation.summary.total : 0,
       overall_score: evaluation.summary.accuracy,
+      started_at: evaluationStartedAt,
       completed_at: now,
     }, columns: "id", single: "single", operation: "insert" });
 
@@ -428,7 +433,9 @@ export async function submitToSupabase({
   await supabase.sql("UPDATE attempt_reservations SET status='completed',response=$2::jsonb,completed_at=now() WHERE id=$1",[reservation.id,JSON.stringify(response)]);
   return projectFinalResponse(response, challenge.contest_schema, challenge.event_phase);
   });
+  submittedOutcome="completed";return savedResponse;
   } catch(error) {await failReservation(supabase,reservation.id);throw error;}
+  finally {providerMetric("submission_end",{batchId:reservation.id,kind,outcome:submittedOutcome,totalMs:elapsedMs(submittedAt)});}
 
 }
 
@@ -581,6 +588,7 @@ async function evaluateSubmission({
   model,
   mode,
   providerGroup,
+  batchId,
 }: {
   answerKeys: RuntimeAnswerKeyItem[];
   kind: SubmissionKind;
@@ -588,10 +596,11 @@ async function evaluateSubmission({
   model: string;
   mode: ChallengeModeDefinition;
   providerGroup: string;
+  batchId: string;
 }): Promise<EvaluationResult> {
   if (mode.education && (mode.education.evaluationMode ?? "simulation") !== (shouldUseRealLlm() ? "real" : "simulation")) throw new RealLlmEvaluationError("Contest evaluator mode does not match this server. Ask the organizer to create the correct contest version; no attempt was charged.");
   if (shouldUseRealLlm()) {
-    return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode, providerGroup);
+    return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode, providerGroup, batchId);
   }
 
   if (kind === "public" || kind === "final") {
@@ -632,6 +641,7 @@ async function evaluateWithRealLlm(
   model: string,
   mode: ChallengeModeDefinition,
   providerGroup: string,
+  batchId: string,
 ): Promise<EvaluationResult> {
   if (!hasOpenRouterApiKey()) {
     console.error(
@@ -643,6 +653,8 @@ async function evaluateWithRealLlm(
   }
 
   const concurrency = getOpenRouterSubmissionConcurrency();
+  const finishMetrics=beginBatch(batchId,kind,answerKeys.length,concurrency);
+  let batchOutcome="failed";let reportIndex=0;
 
   try {
     // Final submissions can evaluate many private reports. Limit OpenRouter
@@ -651,6 +663,7 @@ async function evaluateWithRealLlm(
       answerKeys,
       concurrency,
       async (item) => {
+        const index=reportIndex++;
         if (!item.text) {
           throw new Error(`Missing report text for ${item.id}.`);
         }
@@ -660,7 +673,7 @@ async function evaluateWithRealLlm(
           reportText: item.text,
           model,
           mode,
-        }, { priority: "scored", group: providerGroup });
+        }, { priority: "scored", group: providerGroup, trace:{batchId,reportIndex:index} });
         const score = scoreModelOutput(mode.education ? JSON.stringify(parseEducationOutput(modelOutput, mode).values) : modelOutput, item.answer_key, mode);
 
         return {
@@ -675,6 +688,7 @@ async function evaluateWithRealLlm(
       },
     );
 
+    batchOutcome="completed";
     return {
       mode: "real_llm",
       model,
@@ -693,7 +707,7 @@ async function evaluateWithRealLlm(
     throw new RealLlmEvaluationError(
       "The evaluation model could not complete this request. Please try again.",
     );
-  }
+  } finally {finishMetrics(batchOutcome);}
 }
 
 export async function getActiveChallenge(

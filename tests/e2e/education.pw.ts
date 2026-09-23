@@ -61,8 +61,8 @@ test("one-editor team rehearsal: baseline, shared practice, frozen final, reveal
   const second = await page.context().browser()!.newContext(); const teammate = await second.newPage();
   await teammate.goto(origin); await teammate.getByLabel("Participant access code", { exact: true }).fill(accessCode);
   await teammate.getByRole("button", { name: "Enter workspace", exact: true }).click();
-  await teammate.getByText("Team instruction history", {exact:true}).click();
-  await expect(teammate.getByRole("heading", { name: "Saved team instructions and practice results" })).toBeVisible();
+  await teammate.getByText("Submission history", {exact:true}).click();
+  await expect(teammate.getByRole("heading", { name: "Saved instructions and practice results" })).toBeVisible();
   const practiceVersion = teammate.getByText(/^Practice 1 —/); await expect(practiceVersion).toBeVisible(); await practiceVersion.click();
   await expect(teammate.getByRole("button", { name: "Copy practice 1 instructions to editor" })).toBeVisible();
   await teammate.getByPlaceholder("Write your clinical extraction strategy here...").fill("Lost/replaced draft");

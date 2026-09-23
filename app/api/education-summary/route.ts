@@ -6,13 +6,13 @@ import { evaluateAnswerKeyReports, summarizeReportResults } from "@/app/lib/mock
 import { shouldUseRealLlm } from "@/app/lib/openrouter";
 export async function GET(request: Request) {
   const session = verifyParticipantSessionToken(request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1] || "");
-  if (!session) return Response.json({ error: "Team session required." }, { status: 401 });
+  if (!session) return Response.json({ error: "Participant session required." }, { status: 401 });
   try {
     await getSupabaseSubmissionStatus(session.participantCode); // also verifies account active
     const db = createDatabase();
     const challenge = await getActiveChallenge(db);
     const mode = resolveChallengeMode(challenge.mode_id, challenge.schema_version, challenge.contest_schema);
-    if (!mode.education) return Response.json({ error: "Team Challenge mode is not enabled for this contest." }, { status: 404 });
+    if (!mode.education) return Response.json({ error: "Challenge mode is not enabled for this contest." }, { status: 404 });
     if (challenge.event_phase === "not_started") return Response.json({ baseline: null, revealed: false }, { headers: { "Cache-Control": "no-store" } });
     // This endpoint NEVER initiates model calls. Paid common baselines require organizer calibration.
     if (shouldUseRealLlm() || mode.education.evaluationMode === "real") return Response.json({ baseline: null, simulated: false, message: "Common real-model baseline has not been calibrated. No score is implied." }, { headers: { "Cache-Control": "no-store" } });
@@ -26,5 +26,5 @@ export async function GET(request: Request) {
       hiddenBaseline = summarizeReportResults(evaluateAnswerKeyReports(cases, mode.education.baselineInstructions, mode));
     }
     return Response.json({ baseline, hiddenBaseline, reportCount: publicCases.length, simulated: true, revealed, pipeline: mode.education.pipeline, schemaVersion: mode.version }, { headers: { "Cache-Control": "no-store" } });
-  } catch { return Response.json({ error: "Team Challenge summary unavailable." }, { status: 503 }); }
+  } catch { return Response.json({ error: "Challenge summary unavailable." }, { status: 503 }); }
 }

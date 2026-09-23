@@ -1,3 +1,4 @@
+import { openRouterProviderOptions } from "./openrouter-contract";
 import { mixedTemplate, twelveBinaryTemplate } from "./contest-schema-fixtures";
 import { describe, expect, it } from "vitest";
 
@@ -183,4 +184,11 @@ describe("organizer guidance stays human-facing", () => {
 it("explicitly disables Qwen3.5-9B reasoning without altering unrelated models", () => {
   expect(openRouterReasoningOptions("qwen/qwen3.5-9b")).toEqual({reasoning:{enabled:false}});
   expect(openRouterReasoningOptions("another/model")).toEqual({});
+});
+
+it("pins GPT-OSS to calibrated Groq low reasoning while retaining strict parameter routing", () => {
+  expect(openRouterReasoningOptions("openai/gpt-oss-20b")).toEqual({reasoning:{effort:"low"}});
+  expect(openRouterProviderOptions("openai/gpt-oss-20b")).toEqual({require_parameters:true,only:["groq"],allow_fallbacks:false});
+  expect(openRouterProviderOptions("qwen/qwen3.5-9b")).toEqual({require_parameters:true});
+  expect(openRouterProviderOptions("another/model")).toEqual({require_parameters:true});
 });

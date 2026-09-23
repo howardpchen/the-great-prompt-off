@@ -92,7 +92,13 @@ export function buildOpenRouterMessages({
 }
 
 
-/** Qwen extraction uses a visible-output budget, not an implicit thinking budget. */
+/** Model-specific settings validated against the full structured extraction contract. */
 export function openRouterReasoningOptions(model: string) {
+  if (model === "openai/gpt-oss-20b") return { reasoning: { effort: "low" } };
   return model === "qwen/qwen3.5-9b" ? { reasoning: { enabled: false } } : {};
+}
+
+/** Pin calibrated GPT-OSS serving; do not silently route to untested providers. */
+export function openRouterProviderOptions(model: string) {
+  return { require_parameters: true, ...(model === "openai/gpt-oss-20b" ? { only: ["groq"], allow_fallbacks: false } : {}) };
 }

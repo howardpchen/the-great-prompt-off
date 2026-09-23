@@ -1,3 +1,4 @@
+import {beginBatch} from '../../lib/provider-telemetry';
 import {createDatabase} from '../../lib/db/database';
 import {admitSandbox,appendSandboxResult,finishSandbox,sandboxStatus,SandboxError,type SandboxInput} from '../../lib/db/sandbox';
 import {verifyParticipantSessionToken} from '../../lib/supabase/participant-session-token';
@@ -40,11 +41,12 @@ export async function POST(request:Request){
    async start(controller){
     const send=(data:unknown)=>{if(!closed)try{controller.enqueue(encoder.encode(JSON.stringify(data)+'\n'));}catch{closed=true;abort.abort();}};
     send({jobId:job.id,status:'running',simulation:job.simulation});
+    const finishMetrics=beginBatch(job.id,'sandbox',job.reports.length,job.reports.length);
     let failed=false;
-    try{const settled=await Promise.allSettled(job.reports.map(async r=>{
+    try{const settled=await Promise.allSettled(job.reports.map(async (r,reportIndex)=>{
      let result:unknown;
      try{
-      const raw=job.simulation?JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:'no_decision',value:null}]))):await extractReportWithOpenRouter({prompt:job.prompt,reportText:r.text,mode,model:resolveOpenRouterModel(contest.evaluation_model),signal:abort.signal},{priority:'sandbox',group:id});
+      const raw=job.simulation?JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:'no_decision',value:null}]))):await extractReportWithOpenRouter({prompt:job.prompt,reportText:r.text,mode,model:resolveOpenRouterModel(contest.evaluation_model),signal:abort.signal},{priority:'sandbox',group:id,trace:{batchId:job.id,reportIndex}});
       result={reportId:r.id,status:'completed',decisions:parseEducationOutput(raw,mode).decisions};
      }catch{failed=true;result={reportId:r.id,status:'failed',error:abort.signal.aborted?'Run interrupted.':'Provider unavailable or output invalid; this report was not scored.'};}
      await appendSandboxResult(db,job.id,result);send(result);
@@ -52,6 +54,7 @@ export async function POST(request:Request){
     finally{
      clearTimeout(deadline);request.signal.removeEventListener('abort',onAbort);
      const status=abort.signal.aborted?'cancelled':failed?'failed':'completed';
+     finishMetrics(status);
      try{await finishSandbox(db,job.id,status);send({status,cooldownSeconds:60});}finally{if(!closed){closed=true;controller.close();}}
     }
    },cancel(){closed=true;abort.abort();}
