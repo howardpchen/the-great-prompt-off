@@ -5,7 +5,7 @@ Multiple contests are retained; at most one is active. Creating or duplicating a
 ## Organizer workflow
 
 1. Select a contest in **Contest Library**. Selection only changes the library editor.
-2. Create an empty inactive draft from the selected configuration, giving an explicit title, fixed model and equal practice budget; or duplicate selected configuration/reports (answers and histories are not copied).
+2. Create an empty inactive draft from the selected configuration, giving an explicit title, fixed model and common base practice budget; or duplicate selected configuration/reports (answers and histories are not copied).
 3. Edit fields/baseline/settings while inactive. Save schema changes as a new version.
 4. Import a JSON array of reports into the empty draft: `external_id`, `filename`, `split` (`public` or `private`), `report_text`. Both splits are required. Identifiers and filenames must be unique within the contest. The importer never deletes or replaces existing reports.
 5. Import the complete answer array using the existing `report_id_or_filename` / `answer_values` format. All labels must exactly match the schema. Explicit `not_mentioned` is a clinical string, never null or abstention. Any invalid or missing answer rolls back the complete answer import.

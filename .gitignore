@@ -46,3 +46,6 @@ next-env.d.ts
 /backups/
 /playwright-report/
 /test-results/
+
+# Standalone synthetic provider benchmark ledgers/results
+/provider-benchmark-private/

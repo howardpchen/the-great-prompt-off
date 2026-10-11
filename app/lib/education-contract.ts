@@ -48,7 +48,7 @@ Use an allowed clinical value whenever supported by applying the participant's i
 
 export function educationInstruction(mode: Pick<ChallengeModeDefinition, "fields" | "education">) {
   if (mode.education?.systemPromptVersion !== undefined) {
-    if (mode.education.systemPromptVersion !== "clinical-extraction-v1") throw new Error("Unsupported Team Challenge system prompt version.");
+    if (mode.education.systemPromptVersion !== "clinical-extraction-v1") throw new Error("Unsupported Challenge system prompt version.");
     return clinicalExtractionSystemTaskV1 + "\n\n" + [
       "Output fields and allowed values:",
       ...mode.fields.map(f => `${f.key}: ${f.label}. ${f.type === "number" ? `Unit: ${f.unit}.` : `Labels: ${f.allowedValues.join(", ")}.`} Clinical null ${f.nullable ? "allowed" : "not allowed"}.`),

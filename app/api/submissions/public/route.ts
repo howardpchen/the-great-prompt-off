@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { isContestId } from "@/app/lib/contest-context";
 import {
   fallbackStatus,
@@ -8,6 +9,7 @@ import {
   SubmissionLimitError,
   SubmissionStorageError,
   submitToSupabase,
+  enqueuePublicSubmission,
 } from "@/app/lib/supabase/submission-workflow";
 import { verifyParticipantSessionToken } from "@/app/lib/supabase/participant-session-token";
 import { MAX_PROMPT_CHARS, promptTooLongMessage } from "@/app/lib/prompt-limits";
@@ -40,6 +42,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (request.headers.get("Prefer") === "respond-async") {
+      const receipt = await enqueuePublicSubmission({
+        participantCode:verifiedSession.participantCode,prompt:body.prompt,idempotencyKey,
+        expectedContestId:body.contestId,expectedSchemaVersion:body.schemaVersion,
+      }, work=>after(work));
+      return Response.json(receipt,{status:receipt.state==="completed" ? 200 : 202,headers:{"Cache-Control":"no-store"}});
+    }
     return Response.json(
       await submitToSupabase({
         kind: "public",
@@ -64,7 +73,7 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof RealLlmEvaluationError) {
-      return Response.json({ error: error.message }, { status: 502 });
+      return Response.json({ error: error.message, code: error.code }, { status: 502 });
     }
 
     if (error instanceof SubmissionStorageError) {

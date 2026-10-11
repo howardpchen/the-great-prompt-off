@@ -121,7 +121,7 @@ export function getLocalLeaderboardRows(store: SubmissionStore) {
     .map((submission, index) => ({
       rank: index + 1,
       participant: submission.participantId,
-      score: Math.round(submission.score),
+      score: submission.score,
       final: true,
       submittedAt: submission.createdAt,
     }));

@@ -201,7 +201,7 @@ export function AdminEventControls({
         </span>
       </div>
       <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-        Controls participant access to Test Attempts and Final Submission.
+        Controls participant access to Sandbox, Test Attempts and Final Submission. Sandbox Open enables the configured sandbox only.
         Login remains available in every phase.
       </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {reserveAttempt} from '../app/lib/db/attempts';
+import {updateActiveChallengePhase} from '../app/lib/supabase/admin-dashboard';
 import {createDatabase} from '../app/lib/db/database';
 import {getPool} from '../app/lib/db/pool';
 import {mutateContestLibrary} from '../app/lib/db/contest-library';
@@ -18,6 +20,7 @@ async function main(){
  const selected=reports.filter(r=>r.split==='private').slice(0,3).map(r=>r.id);
  const initial=await contestSchemaState(db,contestId);
  await saveContestSchema(db,{action:'answers',contestId,expectedVersion:1,expectedRevision:initial.revision,answers:initial.reports.map(r=>({report_id_or_filename:r.id,answer_values:Object.fromEntries(initial.schema.fields.map(f=>[f.key,'0']))}))});
+ await assert.rejects(db.sql("UPDATE challenges SET event_phase='sandbox_open',sandbox_enabled=true WHERE id=$1",[contestId]),/three sandbox samples/);
  const answersBefore=await db.sql('SELECT * FROM answer_keys ORDER BY id');
  await mutateContestLibrary(db,{action:'sandbox',contestId,expectedVersion:1,sandboxEnabled:true,sampleIds:selected});
  assert.equal((await contestSchemaState(db,contestId)).ready,true,'Repartitioning a ready contest must preserve validated readiness');
@@ -27,7 +30,10 @@ async function main(){
  const cs=await contestSchemaState(db,contestId);
  await saveContestSchema(db,{action:'answers',contestId,expectedVersion:1,expectedRevision:cs.revision,answers:cs.reports.map(r=>({report_id_or_filename:r.id,answer_values:Object.fromEntries(cs.schema.fields.map(f=>[f.key,'0']))}))});
  await db.sql("UPDATE challenges SET is_active=false WHERE is_active");
- await db.sql("UPDATE challenges SET is_active=true,event_phase='practice_open' WHERE id=$1",[contestId]);
+ await db.sql("UPDATE challenges SET is_active=true,event_phase='not_started',sandbox_enabled=false WHERE id=$1",[contestId]);
+ await updateActiveChallengePhase('sandbox_open');
+ assert.equal((await sandboxStatus(db,p.id,contestId)).enabled,true,'Sandbox phase action enables configured samples');
+ for(const kind of ['public','final'] as const)await assert.rejects(reserveAttempt(db,{challengeId:contestId,participantId:p.id,kind,prompt:'Synthetic instructions',idempotencyKey:'blocked-'+kind,expectedSchemaVersion:1}),/not open/);
  const before=await db.sql('SELECT * FROM reports ORDER BY id');
  const input={contestId,schemaVersion:1,idempotencyKey:'synthetic-run-1',prompt:'Use explicit evidence',reports:selected.map((id,i)=>({id,text:'Edited synthetic text '+i}))};
  await assert.rejects(admitSandbox(db,p.id,{...input,schemaVersion:999},true),/changed/);
@@ -44,19 +50,32 @@ async function main(){
  await appendSandboxResult(db,job.id,{reportId:selected[0],status:'completed',decisions:{}});
  await finishSandbox(db,job.id,'completed');
  const state=await sandboxStatus(db,p.id,contestId);assert.equal(state.job?.status,'completed');assert.equal(state.job?.results.length,1);assert.equal(state.inFlight,false);
- await assert.rejects(admitSandbox(db,p.id,{...input,idempotencyKey:'cooldown-run'},true),/60 seconds/);
+ await assert.rejects(admitSandbox(db,p.id,{...input,idempotencyKey:'cooldown-run'},true),/30 seconds/);
  assert.equal((await admitSandbox(db,p.id,input,true)).reused,true);
  // Reopen a DB connection to prove rate control isn't an in-memory clock.
- const fresh=createDatabase();await assert.rejects(admitSandbox(fresh,p.id,{...input,idempotencyKey:'new-tab'},true),/60 seconds/);
- await db.sql("UPDATE sandbox_jobs SET completed_at=now()-interval '61 seconds' WHERE id=$1",[job.id]);
+ const fresh=createDatabase();await assert.rejects(admitSandbox(fresh,p.id,{...input,idempotencyKey:'new-tab'},true),/30 seconds/);
+ await db.sql("UPDATE sandbox_jobs SET completed_at=now()-interval '29 seconds' WHERE id=$1",[job.id]);
+ await assert.rejects(admitSandbox(fresh,p.id,{...input,idempotencyKey:'near-expiry'},true),/30 seconds/);
+ await db.sql("UPDATE sandbox_jobs SET completed_at=now()-interval '31 seconds' WHERE id=$1",[job.id]);
  const next=await admitSandbox(fresh,p.id,{...input,idempotencyKey:'next-run'},true);
  await db.sql("UPDATE sandbox_jobs SET expires_at=now()-interval '1 second' WHERE id=$1",[next.job.id]);
  const recovered=await sandboxStatus(fresh,p.id,contestId);assert.equal(recovered.job?.status,'failed');
  await appendSandboxResult(db,next.job.id,{late:true});assert.deepEqual((await sandboxStatus(db,p.id,contestId)).job?.results,[]);
- await assert.rejects(admitSandbox(db,p.id,{...input,idempotencyKey:'after-crash'},true),/60 seconds/);
+ await assert.rejects(admitSandbox(db,p.id,{...input,idempotencyKey:'after-crash'},true),/30 seconds/);
  assert.deepEqual(await db.sql('SELECT * FROM reports ORDER BY id'),before);
  assert.deepEqual(await Promise.all(scoredTables.map(t=>db.sql(`SELECT * FROM ${t} ORDER BY 1`))),scoredBefore);
  assert.equal((await db.sql<{n:number}>('SELECT public_submission_limit n FROM challenges WHERE id=$1',[contestId]))[0].n,5);
- console.log('PASS 3/20/77, sample-only read/edit isolation, idempotency race, one in-flight/participant, cooldown persistence, expiry/late-write fence, unrelated participant access, contest-switch fence and unchanged scored tables.');
+ for(const phase of ['not_started','final_open'] as const){
+  await updateActiveChallengePhase(phase);
+  assert.equal((await sandboxStatus(db,p.id,contestId)).enabled,false);
+  await assert.rejects(admitSandbox(db,p.id,{...input,idempotencyKey:'blocked-'+phase.replaceAll('_','-')},true),/paused/);
+ }
+ await updateActiveChallengePhase('practice_open');assert.equal((await sandboxStatus(db,p.id,contestId)).enabled,true);
+ await db.sql('UPDATE challenges SET sandbox_enabled=false WHERE id=$1',[contestId]);
+ await updateActiveChallengePhase('sandbox_open');assert.equal((await sandboxStatus(db,p.id,contestId)).enabled,true);
+ await db.sql('UPDATE challenges SET sandbox_enabled=false WHERE id=$1',[contestId]);
+ assert.equal((await sandboxStatus(db,p.id,contestId)).enabled,false,'Emergency pause remains effective');
+ await updateActiveChallengePhase('practice_open');
+ console.log('PASS sandbox-only phase, scored admission rejection, pause/resume, 3/20/77, sample-only read/edit isolation, idempotency race, one in-flight/participant, cooldown persistence, expiry/late-write fence, unrelated participant access, contest-switch fence and unchanged scored tables.');
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>getPool().end());

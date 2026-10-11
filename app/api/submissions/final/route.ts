@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof RealLlmEvaluationError) {
-      return Response.json({ error: error.message }, { status: 502 });
+      return Response.json({ error: error.message, code: error.code }, { status: 502 });
     }
 
     if (error instanceof SubmissionStorageError) {

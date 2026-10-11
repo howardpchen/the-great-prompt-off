@@ -1,7 +1,10 @@
+import { createSubmissionProgress, type SubmissionProgressObserver } from "../submission-progress";
+import { evaluationFailureMessage, type EvaluationFailureCode } from "../evaluation-errors";
+import { beginBatch, finishReport, providerMetric, elapsedMs } from "../provider-telemetry";
 import { mapWithConcurrency } from "../evaluation-workers";
 import { parseEducationOutput } from "../education-contract";
 import "server-only";
-import { isEducationContest, hideEducationFinal, projectFinalResponse } from "../education-policy";
+import { hideEducationFinal, projectFinalResponse } from "../education-policy";
 import { reserveAttempt, failReservation, AttemptAdmissionError } from "../db/attempts";
 
 import { fallbackChallengeConfig } from "@/app/lib/challenge-config";
@@ -14,6 +17,7 @@ import {
 } from "@/app/lib/leaderboard-visibility";
 import {
   extractReportWithOpenRouter,
+  ProviderOutputError,
   getOpenRouterSubmissionConcurrency,
   hasOpenRouterApiKey,
   resolveOpenRouterModel,
@@ -195,6 +199,7 @@ type EvaluationResult = {
 export type LeaderboardRow = {
   rank: number;
   participant: string;
+  displayName?: string | null;
   score: number;
   final: boolean;
   submittedAt?: string;
@@ -258,23 +263,18 @@ export async function getSupabaseSubmissionStatus(
   );
 }
 
-export async function submitToSupabase({
-  kind,
-  participantCode,
-  prompt,
-  idempotencyKey,
-  expectedContestId,
-  expectedSchemaVersion,
-}: {
+export type SubmissionInput = {
   kind: SubmissionKind;
   participantCode: string;
   prompt: string;
   idempotencyKey?: string;
   expectedContestId?: string;
   expectedSchemaVersion?: number;
-}): Promise<SubmitScoreResponse> {
+};
+
+async function prepareSubmission({kind,participantCode,prompt,idempotencyKey,expectedContestId,expectedSchemaVersion}: SubmissionInput, returnPending = false) {
   const supabase = createDatabase();
-  let challenge = await getActiveChallenge(supabase);
+  const challenge = await getActiveChallenge(supabase);
   if ((expectedContestId !== undefined && expectedContestId !== challenge.id) || (expectedSchemaVersion !== undefined && expectedSchemaVersion !== challenge.schema_version)) throw new SubmissionLimitError("Contest changed; reload before submitting.");
   const participant = await getParticipantByCode(
     supabase,
@@ -292,8 +292,43 @@ export async function submitToSupabase({
   }
 
   let reservation;
-  try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey, expectedSchemaVersion});}
+  try {reservation = await reserveAttempt(supabase, {challengeId:challenge.id, participantId:participant.id, kind, prompt, idempotencyKey, expectedSchemaVersion, returnPending});}
   catch(error) {if(error instanceof AttemptAdmissionError) throw new SubmissionLimitError(error.message);throw error;}
+  return {supabase,challenge,participant,reservation};
+}
+
+export async function submitToSupabase(input: SubmissionInput): Promise<SubmitScoreResponse> {
+  return executePreparedSubmission(input, await prepareSubmission(input));
+}
+
+/** Admit exactly once before acknowledging; background work uses the same reservation. */
+export async function enqueuePublicSubmission(input: Omit<SubmissionInput,"kind">, defer: (work:()=>Promise<void>)=>void) {
+  if (!input.idempotencyKey) throw new ParticipantValidationError("An idempotency key is required for queued submissions.");
+  const fullInput = {...input,kind:"public" as const};
+  const prepared = await prepareSubmission(fullInput, true);
+  const {supabase,reservation,challenge} = prepared;
+  if (reservation.status === "completed") return {state:"completed" as const,result:reservation.response as SubmitScoreResponse};
+  if (!reservation.replayed) {
+    const progress = createSubmissionProgress(supabase,reservation.id);
+    try {
+      await progress.initialize();
+      defer(async()=>{
+        try { await executePreparedSubmission(fullInput,prepared,progress.observe); }
+        catch {
+          // Execution atomically records a safe failure code and refunds the
+          // reservation. Never overwrite it with provider text or a generic error.
+        } finally { await progress.flush(); }
+      });
+    } catch (error) { await failReservation(supabase,reservation.id); throw error; }
+  }
+  return {state:"queued" as const,requestId:input.idempotencyKey,contestId:challenge.id};
+}
+
+async function executePreparedSubmission(input: SubmissionInput, prepared: Awaited<ReturnType<typeof prepareSubmission>>, onProgress?: SubmissionProgressObserver): Promise<SubmitScoreResponse> {
+  const {kind,prompt}=input;
+  const {supabase,participant,reservation}=prepared;
+  let challenge=prepared.challenge;
+  const submittedAt=performance.now();let submittedOutcome="failed";
   if(reservation.status === 'completed') return projectFinalResponse(reservation.response as SubmitScoreResponse, challenge.contest_schema, challenge.event_phase);
   try {
   const refreshedChallenge = await getActiveChallenge(supabase);
@@ -307,15 +342,21 @@ export async function submitToSupabase({
     split,
     challengeMode,
   );
+  const evaluationStartedAt=new Date().toISOString();
   const evaluation = await evaluateSubmission({
     answerKeys,
+    contestId: challenge.id,
     kind,
     prompt,
     model: resolveOpenRouterModel(challenge.evaluation_model),
     mode: challengeMode,
     providerGroup: participant.id,
+    batchId: reservation.id,
+    onProgress,
+    signal: AbortSignal.timeout(20 * 60 * 1000),
   });
-  return await supabase.transaction(async (supabase) => {
+  onProgress?.({type:"saving"});
+  const savedResponse = await supabase.transaction(async (supabase) => {
   const [held] = await supabase.sql<{status:string}>('SELECT status FROM attempt_reservations WHERE id=$1 FOR UPDATE',[reservation.id]);
   if(held?.status !== 'pending') throw new SubmissionLimitError('Attempt reservation is no longer active.');
   const now = new Date().toISOString();
@@ -338,6 +379,7 @@ export async function submitToSupabase({
       total_fields: evaluation.summary.total,
       field_accuracy: evaluation.summary.total ? 100 * evaluation.summary.correct / evaluation.summary.total : 0,
       overall_score: evaluation.summary.accuracy,
+      started_at: evaluationStartedAt,
       completed_at: now,
     }, columns: "id", single: "single", operation: "insert" });
 
@@ -428,7 +470,9 @@ export async function submitToSupabase({
   await supabase.sql("UPDATE attempt_reservations SET status='completed',response=$2::jsonb,completed_at=now() WHERE id=$1",[reservation.id,JSON.stringify(response)]);
   return projectFinalResponse(response, challenge.contest_schema, challenge.event_phase);
   });
-  } catch(error) {await failReservation(supabase,reservation.id);throw error;}
+  submittedOutcome="completed";return savedResponse;
+  } catch(error) {await failReservation(supabase,reservation.id,error instanceof RealLlmEvaluationError ? error.code : "evaluation_failed");throw error;}
+  finally {providerMetric("submission_end",{batchId:reservation.id,kind,outcome:submittedOutcome,totalMs:elapsedMs(submittedAt)});}
 
 }
 
@@ -451,7 +495,7 @@ export async function getSupabaseLeaderboard(): Promise<LeaderboardResponse> {
     };
   }
 
-  if (challenge.event_phase === "not_started") {
+  if (challenge.event_phase === "not_started" || challenge.event_phase === "sandbox_open") {
     return {
       source: "supabase",
       fallbackReason: null,
@@ -484,8 +528,9 @@ export async function getSupabaseLeaderboard(): Promise<LeaderboardResponse> {
     rows: leaderboardSubmissions.map((submission, index) => ({
       rank: index + 1,
       participant:
-        participantCodes.get(submission.participant_id) || submission.participant_id,
-      score: Math.round(submission.score),
+        participantCodes.get(submission.participant_id)?.code || submission.participant_id,
+      displayName: participantCodes.get(submission.participant_id)?.displayName ?? null,
+      score: Number(submission.score),
       final: submissionType === "final",
       submittedAt: submission.submitted_at,
     })),
@@ -564,7 +609,9 @@ export class SubmissionLimitError extends Error {}
 
 export class ParticipantValidationError extends Error {}
 
-export class RealLlmEvaluationError extends Error {}
+export class RealLlmEvaluationError extends Error {
+  constructor(message: string, public readonly code: EvaluationFailureCode = "evaluation_failed") { super(message); }
+}
 
 export class EventPhaseError extends Error {}
 
@@ -576,22 +623,31 @@ export class SubmissionStorageError extends Error {
 
 async function evaluateSubmission({
   answerKeys,
+  contestId,
   kind,
   prompt,
   model,
   mode,
   providerGroup,
+  batchId,
+  onProgress,
+  signal,
 }: {
   answerKeys: RuntimeAnswerKeyItem[];
+  contestId: string;
   kind: SubmissionKind;
   prompt: string;
   model: string;
   mode: ChallengeModeDefinition;
   providerGroup: string;
+  batchId: string;
+  onProgress?: SubmissionProgressObserver;
+  signal?: AbortSignal;
 }): Promise<EvaluationResult> {
+  onProgress?.({type:"start",totalReports:answerKeys.length});
   if (mode.education && (mode.education.evaluationMode ?? "simulation") !== (shouldUseRealLlm() ? "real" : "simulation")) throw new RealLlmEvaluationError("Contest evaluator mode does not match this server. Ask the organizer to create the correct contest version; no attempt was charged.");
   if (shouldUseRealLlm()) {
-    return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode, providerGroup);
+    return evaluateWithRealLlm(answerKeys, prompt, kind, model, mode, providerGroup, batchId, contestId, onProgress, signal);
   }
 
   if (kind === "public" || kind === "final") {
@@ -632,6 +688,10 @@ async function evaluateWithRealLlm(
   model: string,
   mode: ChallengeModeDefinition,
   providerGroup: string,
+  batchId: string,
+  contestId: string,
+  onProgress?: SubmissionProgressObserver,
+  signal?: AbortSignal,
 ): Promise<EvaluationResult> {
   if (!hasOpenRouterApiKey()) {
     console.error(
@@ -643,6 +703,10 @@ async function evaluateWithRealLlm(
   }
 
   const concurrency = getOpenRouterSubmissionConcurrency();
+  const finishMetrics=beginBatch(batchId,kind,answerKeys.length,concurrency,contestId);
+  let batchOutcome="failed";let reportIndex=0;
+  let formatRecoveryCount=0;
+  let publicFormatThresholdExceeded=false;
 
   try {
     // Final submissions can evaluate many private reports. Limit OpenRouter
@@ -651,18 +715,63 @@ async function evaluateWithRealLlm(
       answerKeys,
       concurrency,
       async (item) => {
+        const index=reportIndex++;
+        try {
         if (!item.text) {
           throw new Error(`Missing report text for ${item.id}.`);
         }
+        const reportText = item.text;
 
-        const modelOutput = await extractReportWithOpenRouter({
+        const request = (formatRecovery: boolean) => extractReportWithOpenRouter({
           prompt,
-          reportText: item.text,
+          reportText,
           model,
           mode,
-        }, { priority: "scored", group: providerGroup });
-        const score = scoreModelOutput(mode.education ? JSON.stringify(parseEducationOutput(modelOutput, mode).values) : modelOutput, item.answer_key, mode);
+          formatRecovery,
+          signal,
+        }, { priority: "scored", group: providerGroup, trace:{batchId,reportIndex:index},
+          onQueued:()=>onProgress?.({type:"queued",reportIndex:index}),
+          onAdmission:()=>onProgress?.({type:"processing",reportIndex:index}),
+          onRetry:()=>onProgress?.({type:"retrying",reportIndex:index}),
+        });
+        let modelOutput: string;
+        let formatRecoveryUsed = false;
+        let formatFallback = false;
+        try {
+          modelOutput = await request(false);
+        } catch (error) {
+          if (!(error instanceof ProviderOutputError)) throw error;
+          formatRecoveryCount++;
+          // A public test with too many format failures is not a representative
+          // scored attempt. Stop scheduling new cases and refund the attempt.
+          if (kind === "public" && formatRecoveryCount * 4 > answerKeys.length) {
+            publicFormatThresholdExceeded = true;
+            throw error;
+          }
+          formatRecoveryUsed = true;
+          // A schema rejection often contains no usable raw output. Re-evaluate
+          // this report once with the same clinical instructions and schema.
+          onProgress?.({type:"retrying",reportIndex:index});
+          try {
+            modelOutput = await request(true);
+          } catch (recoveryError) {
+            if (!(recoveryError instanceof ProviderOutputError)) throw recoveryError;
+            // Only a second confirmed output-format failure is scored missing.
+            // Transport, admission, and timeout failures still fail the attempt.
+            modelOutput = "";
+            formatFallback = true;
+          }
+        }
+        const score = scoreModelOutput(mode.education && !formatFallback ? JSON.stringify(parseEducationOutput(modelOutput, mode).values) : modelOutput, item.answer_key, mode);
+        const validationError = mode.education ? null : validationMessage(score);
+        const errorMessage = formatFallback
+          ? "No usable model output after format recovery; all findings scored as missing."
+          : formatRecoveryUsed
+            ? ["Format recovery succeeded.", validationError].filter(Boolean).join(" ")
+            : validationError;
 
+        finishReport(batchId,index,"processed");
+        onProgress?.({type:"completed",reportIndex:index});
         return {
           reportId: item.id,
           filename: item.filename,
@@ -670,11 +779,16 @@ async function evaluateWithRealLlm(
           prediction: predictionFromScore(score.per_field),
           score,
           modelOutput,
-          error: mode.education ? null : validationMessage(score),
+          error: errorMessage,
         };
+        } catch (error) {
+          finishReport(batchId,index,"failed");
+          throw error;
+        }
       },
     );
 
+    batchOutcome="completed";
     return {
       mode: "real_llm",
       model,
@@ -682,7 +796,7 @@ async function evaluateWithRealLlm(
       reportCount: answerKeys.length,
       items,
     };
-  } catch {
+  } catch (error) {
     const message = "Evaluation provider request failed";
 
     console.error("[submission-workflow] Real LLM evaluation failed", {
@@ -690,10 +804,9 @@ async function evaluateWithRealLlm(
       message,
     });
 
-    throw new RealLlmEvaluationError(
-      "The evaluation model could not complete this request. Please try again.",
-    );
-  }
+    const failureCode = publicFormatThresholdExceeded || error instanceof ProviderOutputError ? "output_format" : "evaluation_failed";
+    throw new RealLlmEvaluationError(evaluationFailureMessage(failureCode, kind), failureCode);
+  } finally {finishMetrics(batchOutcome);}
 }
 
 export async function getActiveChallenge(
@@ -739,7 +852,7 @@ async function getSubmissionStatusForParticipant(
   const finalSubmission =
     data.find((submission) => submission.submission_type === "final") ?? null;
   const latestPublic = publicSubmissions[publicSubmissions.length - 1] ?? null;
-  const extraPublicAttempts = isEducationContest(challenge.contest_schema) ? 0 : await getExtraPublicAttempts(supabase, participantCode, challenge.id);
+  const extraPublicAttempts = await getExtraPublicAttempts(supabase, participantCode, challenge.id);
   const publicSubmissionLimit =
     challenge.public_submission_limit + extraPublicAttempts;
   const [pending] = await supabase.sql<{public_pending:number;final_pending:number}>(
@@ -969,14 +1082,14 @@ async function getParticipantCodes(
   participantIds: string[],
 ) {
   if (participantIds.length === 0) {
-    return new Map<string, string>();
+    return new Map<string, {code:string;displayName:string|null}>();
   }
 
-  const { data, error } = await supabase.execute<Array<{ id: string; participant_code: string }>>({ table: "participants", columns: "id, participant_code", operation: "select", where: [["id", "in", participantIds]] });
+  const { data, error } = await supabase.execute<Array<{ id: string; participant_code: string; display_name: string | null }>>({ table: "participants", columns: "id, participant_code, display_name", operation: "select", where: [["id", "in", participantIds]] });
 
   if (error) {
     throw new Error(`Failed to load participant codes: ${error.message}`);
   }
 
-  return new Map(data.map((participant) => [participant.id, participant.participant_code]));
+  return new Map(data.map((participant) => [participant.id, {code:participant.participant_code,displayName:participant.display_name}]));
 }

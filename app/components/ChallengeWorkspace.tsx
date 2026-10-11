@@ -1,9 +1,14 @@
 "use client";
+import {canViewPracticeReports} from "../lib/event-phase";
+import { pendingPublicSubmission, submitPublicWithProgress, waitForPublicSubmission } from "../lib/public-submission-client";
 import { PromptSandbox } from "./PromptSandbox";
+import { PublicFeedbackMatrix } from "./PublicFeedbackMatrix";
+import { comparisonForReport, feedbackRowId } from "../lib/public-feedback";
+import type { ChallengeFieldDefinition } from "../lib/challenge-modes";
 import { TeamHistory } from "./TeamHistory";
 import { EducationSummary } from "./EducationSummary";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { challenge } from "../lib/challenge-constants";
@@ -14,6 +19,8 @@ import {
 } from "../lib/challenge-modes";
 import { MAX_PROMPT_CHARS, promptTooLongMessage } from "../lib/prompt-limits";
 import { formatFieldScore } from "../lib/score-display";
+import { AnnouncementNotification } from "./EventNotices";
+import { ParticipantDisplayName } from "./ParticipantDisplayName";
 import { normalizeParticipantCode } from "../lib/participant-codes";
 import {
   saveParticipantId,
@@ -46,6 +53,7 @@ import type {
 type LeaderboardRow = {
   rank: number;
   participant: string;
+  displayName?: string | null;
   score: number;
   final: boolean;
   submittedAt?: string;
@@ -183,6 +191,11 @@ export function ChallengeWorkspace({
   const [draftReadyKey, setDraftReadyKey] = useState("");
   const [lastSubmissionPromptDebug, setLastSubmissionPromptDebug] =
     useState<SubmissionPromptDebug | null>(null);
+  const [feedbackAttempt, setFeedbackAttempt] = useState<number | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+  const feedbackRequest = useRef(0);
+  const [selectedFeedbackCell, setSelectedFeedbackCell] = useState<{report: string; field: string} | null>(null);
   const [lastSubmissionFeedback, setLastSubmissionFeedback] =
     useState<SafeSubmissionFeedback | null>(null);
   const [challengeDataStatus, setChallengeDataStatus] =
@@ -202,6 +215,8 @@ export function ChallengeWorkspace({
   const [submissionMessageKind, setSubmissionMessageKind] = useState<SubmissionKind>("public");
   const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
   const [submissionMessage, setSubmissionMessage] = useState("");
+  const publicSubmissionController = useRef<AbortController | null>(null);
+  const submissionBusy = useRef(false);
   const [pendingAction, setPendingAction] = useState<"public" | "final" | null>(
     null,
   );
@@ -274,9 +289,35 @@ export function ChallengeWorkspace({
     visibility: leaderboardVisibility,
   });
   const phaseMessage = eventPhaseMessage(eventPhase);
-  const canViewPublicReports = eventPhase !== "not_started";
+  const canViewPublicReports = canViewPracticeReports(eventPhase);
   const canSubmitPublic = eventPhase === "practice_open";
   const canSubmitFinal = eventPhase === "final_open";
+
+  const resumePublicSubmission = useEffectEvent(async (controller:AbortController) => {
+    const pending=pendingPublicSubmission(challengeId,activeParticipantId);
+    if(!pending || submissionBusy.current) return;
+    submissionBusy.current=true;
+    setPendingAction("public");setSubmissionMessageKind("public");
+    setSubmissionMessage("Reconnecting to your test submission. Please wait; do not submit again.");
+    try {
+      const result=await waitForPublicSubmission<SubmitScoreResponse>(pending,{
+        participantCode:activeParticipantId,participantToken:activeParticipantToken,
+        contestId:challengeId,signal:controller.signal,onProgress:setSubmissionMessage,
+      });
+      if(!controller.signal.aborted) await applySubmissionResult("public",result.score,result.instructions ?? participantPrompt);
+    } catch(error) {
+      if(!controller.signal.aborted) setSubmissionMessage(error instanceof Error ? error.message : "Submission status unavailable.");
+    } finally {
+      submissionBusy.current=false;
+      if(!controller.signal.aborted) setPendingAction(null);
+    }
+  });
+  useEffect(()=>{
+    if(!activeParticipantId || !activeParticipantToken || participantValidation?.valid!==true || challengeId==="pending-challenge") return;
+    const controller=new AbortController();publicSubmissionController.current=controller;
+    const reconnect=window.setTimeout(()=>void resumePublicSubmission(controller),0);
+    return ()=>{window.clearTimeout(reconnect);controller.abort();publicSubmissionController.current?.abort();};
+  },[activeParticipantId,activeParticipantToken,challengeId,participantValidation?.valid]);
 
   useEffect(() => {
     if (!activeParticipantId || !activeParticipantToken) {
@@ -552,6 +593,61 @@ export function ChallengeWorkspace({
     }
   }, [clinicalInstructions, draftKey, draftReadyKey]);
 
+  async function viewPublicResults(id: string) {
+    if (pendingAction) return;
+    const requestId = ++feedbackRequest.current;
+    setFeedbackLoading(true); setFeedbackError("");
+    try {
+      const response = await fetch(`/api/team-history?submission=${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${activeParticipantToken}` }, cache: "no-store" });
+      if (!response.ok) throw new Error("Saved result unavailable");
+      const data = await response.json();
+      if (requestId !== feedbackRequest.current) return;
+      setLastSubmissionFeedback(data.feedback);
+      setFeedbackAttempt(data.attemptNumber);
+      setSubmittedPrompt(data.instructions);
+      setSelectedFeedbackCell(null);
+      setLastSubmissionPromptDebug(null);
+      setSubmissionMessage("");
+      document.getElementById("evaluate")?.scrollIntoView({block: "start"});
+    } catch { if (requestId === feedbackRequest.current) setFeedbackError("Could not load that public result. The displayed result has not changed."); }
+    finally { if (requestId === feedbackRequest.current) setFeedbackLoading(false); }
+  }
+  useEffect(() => {
+    const requestId = ++feedbackRequest.current;
+    // Clear the previous account/contest's result before loading its replacement.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLastSubmissionFeedback(null); setFeedbackAttempt(null); setSelectedFeedbackCell(null);
+    setFeedbackLoading(false); setFeedbackError("");
+    if (!activeParticipantToken) return;
+    const controller = new AbortController();
+    const options = {headers: {Authorization: `Bearer ${activeParticipantToken}`}, cache: "no-store" as const, signal: controller.signal};
+    void (async () => {
+      const history = await fetch("/api/team-history", options);
+      if (!history.ok) return; // Non-education/legacy contests may not have history.
+      const data = await history.json();
+      const latest = data.practice?.[0];
+      if (!latest || requestId !== feedbackRequest.current) return;
+      const response = await fetch(`/api/team-history?submission=${encodeURIComponent(latest.id)}`, options);
+      if (!response.ok) throw new Error("Saved result unavailable");
+      const result = await response.json();
+      if (controller.signal.aborted || requestId !== feedbackRequest.current) return;
+      setLastSubmissionFeedback(result.feedback); setFeedbackAttempt(result.attemptNumber);
+      setSubmittedPrompt(result.instructions); setLastSubmissionPromptDebug(null);
+    })().catch(() => {
+      if (!controller.signal.aborted && requestId === feedbackRequest.current) setFeedbackError("Saved public result unavailable. Try View results in Submission history.");
+    });
+    return () => { controller.abort(); };
+  }, [challengeId, activeParticipantToken]);
+  useEffect(() => {
+    if (!selectedFeedbackCell) return;
+    const report = reports.find(r => r.id === selectedFeedbackCell.report);
+    if (!report || activeReportId !== report.id) return;
+    const comparison = comparisonForReport(lastSubmissionFeedback?.clinicalComparisons ?? [], report);
+    const element = document.getElementById(feedbackRowId(report.filename || comparison?.report || report.id, selectedFeedbackCell.field));
+    if (element) { element.scrollIntoView({block: "nearest", inline: "nearest"}); element.focus({preventScroll: true}); }
+    else document.getElementById("public-report-details")?.scrollIntoView({block: "start"});
+  }, [selectedFeedbackCell, activeReportId, reports, lastSubmissionFeedback]);
+
   const activeReport = reports.find((report) => report.id === activeReportId) ?? reports[0];
   const currentRows = useMemo(() => {
     if (!participantLeaderboardVisible) {
@@ -564,6 +660,74 @@ export function ChallengeWorkspace({
 
     return getLocalLeaderboardRows(submissionStore);
   }, [leaderboardResponse, participantLeaderboardVisible, submissionStore]);
+
+  async function applySubmissionResult(kind: SubmissionKind, score: SubmitScoreResponse, submittedInstructions: string) {
+    const promptDebug = await createPromptDebug(submittedInstructions);
+      if (score.source === "supabase") {
+        setSubmissionStatus(score);
+        void getLeaderboard().then(setLeaderboardResponse).catch(()=>setStatusRefreshWarning("Your result is saved; leaderboard refresh is temporarily unavailable."));
+      } else {
+        const submission: StoredSubmission = {
+          id: createSubmissionId(kind),
+          participantId: activeParticipantId,
+          kind,
+          createdAt: new Date().toISOString(),
+          promptSnapshot: submittedInstructions,
+          score: score.score,
+          correctFields: score.correctFields ?? 0,
+          totalFields: score.totalFields ?? 0,
+          reportCount: score.reportCount ?? 0,
+        };
+        const result = saveSubmission(submission);
+
+        if (!result.ok && result.reason === "public_limit_reached") {
+          setSubmissionMessage("Test attempt limit reached for this participant.");
+          return;
+        }
+
+        if (!result.ok && result.reason === "final_already_used") {
+          setSubmissionMessage(
+            "Final submission has already been used for this participant.",
+          );
+          return;
+        }
+      }
+
+      setSubmittedPrompt(submittedInstructions);
+      setLastSubmissionPromptDebug({
+        ...promptDebug,
+        promptSnapshot: submittedInstructions,
+        kind,
+      });
+      setLastSubmissionFeedback(score.feedback ?? null);
+      setFeedbackAttempt(kind === "public" ? (score.publicSubmissionsUsed ?? localParticipantHistory.publicSubmissions.length + 1) : null);
+      setSelectedFeedbackCell(null);
+      if (kind === "public") {
+        const fieldDetail =
+          typeof score.correctFields === "number" &&
+          typeof score.totalFields === "number"
+            ? `, ${score.correctFields} of ${score.totalFields} fields correct`
+            : "";
+        const reportDetail =
+          typeof score.reportCount === "number"
+            ? ` across ${score.reportCount} reports`
+            : "";
+
+        setSubmissionMessage(
+          `Test attempt saved: ${Number(score.score).toFixed(1)}%${fieldDetail}${reportDetail}.`,
+        );
+      } else {
+        const fieldDetail =
+          typeof score.correctFields === "number" &&
+          typeof score.totalFields === "number"
+            ? `, ${score.correctFields} of ${score.totalFields} fields correct`
+            : "";
+
+        setSubmissionMessage(
+          score.resultsHidden ? "Final instructions locked and evaluation saved. Results will be revealed when the organizer ends the event." : `Final submission saved: ${Math.round(score.score)}%${fieldDetail}.`,
+        );
+      }
+  }
 
   function submitPublic() {
     submitChallengePrompt("public");
@@ -585,7 +749,7 @@ export function ChallengeWorkspace({
       return;
     }
 
-    if (pendingAction !== null) {
+    if (pendingAction !== null || submissionBusy.current) {
       return;
     }
 
@@ -619,97 +783,44 @@ export function ChallengeWorkspace({
       }
     }
 
+    submissionBusy.current = true;
     setPendingAction(kind);
     setSubmissionMessage(
       kind === "public"
-        ? "Submitting test attempt. This may take a moment while the AI evaluates your prompt."
+        ? "Sending your test submission. Please wait; your result will appear here automatically."
         : `Submitting final submission. This may take longer because it evaluates ${privateReportDescription}.`,
     );
     setLastSubmissionPromptDebug(null);
+    ++feedbackRequest.current; setFeedbackLoading(false); setFeedbackError("");
     setLastSubmissionFeedback(null);
 
     try {
-      const promptDebug = await createPromptDebug(participantPrompt);
-      const score = await postSubmission(
-        kind === "public"
-          ? "/api/submissions/public"
-          : "/api/submissions/final",
-        activeParticipantId,
-        activeParticipantToken,
-        participantPrompt,
-        challengeId,
-        activeMode.version,
-      );
-
-      if (score.source === "supabase") {
-        setSubmissionStatus(score);
-        setLeaderboardResponse(await getLeaderboard());
-      } else {
-        const submission: StoredSubmission = {
-          id: createSubmissionId(kind),
-          participantId: activeParticipantId,
-          kind,
-          createdAt: new Date().toISOString(),
-          promptSnapshot: participantPrompt,
-          score: score.score,
-          correctFields: score.correctFields ?? 0,
-          totalFields: score.totalFields ?? 0,
-          reportCount: score.reportCount ?? 0,
-        };
-        const result = saveSubmission(submission);
-
-        if (!result.ok && result.reason === "public_limit_reached") {
-          setSubmissionMessage("Test attempt limit reached for this participant.");
-          return;
-        }
-
-        if (!result.ok && result.reason === "final_already_used") {
-          setSubmissionMessage(
-            "Final submission has already been used for this participant.",
-          );
-          return;
-        }
-      }
-
-      setSubmittedPrompt(participantPrompt);
-      setLastSubmissionPromptDebug({
-        ...promptDebug,
-        promptSnapshot: participantPrompt,
-        kind,
-      });
-      setLastSubmissionFeedback(score.feedback ?? null);
+      let score: SubmitScoreResponse;
+      let submittedInstructions = participantPrompt;
       if (kind === "public") {
-        const fieldDetail =
-          typeof score.correctFields === "number" &&
-          typeof score.totalFields === "number"
-            ? `, ${score.correctFields} of ${score.totalFields} fields correct`
-            : "";
-        const reportDetail =
-          typeof score.reportCount === "number"
-            ? ` across ${score.reportCount} reports`
-            : "";
-
-        setSubmissionMessage(
-          `Test attempt saved: ${Math.round(score.score)}%${fieldDetail}${reportDetail}.`,
-        );
+        const controller = new AbortController();
+        publicSubmissionController.current = controller;
+        const result = await submitPublicWithProgress<SubmitScoreResponse>({
+          participantCode:activeParticipantId,participantToken:activeParticipantToken,
+          prompt:participantPrompt,contestId:challengeId,schemaVersion:activeMode.version,
+          onProgress:setSubmissionMessage,signal:controller.signal,
+        });
+        if(controller.signal.aborted) return;
+        score=result.score;submittedInstructions=result.instructions ?? participantPrompt;
       } else {
-        const fieldDetail =
-          typeof score.correctFields === "number" &&
-          typeof score.totalFields === "number"
-            ? `, ${score.correctFields} of ${score.totalFields} fields correct`
-            : "";
-
-        setSubmissionMessage(
-          score.resultsHidden ? "Final instructions locked and evaluation saved. Results will be revealed when the organizer ends the event." : `Final submission saved: ${Math.round(score.score)}%${fieldDetail}.`,
-        );
+        score=await postSubmission("/api/submissions/final",activeParticipantId,activeParticipantToken,participantPrompt,challengeId,activeMode.version);
       }
+      await applySubmissionResult(kind, score, submittedInstructions);
     } catch (error) {
+      if (kind === "public" && publicSubmissionController.current?.signal.aborted) return;
+      void getSubmissionStatus(activeParticipantId,activeParticipantToken).then(setSubmissionStatus).catch(()=>{});
       setSubmissionMessage(
         error instanceof Error
           ? error.message
           : `${kind === "public" ? "Test attempt" : "Final"} submission failed. Please try again.`,
       );
     } finally {
+      submissionBusy.current=false;
       setPendingAction(null);
     }
   }
@@ -858,14 +969,7 @@ export function ChallengeWorkspace({
             />
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Current participant
-              </p>
-              <p className="mt-1 font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
-                {activeParticipantId}
-              </p>
-            </div>
+            <ParticipantDisplayName key={activeParticipantId+activeParticipantToken} token={activeParticipantToken} participantCode={activeParticipantId} onSaved={() => { void fetch('/api/leaderboard').then(r=>r.ok?r.json():Promise.reject()).then(setLeaderboardResponse).catch(()=>{}); }} />
             <button
               type="button"
               onClick={saveAndExit}
@@ -883,8 +987,17 @@ export function ChallengeWorkspace({
           message={phaseMessage}
         />
         {eventAnnouncement ? (
-          <EventAnnouncementBanner announcement={eventAnnouncement} />
+          <>
+            <EventAnnouncementBanner announcement={eventAnnouncement} />
+            <AnnouncementNotification key={`${challengeId}:${activeParticipantId}:${eventAnnouncement}`} announcement={eventAnnouncement} />
+          </>
         ) : null}
+        <LiveUpdateStatus
+          lastUpdated={lastStatusUpdated}
+          warning={statusRefreshWarning}
+        />
+
+        <div className="sticky top-0 z-20 space-y-2 bg-[#f7f9f8]/95 dark:bg-slate-950/95 pt-2 backdrop-blur-sm">
         {eventTimerEndsAt ? (
           <EventTimerCountdown
             endsAt={eventTimerEndsAt}
@@ -892,16 +1005,12 @@ export function ChallengeWorkspace({
             now={currentTime}
           />
         ) : null}
-        <LiveUpdateStatus
-          lastUpdated={lastStatusUpdated}
-          warning={statusRefreshWarning}
-        />
-
-        <nav aria-label="Workspace sections" className="sticky top-0 z-10 rounded-lg bg-[#f7f9f8]/95 dark:bg-slate-950/95 py-2 flex flex-wrap gap-2 text-sm font-semibold">
+        <nav aria-label="Workspace sections" className="rounded-lg bg-[#f7f9f8]/95 dark:bg-slate-950/95 py-2 flex flex-wrap gap-2 text-sm font-semibold">
           {[['write','1. Write'],['debug','2. Debug'],['evaluate','3. Evaluate'],['final','4. Final']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950">{label}</a>)}
         </nav>
+        </div>
         <div className="grid min-w-0 gap-5">
-          <h2 id="write" className="scroll-mt-24 text-lg font-semibold text-teal-800 dark:text-teal-300">1. Write · Instructions and allowed values</h2>
+          <h2 id="write" className="scroll-mt-48 text-lg font-semibold text-teal-800 dark:text-teal-300">1. Write · Instructions and allowed values</h2>
           <section className="grid min-h-0 min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <PromptEditor
               fieldCount={activeMode.fields.length}
@@ -929,15 +1038,15 @@ export function ChallengeWorkspace({
             <EducationSummary mode={activeMode} token={activeParticipantToken} contestId={challengeId} phase={eventPhase} baselineInstructions={education.baselineInstructions} latestScore={submissionStatus?.latestPublicScore ?? null} finalScore={submissionStatus?.finalScore ?? null} onUseBaseline={() => { if (window.confirm("Replace this browser's draft with the shared baseline?")) setClinicalInstructions(education.baselineInstructions); }} />
             </details> : null}
             {education && activeParticipantToken ? <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-              <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">Team instruction history</summary>
-            <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} />
+              <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100">Submission history</summary>
+            <TeamHistory key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} contestId={challengeId} revision={`${eventPhase}:${submissionStatus?.publicSubmissionsUsed}:${submissionStatus?.finalSubmissionUsed}`} onUseInstructions={setClinicalInstructions} onViewResults={viewPublicResults} />
             </details> : null}
           </div>
-          <section id="debug" className="scroll-mt-24" aria-label="Debug">
+          <section id="debug" className="scroll-mt-48" aria-label="Debug">
             <h2 className="mb-3 text-lg font-semibold text-teal-800 dark:text-teal-300">2. Debug · Unscored Sandbox</h2>
             {education ? <PromptSandbox key={`${challengeId}:${activeParticipantToken}`} token={activeParticipantToken} participantId={activeParticipantId} contestId={challengeId} version={activeMode.version} prompt={clinicalInstructions} fields={activeMode.fields}/> : <p className="rounded-lg border bg-white dark:bg-slate-900 p-4 text-sm">Sandbox is not available for this contest.</p>}
           </section>
-          <section id="evaluate" className="min-w-0 scroll-mt-24" aria-label="Public evaluation">
+          <section id="evaluate" className="min-w-0 scroll-mt-48" aria-label="Public evaluation">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h2 className="text-xl font-semibold">3. Evaluate · Public test</h2><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Scored · Uses one attempt on all {publicReportDescription}. Sandbox edits never change these reports.</p><p className="text-sm font-semibold">{remainingPublicSubmissions} of {publicSubmissionLimit} attempts remaining</p></div>
         <button
@@ -953,26 +1062,38 @@ export function ChallengeWorkspace({
           }
           className="min-h-11 rounded-lg bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400"
         >
-          {pendingAction === "public" ? "Submitting..." : "Use test attempt"}
+          {pendingAction === "public" ? "Processing test…" : "Use test attempt"}
         </button>
 
             </div>
-            <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
+            {submissionMessageKind === "public" && submissionMessage ? <div role="status" aria-live="polite" aria-atomic="true" className="mb-4 flex items-start gap-3 rounded-lg border border-teal-300 bg-teal-50 p-4 text-sm text-teal-950 dark:border-teal-700 dark:bg-teal-950 dark:text-teal-100">
+              {pendingAction === "public" ? <span aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700 motion-reduce:animate-none"/> : null}
+              <p>{submissionMessage}</p>
+            </div> : null}
+            {feedbackError ? <p role="alert" className="my-3 text-red-700 dark:text-red-300">{feedbackError}</p> : null}
+            {feedbackLoading ? <p role="status">Loading saved public result…</p> : null}
+            {lastSubmissionFeedback?.kind === "public" ? <div className="min-w-0 rounded-xl bg-white p-4 dark:bg-slate-900">
+              <p className="font-semibold">{feedbackAttempt ? `Viewing public attempt ${feedbackAttempt}` : "Viewing completed public result"} · {Math.round(lastSubmissionFeedback.score)}%</p>
+              <PublicFeedbackMatrix reports={reports} fields={activeMode.fields} comparisons={lastSubmissionFeedback.clinicalComparisons ?? []} selected={selectedFeedbackCell} onSelect={(report, field) => { setActiveReportId(report); setSelectedFeedbackCell({report, field}); }} />
+            </div> : null}
+            <div id="public-report-details" className="grid min-w-0 scroll-mt-48 items-start gap-4 lg:grid-cols-2">
             {activeReport ? (
               <ReportViewer
                 activeReport={activeReport}
                 canViewReports={canViewPublicReports}
                 phaseMessage={phaseMessage}
                 reports={reports}
-                setActiveReportId={setActiveReportId}
+                setActiveReportId={(id) => { setActiveReportId(id); setSelectedFeedbackCell(null); }}
               />
             ) : null}
             <div className="min-w-0">
             {lastSubmissionFeedback?.kind === "public" && submittedPrompt !== participantPrompt ? <p className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-950 p-3 text-sm text-amber-900 dark:text-amber-300">Your prompt has changed since this scored result. Submit another public test to evaluate the new version.</p> : null}
             <SubmissionPanel
+              fields={activeMode.fields}
+              selectedField={selectedFeedbackCell?.report === activeReportId ? selectedFeedbackCell.field : undefined}
               reports={reports}
               selectedReportLabel={activeReport ? (activeReport.filename || activeReport.id) : undefined}
-              onSelectReport={(label: string) => { const report = reports.find(r => (r.filename || r.id) === label); if (report) setActiveReportId(report.id); }}
+              onSelectReport={(label: string) => { const report = reports.find(r => (r.filename || r.id) === label || r.id === label); if (report) { setActiveReportId(report.id); setSelectedFeedbackCell(null); } }}
               latestPublicScore={latestPublicScore}
               message={submissionMessageKind === "final" ? "" : submissionMessage}
               promptDebug={lastSubmissionPromptDebug?.kind === "public" ? lastSubmissionPromptDebug : null}
@@ -999,7 +1120,7 @@ export function ChallengeWorkspace({
             />
               </details>
 
-          <section id="final" aria-label="Final submission" className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-5">
+          <section id="final" aria-label="Final submission" className="scroll-mt-48 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-5">
             <h2 className="text-xl font-semibold">4. Final submission</h2>
             <p className="my-3 text-sm text-slate-600 dark:text-slate-300">One locked instruction version, evaluated on {privateReportDescription}. Edited Sandbox samples are not used. Available only during the organizer’s final phase.</p>
             <p className="mb-3 text-sm">{finalSubmissionUsed ? "Final submitted" : "Not submitted"}{finalScore !== null ? ` · ${Math.round(finalScore)}%` : finalSubmissionUsed ? " · Results await organizer reveal" : ""}</p>
@@ -1040,12 +1161,14 @@ function PhaseNotice({
   message: string;
 }) {
   const tone =
-    eventPhase === "practice_open" || eventPhase === "final_open"
+    eventPhase === "sandbox_open" || eventPhase === "practice_open" || eventPhase === "final_open"
       ? "border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950 text-teal-950 dark:text-teal-300"
       : "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-950 dark:text-amber-300";
   const detail =
     eventPhase === "not_started"
       ? "Keep this page open. It will update automatically when the organizer starts the event. Your prompt draft is saved locally in this browser."
+      : eventPhase === "sandbox_open"
+        ? "Try your prompt in Sandbox. Public Test Attempts and Final Submission are not open yet."
       : eventPhase === "practice_open"
         ? "Use Test Attempts to refine your prompt. Final Submission is not open yet."
         : eventPhase === "final_open"
@@ -1112,16 +1235,14 @@ function EventTimerCountdown({
     seconds,
   ).padStart(2, "0")}`;
 
+  const urgent = remainingSeconds > 0 && remainingSeconds <= 60;
   return (
-    <section className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 px-4 py-3 text-sm leading-6 text-indigo-950 dark:text-indigo-300">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-800 dark:text-indigo-300">
-        Event timer
-      </p>
-      <p className="mt-1 font-medium">
-        {remainingSeconds > 0
-          ? `${displayLabel} ends in ${formattedRemaining}.`
-          : "Timer ended."}
-      </p>
+    <section aria-label="Event countdown" className={`flex min-w-0 items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 shadow-sm ${urgent ? "border-amber-500 bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-100" : "border-indigo-500 bg-indigo-50 text-indigo-950 dark:border-indigo-400 dark:bg-indigo-950 dark:text-indigo-100"}`}>
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-widest">{remainingSeconds === 0 ? "Time is up" : urgent ? "Final minute" : "Time remaining"}</p>
+        <p className="mt-1 break-words text-sm font-semibold sm:text-base">{displayLabel}</p>
+      </div>
+      <p role="timer" aria-label={`${displayLabel}: ${formattedRemaining} remaining`} aria-live="off" className="shrink-0 font-mono text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">{formattedRemaining}</p>
     </section>
   );
 }
@@ -1231,7 +1352,7 @@ function PromptEditor({
             Prompt editor
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
-            Write your team instructions
+            Write your instructions
           </h2>
         </div>
         <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -1239,11 +1360,12 @@ function PromptEditor({
         </span>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-        Make your clinical rules explicit. Only your instructions are submitted as the team strategy; formatting is automatic.
+        Make your clinical rules explicit. Your instructions guide clinical interpretation; output formatting is automatic.
       </p>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
         <span><strong className="text-teal-800 dark:text-teal-300">{remainingPublicSubmissions} of {publicSubmissionLimit}</strong> test attempts left</span>
-        <span>Draft saved in this browser · Budget shared with your team</span>
+        <span>Draft saved in this browser · Attempts belong to your participant account</span>
+        <p className="w-full text-xs">Team membership and collaborative editing are not supported in this version.</p>
       </div>
       <div className="mt-4 grid gap-4">
         <label className="grid gap-2">
@@ -1331,16 +1453,21 @@ function ReportViewer({
   );
 }
 
-function SubmissionPanel({ reports, selectedReportLabel, onSelectReport, latestPublicScore, message, pendingAction,
+function SubmissionPanel({ fields, selectedField, reports, selectedReportLabel, onSelectReport, latestPublicScore, message, pendingAction,
   promptDebug, feedback, publicSubmissionLimit, publicReportDescription,
   publicSubmissionsUsed, remainingPublicSubmissions,
 }: {
+  fields: readonly ChallengeFieldDefinition[]; selectedField?: string;
   reports: PublicChallengeReport[]; selectedReportLabel?: string; onSelectReport: (label: string) => void; latestPublicScore: number | null;
   message: string; pendingAction: "public" | "final" | null;
   promptDebug: SubmissionPromptDebug | null;
   feedback: SafeSubmissionFeedback | null; publicSubmissionLimit: number;
   publicReportDescription: string; publicSubmissionsUsed: number; remainingPublicSubmissions: number;
 }) {
+  feedback = feedback ? { ...feedback, clinicalComparisons: feedback.clinicalComparisons?.map(item => {
+    const report = reports.find(r => r.id === item.report || r.filename === item.report);
+    return {...item, report: report ? report.filename || report.id : item.report};
+  }) } : null;
   // Match feedback by identity, never by evaluation completion order or filename digits.
   const reportLabels = new Map<string, string>();
   reports.forEach((report, index) => {
@@ -1355,28 +1482,29 @@ function SubmissionPanel({ reports, selectedReportLabel, onSelectReport, latestP
     <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">Results and feedback</h2>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-3"><p className="text-sm text-slate-600 dark:text-slate-300">Test attempts remaining</p><p className="mt-1 text-2xl font-semibold">{remainingPublicSubmissions}</p><p className="text-xs text-slate-500 dark:text-slate-400">{publicSubmissionsUsed} of {publicSubmissionLimit} used</p></div>
-      <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-3"><p className="text-sm text-slate-600 dark:text-slate-300">Latest test score</p><p className="mt-1 text-2xl font-semibold">{latestPublicScore === null ? "Not evaluated" : `${Math.round(latestPublicScore)}%`}</p><p className="text-xs text-slate-500 dark:text-slate-400">{publicReportDescription}</p></div>
+      <div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-3"><p className="text-sm text-slate-600 dark:text-slate-300">Displayed test score</p><p className="mt-1 text-2xl font-semibold">{(feedback?.score ?? latestPublicScore) === null ? "Not evaluated" : `${Math.round(feedback?.score ?? latestPublicScore!)}%`}</p><p className="text-xs text-slate-500 dark:text-slate-400">{publicReportDescription}</p></div>
 
     </div>
     <div role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
-      {pendingAction ? "Evaluating your instructions. Please keep this page open and wait before submitting again." : message || (!feedback ? "Your next test result and field-by-field feedback will appear here." : "")}
+      {message || (pendingAction ? "Your submission is processing. Please wait; results update automatically." : "") || (!feedback ? "Your next test result and field-by-field feedback will appear here." : "")}
     </div>
     {feedback ? <>
+      {selectedField && !feedback.clinicalComparisons?.find(item => item.report === selectedReportLabel)?.fields.some(item => item.field === selectedField) ? <p role="status" className="mt-3 text-sm text-slate-600 dark:text-slate-300">No scored comparison is available for {fields.find(field => field.key === selectedField)?.label ?? selectedField} in this report.</p> : null}
       {feedback.clinicalComparisons?.length ? <label className="mt-4 grid gap-2 text-sm font-semibold">Review report results<select aria-label="Review report results" value={selectedReportLabel ?? ""} onChange={e => onSelectReport(e.target.value)} className="w-full min-w-0 rounded border p-2"><option value={selectedReportLabel ?? ""} disabled>Select a report result</option>{comparisons?.map(r => <option key={r.report} value={r.report}>{displayLabel(r.report)} · {r.fields.filter(f => f.correct).length}/{r.fields.length} correct</option>)}</select></label> : null}
-      {feedback.clinicalComparisons && selectedReportLabel && !feedback.clinicalComparisons.some(r => r.report === selectedReportLabel) ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">No feedback for the selected report in this result. Choose a report with a result above.</p> : <SafeFeedbackPanel feedback={feedback} selectedReportLabel={selectedReportLabel} reportLabels={reportLabels} /> }
+      {feedback.clinicalComparisons && selectedReportLabel && !feedback.clinicalComparisons.some(r => r.report === selectedReportLabel) ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">No feedback for the selected report in this result. Choose a report with a result above.</p> : <SafeFeedbackPanel feedback={feedback} selectedReportLabel={selectedReportLabel} reportLabels={reportLabels} selectedField={selectedField} fields={fields} /> }
     </> : null}
     {promptDebug ? <details className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300"><summary className="cursor-pointer font-semibold">Last submitted instructions</summary><p className="mt-2 whitespace-pre-wrap break-words">{promptDebug.promptSnapshot}</p><p className="mt-1 text-xs">{promptDebug.promptLength} characters</p></details> : null}
   </section>;
 }
 
-function SafeFeedbackPanel({ feedback, selectedReportLabel, reportLabels }: { feedback: SafeSubmissionFeedback; selectedReportLabel?: string; reportLabels?: Map<string, string> }) {
+function SafeFeedbackPanel({ feedback, selectedReportLabel, reportLabels, selectedField, fields }: { selectedField?: string; fields?: readonly ChallengeFieldDefinition[]; feedback: SafeSubmissionFeedback; selectedReportLabel?: string; reportLabels?: Map<string, string> }) {
   const displayLabel = (identity: string) => reportLabels?.get(identity) ?? "Unmatched report";
   const legacyLabel = (label: string) => {
     const detail = feedback.reportDetails?.find(report => report.reportLabel === label);
     return detail ? displayLabel(detail.filename) : "Unmatched report";
   };
   const isPublic = feedback.kind === "public";
-  if (isPublic && feedback.clinicalComparisons) return <section className="mt-4 text-slate-900 dark:text-slate-100"><h3 className="font-semibold">Practice clinical feedback</h3><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Compare the model’s extraction with the reference for each report.</p><div className="mt-3 grid gap-2">{feedback.clinicalComparisons.filter(r => !selectedReportLabel || r.report === selectedReportLabel).map(r => <details open key={r.report} className="min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 p-3"><summary className="cursor-pointer font-semibold">{displayLabel(r.report)}</summary><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[440px] text-left text-sm"><caption className="sr-only">Field comparison for {displayLabel(r.report)}</caption><thead className="bg-slate-50 dark:bg-slate-950"><tr>{["Field", "Extraction", "Reference", "Match"].map(h => <th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{r.fields.map(f => <tr key={f.field} className="border-t border-slate-100 dark:border-slate-800"><th scope="row" className="p-2 font-medium">{f.field.replaceAll("_", " ")}</th><td className="p-2">{f.noDecision ? "No decision" : String(f.actual).replaceAll("_", " ")}</td><td className="p-2">{String(f.expected).replaceAll("_", " ")}</td><td className={`p-2 font-semibold ${f.correct ? "text-teal-700 dark:text-teal-300" : "text-amber-800 dark:text-amber-300"}`}>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></div></details>)}</div></section>;
+  if (isPublic && feedback.clinicalComparisons) return <section className="mt-4 text-slate-900 dark:text-slate-100"><h3 className="font-semibold">Practice clinical feedback</h3><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Score: {Math.round(feedback.score)}%. No decision earns zero; it is not a clinical negative. Compare the model’s extraction with the reference for each report.</p><div className="mt-3 grid gap-2">{feedback.clinicalComparisons.filter(r => !selectedReportLabel || r.report === selectedReportLabel).map(r => <details open key={r.report} className="min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 p-3"><summary className="cursor-pointer font-semibold">{displayLabel(r.report)}</summary><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[440px] text-left text-sm"><caption className="sr-only">Field comparison for {displayLabel(r.report)}</caption><thead className="bg-slate-50 dark:bg-slate-950"><tr>{["Field", "Extraction", "Reference", "Match"].map(h => <th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{r.fields.map(f => <tr key={f.field} id={feedbackRowId(r.report, f.field)} tabIndex={-1} className={`border-t border-slate-100 dark:border-slate-800 focus:outline-2 focus:outline-sky-400 ${selectedField === f.field ? "bg-sky-50 dark:bg-sky-950" : ""}`}><th scope="row" className="p-2 font-medium">{fields?.find(field => field.key === f.field)?.label ?? f.field.replaceAll("_", " ")}</th><td className="p-2">{f.noDecision ? "No decision" : String(f.actual).replaceAll("_", " ")}</td><td className="p-2">{String(f.expected).replaceAll("_", " ")}</td><td className={`p-2 font-semibold ${f.correct ? "text-teal-700 dark:text-teal-300" : "text-amber-800 dark:text-amber-300"}`}>{f.correct ? "Yes" : "No"}</td></tr>)}</tbody></table></div></details>)}</div></section>;
 
 
   return (
@@ -1600,14 +1728,14 @@ function Leaderboard({
             <span className="font-semibold text-slate-500 dark:text-slate-400">#{row.rank}</span>
             <div className="min-w-0">
               <p className="truncate font-semibold text-slate-800 dark:text-slate-100">
-                {row.participant}
+                {row.displayName || row.participant}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {row.final ? "Final submitted" : "Test attempt"}
               </p>
             </div>
             <span className="text-right font-semibold text-slate-950 dark:text-slate-50">
-              {row.score}%
+              {Number(row.score).toFixed(1)}%
             </span>
           </div>
         ))}

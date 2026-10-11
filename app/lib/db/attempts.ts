@@ -10,6 +10,7 @@ export type Reservation = {
   status: string;
   response: unknown;
   prompt_hash: string;
+  replayed?: boolean;
 };
 export async function reserveAttempt(
   db: Database,
@@ -20,6 +21,7 @@ export async function reserveAttempt(
     prompt: string;
     idempotencyKey?: string;
     expectedSchemaVersion?: number;
+    returnPending?: boolean;
   },
 ) {
   const key = input.idempotencyKey || randomUUID();
@@ -60,6 +62,7 @@ export async function reserveAttempt(
           "Idempotency key was already used for a different prompt.",
         );
       if (prior.status === "completed") return prior;
+      if (prior.status === "pending" && input.returnPending) return { ...prior, replayed: true };
       if (prior.status === "pending")
         throw new AttemptAdmissionError("This attempt is already processing.");
     }
@@ -70,7 +73,7 @@ export async function reserveAttempt(
       throw new AttemptAdmissionError("Submissions are not open right now.");
     const education = isEducationContest(challenge.contest_schema);
     if (education && !isApprovedEvaluationModel(challenge.evaluation_model))
-      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this Team Challenge contest.');
+      throw new AttemptAdmissionError('An explicit fixed evaluation model is required for this Challenge contest.');
     if (education && !input.prompt.trim())
       throw new AttemptAdmissionError('Enter instructions before submitting.');
     if (education && input.kind === 'final') {
@@ -91,12 +94,12 @@ export async function reserveAttempt(
     const limit =
       input.kind === "public"
         ? challenge.public_submission_limit +
-          (education ? 0 : override?.extra_public_attempts || 0)
+          (override?.extra_public_attempts ?? 0)
         : education ? 1 : challenge.final_submission_limit;
     if (counts.used >= limit)
       throw new AttemptAdmissionError("Submission limit reached.");
     const [reservation] = await tx.sql<Reservation>(
-      `INSERT INTO attempt_reservations(challenge_id,participant_id,kind,idempotency_key,prompt_hash,attempt_number,prompt_text) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(challenge_id,participant_id,kind,idempotency_key) DO UPDATE SET id=gen_random_uuid(),status='pending',attempt_number=EXCLUDED.attempt_number,created_at=now(),completed_at=NULL,prompt_text=COALESCE(attempt_reservations.prompt_text,EXCLUDED.prompt_text) RETURNING *`,
+      `INSERT INTO attempt_reservations(challenge_id,participant_id,kind,idempotency_key,prompt_hash,attempt_number,prompt_text) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(challenge_id,participant_id,kind,idempotency_key) DO UPDATE SET id=gen_random_uuid(),status='pending',attempt_number=EXCLUDED.attempt_number,created_at=now(),completed_at=NULL,response=NULL,prompt_text=COALESCE(attempt_reservations.prompt_text,EXCLUDED.prompt_text) RETURNING *`,
       [
         input.challengeId,
         input.participantId,
@@ -110,10 +113,10 @@ export async function reserveAttempt(
     return reservation;
   });
 }
-export async function failReservation(db: Database, id: string) {
+export async function failReservation(db: Database, id: string, failureCode: "output_format" | "evaluation_failed" = "evaluation_failed") {
   await db.sql(
-    "UPDATE attempt_reservations SET status='failed',completed_at=now() WHERE id=$1 AND status='pending'",
-    [id],
+    "UPDATE attempt_reservations SET status='failed',response=jsonb_build_object('failureCode',$2::text),completed_at=now() WHERE id=$1 AND status='pending'",
+    [id, failureCode],
   );
 }
 

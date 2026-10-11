@@ -1,4 +1,4 @@
-/** Retry only explicit admission failures, never ambiguous timeouts or invalid output. */
+/** Bounded retries for explicit provider failures; never repair invalid model output. */
 function safeRetryDelay(delay: number | null, now: number): number | null {
   // Untrusted headers must not create an infinite/unrepresentable global deadline.
   return delay !== null && Number.isFinite(delay) && delay >= 0 && Number.isSafeInteger(Math.ceil(now + delay)) ? delay : null;
@@ -7,6 +7,13 @@ export class ProviderAdmissionError extends Error {
   readonly retryAfterMs: number | null;
   constructor(delay: number | null) {
     super("Provider temporarily rate-limited this request.");
+    this.retryAfterMs = safeRetryDelay(delay, Date.now());
+  }
+}
+export class ProviderTransientError extends Error {
+  readonly retryAfterMs: number | null;
+  constructor(delay: number | null = null) {
+    super("The evaluation provider temporarily failed to complete this request.");
     this.retryAfterMs = safeRetryDelay(delay, Date.now());
   }
 }
@@ -36,7 +43,7 @@ export async function withAdmissionRetry<T>(attempt: () => Promise<T>, options: 
     if (options.signal?.aborted) throw new Error("Evaluation cancelled.");
     try { return await attempt(); }
     catch (error) {
-      if (!(error instanceof ProviderAdmissionError) || retry >= 3) throw error;
+      if (!(error instanceof ProviderAdmissionError || error instanceof ProviderTransientError) || retry >= 3) throw error;
       const base = [5000, 15000, 30000][retry];
       // Positive jitter also spreads clients receiving the same Retry-After.
       const jitter = 1 + Math.floor((options.random || Math.random)() * 1000);

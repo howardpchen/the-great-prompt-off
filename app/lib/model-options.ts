@@ -1,6 +1,7 @@
 export const evaluationModelOptions = [
-  { id: "qwen/qwen3.5-9b", label: "Qwen3.5 9B", difficulty: "Requires calibration", note: "Team Challenge candidate; validate structured output, latency and reference accuracy before enabling paid evaluation." },
-  { id: "qwen/qwen3.5-35b-a3b", label: "Qwen3.5 35B A3B", difficulty: "Requires calibration", note: "Team Challenge candidate; not yet validated for this contest." },
+  { id: "openai/gpt-oss-20b", label: "OpenAI GPT-OSS 20B", difficulty: "Requires calibration", note: "Structured-output candidate; validate full-schema output and reasoning-token budget before live use." },
+  { id: "qwen/qwen3.5-9b", label: "Qwen3.5 9B", difficulty: "Requires calibration", note: "Challenge candidate; validate structured output, latency and reference accuracy before enabling paid evaluation." },
+  { id: "qwen/qwen3.5-35b-a3b", label: "Qwen3.5 35B A3B", difficulty: "Requires calibration", note: "Challenge candidate; not yet validated for this contest." },
   {
     id: "google/gemini-2.5-flash",
     label: "Gemini 2.5 Flash",

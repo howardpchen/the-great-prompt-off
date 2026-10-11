@@ -22,3 +22,30 @@ export async function readTeamHistory(db: Database, challengeId: string, partici
     ORDER BY (prompt_text IS NULL),created_at DESC,id DESC LIMIT 1`, [challengeId, team.id]);
   return { practice, final: final || null };
 }
+
+export async function readPublicHistoryResult(db: Database, challengeId: string, participantCode: string, submissionId: string) {
+  // Project only public comparisons already returned for this completed attempt.
+  // Never return raw outputs, complete cached responses, or final feedback.
+  const [result] = await db.sql<{
+    attemptNumber: number; instructions: string; score: number; correctFields: number;
+    totalFields: number; reportCount: number; comparisons: import("../public-feedback").ClinicalComparison[] | null;
+  }>(`SELECT s.attempt_number AS "attemptNumber", p.prompt_text AS instructions,
+    s.score,s.correct_fields AS "correctFields",s.total_fields AS "totalFields",s.report_count AS "reportCount",
+    a.response #> '{feedback,clinicalComparisons}' AS comparisons
+    FROM submissions s
+    JOIN participants u ON u.id=s.participant_id AND u.is_active AND u.participant_code=$2
+    JOIN prompt_runs p ON p.id=s.prompt_run_id AND p.participant_id=s.participant_id AND p.challenge_id=s.challenge_id
+    LEFT JOIN LATERAL (
+      SELECT response FROM attempt_reservations
+      WHERE challenge_id=s.challenge_id AND participant_id=s.participant_id
+        AND kind='public' AND status='completed' AND attempt_number=s.attempt_number
+        AND response #>> '{feedback,kind}'='public'
+      ORDER BY completed_at DESC LIMIT 1
+    ) a ON true
+    WHERE s.challenge_id=$1 AND s.id=$3 AND s.submission_type='public'`, [challengeId, participantCode, submissionId]);
+  if (!result) return null;
+  return { attemptNumber: result.attemptNumber, instructions: result.instructions,
+    feedback: { kind: "public" as const, score: result.score, correctFields: result.correctFields,
+      totalFields: result.totalFields, reportCount: result.reportCount,
+      clinicalComparisons: result.comparisons ?? [] } };
+}
