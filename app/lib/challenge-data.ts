@@ -95,8 +95,10 @@ export async function getSampleReports(): Promise<SampleReport[]> {
   }
 }
 
-export async function getPublicChallengeReports(): Promise<PublicChallengeReport[]> {
-  const reports = await getSampleReports();
+export async function getPublicChallengeReports(challengeId: string): Promise<PublicChallengeReport[]> {
+  // The caller checked this contest's phase. Do not retarget a different
+  // contest if an organizer changes the active selection between queries.
+  const reports = await getSupabasePublicReports(challengeId);
 
   return reports.map(({ id, filename, split, text }) => ({
     id,
@@ -133,9 +135,9 @@ async function getLocalPublicReports(): Promise<SampleReport[]> {
   );
 }
 
-async function getSupabasePublicReports(): Promise<SampleReport[]> {
+async function getSupabasePublicReports(expectedChallengeId?: string): Promise<SampleReport[]> {
   const supabase = createDatabase();
-  const { data: challenge, error: challengeError } = await supabase.execute<SupabaseChallengeRow>({ table: "challenges", columns: "id, mode_id, schema_version, contest_schema", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true]], order: [["created_at", { ascending: false }]] });
+  const { data: challenge, error: challengeError } = await supabase.execute<SupabaseChallengeRow>({ table: "challenges", columns: "id, mode_id, schema_version, contest_schema", limit: 1, single: "single", operation: "select", where: [["is_active", "eq", true], ...(expectedChallengeId ? [["id", "eq", expectedChallengeId] as const] : [])], order: [["created_at", { ascending: false }]] });
 
   if (challengeError || !challenge) {
     throw new Error(challengeError?.message || "No active challenge found.");

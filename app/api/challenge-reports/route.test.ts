@@ -10,7 +10,7 @@ import { verifyParticipantSessionToken } from "../../lib/supabase/participant-se
 import { validateParticipantSession } from "../../lib/supabase/participant-validation";
 import { GET } from "./route";
 const request = (token?: string) => new Request("https://example.test/api/challenge-reports", { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-beforeEach(() => {vi.resetAllMocks();vi.mocked(getActiveChallenge).mockResolvedValue({event_phase:"practice_open"} as Awaited<ReturnType<typeof getActiveChallenge>>);});
+beforeEach(() => {vi.resetAllMocks();vi.mocked(getActiveChallenge).mockResolvedValue({id:"contest-a",event_phase:"practice_open"} as Awaited<ReturnType<typeof getActiveChallenge>>);});
 it.each([undefined, "forged", "expired"])("refuses missing or invalid token %s without loading content", async token => {
   vi.mocked(verifyParticipantSessionToken).mockReturnValue(null);
   const response = await GET(request(token));
@@ -30,6 +30,7 @@ it("delivers reports only for the validated participant without caching", async 
   const response = await GET(request("signed"));
   expect(response.status).toBe(200);
   expect(validateParticipantSession).toHaveBeenCalledWith("TEAM01", "signed");
+  expect(getPublicChallengeReports).toHaveBeenCalledWith("contest-a");
   expect(response.headers.get("cache-control")).toContain("no-store");
   expect((await response.json()).reports[0].text).toBe("synthetic report");
 });

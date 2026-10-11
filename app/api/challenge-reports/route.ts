@@ -15,6 +15,6 @@ export async function GET(request: Request) {
   try {
     const challenge=await getActiveChallenge(createDatabase());
     if (!canViewPracticeReports(challenge.event_phase)) return Response.json({reports:[]},{headers});
-    return Response.json({ reports: await getPublicChallengeReports() }, { headers });
+    return Response.json({ reports: await getPublicChallengeReports(challenge.id) }, { headers });
   } catch { return Response.json({error:"Practice reports unavailable."},{status:503,headers}); }
 }
