@@ -15,6 +15,7 @@ const challengeTitle = defaultChallengeMode.title;
 const defaultModel = "google/gemini-2.0-flash-001";
 const eventPhases = [
   "not_started",
+  "sandbox_open",
   "practice_open",
   "final_open",
   "ended",

@@ -9,7 +9,7 @@ describe('educational final privacy',()=>{
  });
  it('redacts every score-bearing projection without mutating stored replay',()=>{
   const stored={kind:'final',score:90,finalScore:90,correctFields:9,totalFields:10,reportCount:5,summary:{accuracy:90},feedback:{score:90}};
-  for(const phase of ['not_started','practice_open','final_open']) {
+  for(const phase of ['not_started','sandbox_open','practice_open','final_open']) {
    const hidden=projectFinalResponse(stored,schema,phase);
    expect(hidden.score).toBeNull();expect(hidden.finalScore).toBeNull();
    expect(hidden.summary).toBeNull();expect(hidden.feedback).toBeUndefined();

@@ -34,7 +34,7 @@ export function ContestConfigurationSummary({ state, compact = false }: {state: 
         <dl className="mt-3 space-y-2 text-sm"><div><dt className="font-semibold">Fixed model</dt><dd>{state.evaluationModel||'Not set'}</dd></div>
         <div><dt className="font-semibold">Evaluation mode</dt><dd>{state.schema.education?.evaluationMode||'Legacy runtime policy'}</dd></div>
         <div><dt className="font-semibold">System contract</dt><dd>{state.schema.education?.systemPromptVersion||'Historical contract (unchanged)'}</dd></div>
-        <div><dt className="font-semibold">Default participant instructions</dt><dd className="whitespace-pre-wrap">{state.schema.education?.baselineInstructions||'No Team Challenge baseline'}</dd></div></dl>
+        <div><dt className="font-semibold">Default participant instructions</dt><dd className="whitespace-pre-wrap">{state.schema.education?.baselineInstructions||'No Challenge baseline'}</dd></div></dl>
         <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Organizer definitions are reference material, not automatically appended clinical instructions. Formatting remains application-controlled.</p>
       </details>
       <details className="rounded border p-3"><summary className="cursor-pointer font-semibold">Report inventory and readiness</summary>

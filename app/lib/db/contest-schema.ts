@@ -69,6 +69,8 @@ export async function saveContestSchema(db: Database, payload: unknown) {
     contestId?: string;
     reports?: unknown;
     report?: {id?:string;filename?:string;report_text?:string;split?:string};
+    forkTitle?: string;
+    forkBaselineInstructions?: string;
   };
   return db.transaction(async (tx) => {
     await tx.sql("SELECT pg_advisory_xact_lock(718204,1)");
@@ -84,18 +86,25 @@ export async function saveContestSchema(db: Database, payload: unknown) {
         c.schema_version,
         c.contest_schema,
       );
+      if (p.forkTitle !== undefined && (typeof p.forkTitle !== "string" || !p.forkTitle.trim()))
+        throw new Error("Supply a title for the new contest version.");
+      if (p.forkBaselineInstructions !== undefined && (!current.education || typeof p.forkBaselineInstructions !== "string" || !p.forkBaselineInstructions.trim()))
+        throw new Error("Supply baseline instructions for an educational contest.");
       const next = validateContestSchema({
         ...current,
         id: `contest_${crypto.randomUUID().replaceAll("-", "")}`,
         version: 1,
+        title: p.forkTitle?.trim() ?? current.title,
+        ...(p.forkBaselineInstructions === undefined ? {} : {education:{...current.education!,baselineInstructions:p.forkBaselineInstructions}}),
       });
       const [created] = await tx.sql<{ id: string }>(
-        "INSERT INTO challenges(slug,title,description,instructions,output_schema,locked_model,evaluation_model,mode_id,schema_version,contest_schema,schema_ready,public_submission_limit,final_submission_limit,is_active,sandbox_enabled,event_phase) SELECT slug || '-' || substr(gen_random_uuid()::text,1,8),title,description,instructions,$2::jsonb,locked_model,evaluation_model,$3,1,$4::jsonb,false,public_submission_limit,final_submission_limit,false,sandbox_enabled,'not_started' FROM challenges WHERE id=$1 RETURNING id",
+        "INSERT INTO challenges(slug,title,description,instructions,output_schema,locked_model,evaluation_model,mode_id,schema_version,contest_schema,schema_ready,public_submission_limit,final_submission_limit,is_active,sandbox_enabled,event_phase) SELECT slug || '-' || substr(gen_random_uuid()::text,1,8),$5,description,instructions,$2::jsonb,locked_model,evaluation_model,$3,1,$4::jsonb,false,public_submission_limit,final_submission_limit,false,sandbox_enabled,'not_started' FROM challenges WHERE id=$1 RETURNING id",
         [
           c.id,
           JSON.stringify(buildOutputSchema(next)),
           next.id,
           JSON.stringify(next),
+          next.title,
         ],
       );
       await tx.sql(

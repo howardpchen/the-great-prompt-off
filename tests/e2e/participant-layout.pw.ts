@@ -7,6 +7,7 @@ const fields = Array.from({ length: 12 }, (_, i) => ({key: `finding_${i+1}`, lab
 for (const systemPromptVersion of [undefined, "clinical-extraction-v1"] as const) {
 test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?? "historical"})`, async ({ page }) => {
   let phase = "practice_open";
+  let displayName="Participant 001";
   let used = 0;
   let submissionCount = 0;
   let finalCount = 0;
@@ -22,6 +23,7 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
     const path = new URL(route.request().url()).pathname;
     let data: unknown;
     if(path === "/api/participants/validate") data = {valid:true,participantCode:"DEMO01",participantToken:"synthetic-ui-session",source:"supabase"};
+    else if(path === "/api/participants/profile") { if(route.request().method()==="PATCH") {expect(route.request().postDataJSON()).toEqual({displayName:"Knee Team"}); displayName="Knee Team";} data={displayName,participantCode:"DEMO01"}; }
     else if(path === "/api/challenge-data") data = {source:"supabase",challenge:{id:"synthetic-ui-contest",title:"Synthetic Participant Workshop",eventPhase:phase,leaderboardVisibility:"practice",eventAnnouncement:"",eventTimerEndsAt:null,eventTimerLabel:"",evaluationModelDisplayName:"Fixed workshop model",publicSubmissionLimit:5,finalSubmissionLimit:1},mode:{id:"synthetic",version:1,title:"Synthetic",fields,education:{version:1,pipeline:"structured-v1",systemPromptVersion,baselineInstructions:baseline,evaluationMode:"simulation"}},reportCounts:{sample:0,public:20,private:80},participantCount:50};
     else if(path === "/api/sandbox") {
       if(route.request().method()==="POST") {
@@ -30,13 +32,14 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
         expect(body.prompt).toBe("My explicit clinical rules");
         job={id:"synthetic-job",schema_version:1,reports:body.reports,prompt:body.prompt,results:body.reports.map((r:{id:string})=>({reportId:r.id,status:"completed",decisions:Object.fromEntries(fields.map(f=>[f.key,{status:"decision",value:"present"}]))})),status:"completed",simulation:true};
       }
-      data={enabled:true,reports:samples,job,inFlight:false,cooldownUntil:job?new Date(Date.now()+60000).toISOString():null,serverTime:new Date().toISOString()};
+      data={enabled:phase==="practice_open"||phase==="sandbox_open",reports:samples,job,inFlight:false,cooldownUntil:phase==="sandbox_open"?null:job?new Date(Date.now()+30000).toISOString():null,serverTime:new Date().toISOString()};
     }
     else if(path === "/api/challenge-reports") data = {reports:Array.from({length:20},(_,i)=>({id:`report-${i+1}`,filename:i===0?"fictional-942.txt":i===1?"fictional-017.txt":`synthetic-${i+1}`,label:`Practice report ${i+1}`,text:`SYNTHETIC REPORT ${i+1}\n\nFindings:\nThis fictional report is for layout verification only.\n\nImpression:\nNo clinical data is included.`}))};
     else if(path === "/api/submissions/status") data=status();
-    else if(path === "/api/leaderboard") data={source:"supabase",visible:true,rows:[]};
-    else if(path === "/api/education-summary") data={simulated:true,baseline:{accuracy:50},hiddenBaseline:null};
-    else if(path === "/api/team-history") data={practice:[{id:"practice-1",attemptNumber:1,score:60,submittedAt:"2026-01-01T12:00:00Z",instructions:"Saved team strategy",correctFields:6,totalFields:12,reportCount:1}],final:null};
+    else if(path === "/api/leaderboard") data={source:"supabase",visible:true,rows:[{rank:1,participant:"DEMO01",displayName,score:87.46,final:false},{rank:2,participant:"DEMO02",displayName:"Other",score:80,final:false}]};
+    else if(path === "/api/education-summary") data={simulated:true,baseline:phase==="sandbox_open"||phase==="not_started"?null:{accuracy:50},hiddenBaseline:null};
+    else if(path === "/api/team-history" && new URL(route.request().url()).searchParams.has("submission")) data={attemptNumber:1,instructions:"Saved participant instructions",feedback:{kind:"public",score:60,correctFields:6,totalFields:12,reportCount:1,clinicalComparisons:[{report:"report-1",fields:[{field:"finding_1",actual:null,expected:"absent",correct:false,noDecision:true}]}]}};
+    else if(path === "/api/team-history") data={practice:[{id:"practice-1",attemptNumber:1,score:60,submittedAt:"2026-01-01T12:00:00Z",instructions:"Saved participant instructions",correctFields:6,totalFields:12,reportCount:1}],final:null};
     else if(path === "/api/submissions/public") {expect(route.request().postDataJSON().prompt).toBe("My explicit clinical rules"); submissionCount++; used++; data={...status(),kind:"public",evaluationMode:"mock",score:75,feedback:{kind:"public",score:75,correctFields:9,totalFields:12,reportCount:1,clinicalComparisons:[{report:"fictional-017.txt",fields:[{field:"finding_1",actual:"absent",expected:"absent",correct:true,noDecision:false}]},{report:"fictional-942.txt",fields:[{field:"finding_1",actual:"present",expected:"absent",correct:false,noDecision:false}]}]}};}
     else if(path === "/api/submissions/final") {finalCount++;data={...status(),finalSubmissionUsed:true,resultsHidden:true,kind:"final",evaluationMode:"mock",score:0};}
     else throw new Error(`Unexpected fixture API: ${path}`);
@@ -46,6 +49,26 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   await page.goto("/challenge");
   const editor=page.getByPlaceholder("Write your clinical extraction strategy here...");
   await expect(editor).toHaveValue(baseline);
+  const profile=page.getByRole("region",{name:"Your display name"});
+  await expect(profile).toContainText("Participant 001");
+  await profile.getByRole("button",{name:"Change display name"}).click();
+  await profile.getByLabel("Display Name",{exact:true}).fill("Unsaved name");
+  await profile.getByRole("button",{name:"Cancel",exact:true}).click();
+  await expect(profile).toContainText("Participant 001");
+  await profile.getByRole("button",{name:"Change display name"}).click();
+  await profile.getByLabel("Display Name",{exact:true}).fill("Knee Team");
+  await profile.getByRole("button",{name:"Save name",exact:true}).click();
+  await expect(profile).toContainText("Display name saved.");
+  await page.locator("summary").filter({hasText:/^Leaderboard$/}).click();
+  await expect(page.getByText("87.5%",{exact:true})).toBeVisible();
+  await expect(page.getByText("80.0%",{exact:true})).toBeVisible();
+  await page.reload();await expect(profile).toContainText("Knee Team");
+  await page.setViewportSize({width:390,height:844});
+  await profile.getByRole("button",{name:"Change display name"}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  if(process.env.PROFILE_CAPTURE) await page.screenshot({path:process.env.PROFILE_CAPTURE});
+  await profile.getByRole("button",{name:"Cancel",exact:true}).click();
+  await page.setViewportSize({width:1440,height:1000});
   if(process.env.UI_CAPTURE_BEFORE) {
     await page.screenshot({path:process.env.UI_CAPTURE_BEFORE,fullPage:true});
     return;
@@ -54,7 +77,7 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   await expect(page.getByRole("button",{name:"Use test attempt",exact:true})).toHaveCount(1);
   await expect(page.getByRole("button",{name:"Submit final",exact:true})).toBeDisabled();
   await expect(page.getByRole("complementary", {name:"Findings and allowed values"})).toBeVisible();
-  await page.getByText("Clinical finding 1",{exact:true}).click();
+  await page.getByRole("complementary", {name:"Findings and allowed values"}).getByText("Clinical finding 1",{exact:true}).click();
   await expect(page.getByText("REFERENCE_DEFINITION_NOT_PROMPTED",{exact:true})).toHaveCount(0);
   await expect(page.getByRole("complementary",{name:"Findings and allowed values"}).getByText("absent · present · not mentioned",{exact:false}).first()).toBeVisible();
   await expect(editor).toHaveValue(baseline);
@@ -69,6 +92,7 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   await editor.fill(""); await expect(page.getByRole("button",{name:"Use test attempt",exact:true})).toBeDisabled();
   await editor.fill("My explicit clinical rules"); await page.reload(); await expect(editor).toHaveValue("My explicit clinical rules");
   const sandbox=page.getByRole("region",{name:"Prompt Sandbox"});
+  await expect(sandbox.getByText('30-second cooldown after completion. Scored submissions remain separate.')).toBeVisible();
   await sandbox.getByLabel("Editable sample 1").fill("Edited fictional example");
   await sandbox.getByRole("button",{name:"Run sandbox · 3 reports",exact:true}).click();
   await expect(sandbox.getByRole("button",{name:/Ready in/})).toBeDisabled();
@@ -93,6 +117,22 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   await page.getByRole("button",{name:"Read practice report 1",exact:true}).click();
   await expect(results.locator("summary").filter({hasText:/^Report 001$/})).toBeVisible();
   await expect(page.getByRole("complementary",{name:"Findings and allowed values"}).getByText("Clinical finding 12",{exact:true})).toBeVisible();
+  const matrix = page.getByRole("region", {name:"Results by report and finding",exact:true});
+  await expect(matrix.getByRole("row")).toHaveCount(21);
+  await expect(matrix.getByRole("button")).toHaveCount(240);
+  await expect(matrix.getByRole("button",{name:/Report 001, Clinical finding 1: Miss/})).toHaveText("×");
+  await expect(matrix.getByRole("button",{name:/Report 002, Clinical finding 1: Match/})).toHaveText("✓");
+  const match = matrix.getByRole("button",{name:/Report 002, Clinical finding 1: Match/});
+  await match.focus(); await expect(matrix).toContainText("Prediction: absent. Reference: absent.");
+  await match.press("Enter");
+  await expect(match).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByText("SYNTHETIC REPORT 2\n",{exact:false})).toBeVisible();
+  await expect(page.locator('[id="public-feedback-fictional-017.txt-finding_1"]')).toBeFocused();
+  const unavailable = matrix.getByRole("button",{name:/Report 003, Clinical finding 12: Unavailable/});
+  await unavailable.click();
+  await expect(page.getByText("SYNTHETIC REPORT 3\n",{exact:false})).toBeVisible();
+  await expect(results).toContainText("No scored comparison is available for Clinical finding 12");
+  if(process.env.MATRIX_CAPTURE) await page.screenshot({path:process.env.MATRIX_CAPTURE,fullPage:true});
   await editor.fill("Revised since scored run");
   await expect(page.getByText("Your prompt has changed since this scored result.",{exact:false})).toBeVisible();
   await expect(page.getByLabel("Shared baseline text")).toBeVisible();
@@ -108,9 +148,18 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   const example = JSON.parse(await page.getByLabel("Output format example").innerText());
   expect(example.finding_1).toEqual({status:"decision",value:"absent"});
   await page.getByRole("button",{name:"Copy baseline into editor",exact:true}).click(); await expect(editor).toHaveValue(baseline);
-  await page.getByText("Team instruction history",{exact:true}).click();
+  await page.getByText("Submission history",{exact:true}).click();
   await page.getByText(/^Practice 1 —/).click();
-  await page.getByRole("button",{name:"Copy practice 1 instructions to editor",exact:true}).click(); await expect(editor).toHaveValue("Saved team strategy");
+  await page.getByRole("button",{name:"Copy practice 1 instructions to editor",exact:true}).click(); await expect(editor).toHaveValue("Saved participant instructions");
+  await page.getByRole("button",{name:"View practice 1 results",exact:true}).click();
+  await expect(page.getByText("Viewing public attempt 1 · 60%",{exact:true})).toBeVisible();
+  await expect(editor).toHaveValue("Saved participant instructions");
+  const missingDecision = matrix.getByRole("button",{name:/Report 001, Clinical finding 1: Miss. Prediction: No decision/});
+  await expect(missingDecision).toHaveText("×");
+  await missingDecision.click();
+  await expect(results).toContainText("Score: 60%");
+  await expect(results).toContainText("No decision");
+  await expect(page.locator('[id="public-feedback-fictional-942.txt-finding_1"]')).toBeFocused();
   for(const width of [1280,1024,768,390]) {
     await page.setViewportSize({width,height:900}); await expect(editor).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
@@ -120,9 +169,14 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
   await page.getByRole("button",{name:"Hide allowed values",exact:true}).click();
   await expect(page.getByRole("complementary",{name:"Findings and allowed values"}).getByText("Clinical finding 12",{exact:true})).toBeHidden();
   if(process.env.UI_CAPTURE_MOBILE) await page.screenshot({path:process.env.UI_CAPTURE_MOBILE,fullPage:true});
-  for(const next of ["not_started","final_open","ended"]) {
-    phase=next; await page.reload(); await expect(editor).toHaveValue("Saved team strategy");
+  for(const next of ["not_started","sandbox_open","final_open","ended"]) {
+    phase=next; await page.reload(); await expect(editor).toHaveValue("Saved participant instructions");
     await expect(page.getByRole("button",{name:"Use test attempt",exact:true})).toBeDisabled();
+    if(next==="sandbox_open") {
+      await expect(page.getByRole("button",{name:"Run sandbox · 3 reports",exact:true})).toBeEnabled();
+      if(process.env.SANDBOX_PHASE_CAPTURE)await page.screenshot({path:process.env.SANDBOX_PHASE_CAPTURE,fullPage:true});
+      await expect(page.getByText("Sandbox is open. Public Test Attempts and Final Submission are closed.",{exact:true}).first()).toBeVisible();
+    }
     if(next==="final_open") {
       await expect(page.getByRole("button",{name:"Submit final",exact:true})).toBeEnabled();
       await page.getByRole("button",{name:"Submit final",exact:true}).click();
@@ -136,3 +190,9 @@ test(`participant layout, controls, drafts and feedback (${systemPromptVersion ?
 });
 
 }
+
+ test("projector scores preserve one decimal and duplicate display names",async({page})=>{
+ await page.route("**/api/**",async route=>route.fulfill({json:new URL(route.request().url()).pathname==="/api/leaderboard"?{visible:true,rows:[{rank:1,participant:"P1",displayName:"Same Name",score:99.96,final:true},{rank:2,participant:"P2",displayName:"Same Name",score:87.46,final:true},{rank:3,participant:"P3",score:0,final:true}]}:{challenge:{title:"Synthetic",eventPhase:"ended"}}}));
+ await page.goto("/display/leaderboard");await expect(page.getByText("Same Name",{exact:true})).toHaveCount(2);
+ for(const value of ["100.0%","87.5%","0.0%"])await expect(page.getByText(value,{exact:true})).toBeVisible();
+ });

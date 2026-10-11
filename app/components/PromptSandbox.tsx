@@ -1,6 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {ChallengeFieldDefinition} from '../lib/challenge-modes';
+import {SANDBOX_COOLDOWN_SECONDS} from '../lib/sandbox-policy';
 type Report={id:string;text:string};
 type Result={reportId:string;status:string;error?:string;decisions?:Record<string,{status:string;value:string|number|null}>};
 type State={enabled:boolean;reports:Report[];inFlight:boolean;cooldownUntil:string|null;serverTime:string;job:{id:string;schema_version:number;reports:Report[];prompt:string;results:Result[];status:string;simulation:boolean}|null};
@@ -30,11 +31,18 @@ export function PromptSandbox({token,participantId,contestId,version,prompt,fiel
   try{
    const response=await fetch('/api/sandbox',{method:'POST',signal:controller.signal,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({contestId,schemaVersion:version,prompt,reports,idempotencyKey:submission.current.key})});
    if(!response.ok){const b=await response.json();throw new Error(b.error||'Sandbox run failed.');}
+   let finalStatus='running';
    if(response.headers.get('content-type')?.includes('application/x-ndjson')){
     const reader=response.body!.getReader(),decoder=new TextDecoder();let pending='';
-    while(true){const {done,value}=await reader.read();if(done)break;pending+=decoder.decode(value,{stream:true});const lines=pending.split('\n');pending=lines.pop()||'';for(const line of lines){if(!line)continue;const event=JSON.parse(line);if(event.reportId || event.jobId)await refresh();}}
+    while(true){const {done,value}=await reader.read();if(done)break;pending+=decoder.decode(value,{stream:true});const lines=pending.split('\n');pending=lines.pop()||'';for(const line of lines){if(!line)continue;const event=JSON.parse(line);
+     if(event.status==='retrying')setMessage('The evaluation service is temporarily unavailable. Retrying automatically; please wait—no need to run again.');
+     else if(event.status==='processing')setMessage('Evaluating your sandbox samples. Results appear automatically as each report finishes.');
+     else if(event.status==='queued')setMessage('Your sandbox samples are queued. Please wait; they will run automatically.');
+     if(event.reportId && ['completed','failed'].includes(event.status) || event.jobId)await refresh();
+     if(!event.reportId && ['completed','failed','cancelled'].includes(event.status))finalStatus=event.status;
+    }}
    }
-   await refresh();submission.current=null;setMessage('Run finished. Wait 60 seconds before the next run.');
+   await refresh();submission.current=null;setMessage(finalStatus==='failed'?`Some samples could not finish. Completed predictions are shown; no scored test attempt was used. Wait ${SANDBOX_COOLDOWN_SECONDS} seconds before another run.`:finalStatus==='cancelled'?'Sandbox run interrupted. No scored test attempt was used.':finalStatus==='running'?'Checking saved sandbox results…':`Sandbox complete. Wait ${SANDBOX_COOLDOWN_SECONDS} seconds before the next run.`);
   }catch(e){setMessage(e instanceof Error?e.message:'Run interrupted.');await refresh().catch(()=>{});}
   finally{setBusy(false);abort.current=null;}
  }
@@ -42,7 +50,7 @@ export function PromptSandbox({token,participantId,contestId,version,prompt,fiel
  const current=reports[selected];const result=state.job?.results.find(r=>r.reportId===current?.id);const old=previous.find(r=>r.reportId===current?.id);
  return <section className="min-w-0 rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 p-4 sm:p-6" aria-label="Prompt Sandbox">
   <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">Sandbox</h2><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Debug your prompt on three editable samples. Unlimited total runs; no leaderboard or attempt budget impact.</p></div><span className="rounded bg-teal-50 dark:bg-teal-950 px-3 py-1 text-sm text-teal-800 dark:text-teal-300">Unscored</span></header>
-  {!state.enabled?<p className="mt-3 text-sm">Sandbox is paused or not configured. Your organizer can enable it during practice.</p>:<>
+  {!state.enabled?<p className="mt-3 text-sm">Sandbox is paused or not configured. Your organizer can enable it in Sandbox Open or Practice.</p>:<>
    <p className="my-3 text-sm text-slate-600 dark:text-slate-300">Uses the prompt editor above and the same fixed model. Only your sandbox copies change; original reports stay intact. Feedback is model predictions, not an answer-key score.</p>
    <div className="mb-3 flex flex-wrap gap-2">{reports.map((r,i)=><button key={r.id} aria-pressed={i===selected} className={`rounded border px-3 py-2 ${i===selected?'bg-teal-800 text-white':'text-slate-800 dark:text-slate-100'}`} onClick={()=>setSelected(i)}>Sample {i+1}</button>)}</div>
    {current && <div className="grid min-w-0 gap-4 lg:grid-cols-2"><div><label htmlFor="sandbox-report" className="font-medium text-slate-900 dark:text-slate-100">Editable sample {selected+1}</label><textarea id="sandbox-report" value={current.text} maxLength={30000} disabled={busy||state.inFlight} onChange={e=>edit(e.target.value)} className="mt-2 min-h-64 w-full rounded border border-slate-300 dark:border-slate-600 p-3 text-sm text-slate-900 dark:text-slate-100"/><button disabled={busy||state.inFlight} className="text-sm underline" onClick={()=>edit(state.reports.find(r=>r.id===current.id)?.text||'')}>Reset this sample</button></div>
@@ -50,8 +58,8 @@ export function PromptSandbox({token,participantId,contestId,version,prompt,fiel
     {state.job && (state.job.schema_version!==version || state.job.prompt!==prompt || JSON.stringify(state.job.reports.slice().sort((a,b)=>a.id.localeCompare(b.id)))!==JSON.stringify(reports.slice().sort((a,b)=>a.id.localeCompare(b.id)))) && <p className="text-sm text-amber-800 dark:text-amber-300">Results belong to an earlier schema, prompt or sample draft.</p>}
     {!result?<p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{state.inFlight?'Queued or running…':'Run the sandbox to see predictions.'}</p>:result.error?<p role="alert">{result.error}</p>:<dl className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">{fields.map(f=>{const d=result.decisions?.[f.key],prior=old?.decisions?.[f.key];return <div key={f.key} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><dt>{f.label}</dt><dd className="break-words font-medium">{d?.status==='decision'?String(d.value):'No decision'}{prior&&JSON.stringify(prior)!==JSON.stringify(d)&&<span className="ml-2 text-xs text-teal-700 dark:text-teal-300">changed</span>}</dd></div>;})}</dl>}
    </div></div>}
-   <div className="mt-4 flex flex-wrap items-center gap-3"><button onClick={()=>void run()} disabled={busy||state.inFlight||remaining>0||!prompt.trim()||prompt.length>12000||reports.length!==3||reports.some(r=>!r.text.trim())} className="rounded bg-teal-800 px-4 py-2 font-semibold text-white disabled:opacity-50">{busy||state.inFlight?'Sandbox running…':remaining?`Ready in ${remaining}s`:'Run sandbox · 3 reports'}</button><span className="text-sm text-slate-600 dark:text-slate-300">60-second cooldown after completion. Scored submissions remain separate.</span></div>
+   <div className="mt-4 flex flex-wrap items-center gap-3"><button onClick={()=>void run()} disabled={busy||state.inFlight||remaining>0||!prompt.trim()||prompt.length>12000||reports.length!==3||reports.some(r=>!r.text.trim())} className="rounded bg-teal-800 px-4 py-2 font-semibold text-white disabled:opacity-50">{busy||state.inFlight?'Sandbox running…':remaining?`Ready in ${remaining}s`:'Run sandbox · 3 reports'}</button><span className="text-sm text-slate-600 dark:text-slate-300">{SANDBOX_COOLDOWN_SECONDS}-second cooldown after completion. Scored submissions remain separate.</span></div>
   </>}
-  <p role="status" aria-live="polite" className="mt-3 text-sm text-slate-700 dark:text-slate-200">{message}</p>
+  <p role="status" aria-live="polite" className="mt-3 text-sm text-slate-700 dark:text-slate-200">{message || (state.inFlight?'Your sandbox run is processing. Please wait; results will update automatically.':'')}</p>
  </section>;
 }

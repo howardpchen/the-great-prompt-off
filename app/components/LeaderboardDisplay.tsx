@@ -16,6 +16,7 @@ type ChallengeDataStatus = {
 type LeaderboardRow = {
   rank: number;
   participant: string;
+  displayName?: string | null;
   score: number;
   final: boolean;
   submittedAt?: string;
@@ -197,7 +198,7 @@ function LeaderboardDisplayRow({ row }: { row: LeaderboardRow }) {
       <div className="text-4xl font-semibold text-teal-100">#{row.rank}</div>
       <div className="min-w-0">
         <p className="truncate text-4xl font-semibold text-white">
-          {row.participant}
+          {row.displayName || row.participant}
         </p>
         <p className="mt-1 text-lg text-slate-300">
           {row.final ? "Final submission" : "Test attempt"}
@@ -205,7 +206,7 @@ function LeaderboardDisplayRow({ row }: { row: LeaderboardRow }) {
         </p>
       </div>
       <div className="text-right text-5xl font-semibold tabular-nums text-white">
-        {row.score}%
+        {Number(row.score).toFixed(1)}%
       </div>
     </article>
   );

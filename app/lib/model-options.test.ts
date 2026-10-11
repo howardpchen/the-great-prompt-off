@@ -9,6 +9,7 @@ import {
 describe("approved evaluation models", () => {
   it("includes educational candidates without calling them live-tested", () => {
     expect(evaluationModelOptions.map((option) => option.id)).toEqual([
+      "openai/gpt-oss-20b",
       "qwen/qwen3.5-9b",
       "qwen/qwen3.5-35b-a3b",
       "google/gemini-2.5-flash",

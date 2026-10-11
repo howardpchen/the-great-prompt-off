@@ -1,11 +1,14 @@
+import { evaluationFailureMessage } from "@/app/lib/evaluation-errors";
+import {beginBatch,finishReport} from '../../lib/provider-telemetry';
 import {createDatabase} from '../../lib/db/database';
 import {admitSandbox,appendSandboxResult,finishSandbox,sandboxStatus,SandboxError,type SandboxInput} from '../../lib/db/sandbox';
 import {verifyParticipantSessionToken} from '../../lib/supabase/participant-session-token';
 import {validateParticipantSession} from '../../lib/supabase/participant-validation';
 import {isAllowedWrite} from '../../lib/request-security';
-import {extractReportWithOpenRouter,shouldUseRealLlm,resolveOpenRouterModel} from '../../lib/openrouter';
+import {ProviderOutputError,extractReportWithOpenRouter,shouldUseRealLlm,resolveOpenRouterModel} from '../../lib/openrouter';
 import {resolveChallengeMode} from '../../lib/schema-storage';
 import {parseEducationOutput} from '../../lib/education-contract';
+import {SANDBOX_COOLDOWN_SECONDS} from '../../lib/sandbox-policy';
 export const runtime='nodejs';
 export const maxDuration=1200;
 const headers={'Cache-Control':'private, no-store',Vary:'Authorization'};
@@ -40,19 +43,22 @@ export async function POST(request:Request){
    async start(controller){
     const send=(data:unknown)=>{if(!closed)try{controller.enqueue(encoder.encode(JSON.stringify(data)+'\n'));}catch{closed=true;abort.abort();}};
     send({jobId:job.id,status:'running',simulation:job.simulation});
+    const finishMetrics=beginBatch(job.id,'sandbox',job.reports.length,job.reports.length,contest.id);
+    const heartbeat=setInterval(()=>send({status:"waiting"}),10000);
     let failed=false;
-    try{const settled=await Promise.allSettled(job.reports.map(async r=>{
+    try{const settled=await Promise.allSettled(job.reports.map(async (r,reportIndex)=>{
      let result:unknown;
      try{
-      const raw=job.simulation?JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:'no_decision',value:null}]))):await extractReportWithOpenRouter({prompt:job.prompt,reportText:r.text,mode,model:resolveOpenRouterModel(contest.evaluation_model),signal:abort.signal},{priority:'sandbox',group:id});
+      const raw=job.simulation?JSON.stringify(Object.fromEntries(mode.fields.map(f=>[f.key,{status:'no_decision',value:null}]))):await extractReportWithOpenRouter({prompt:job.prompt,reportText:r.text,mode,model:resolveOpenRouterModel(contest.evaluation_model),signal:abort.signal},{priority:'sandbox',group:id,trace:{batchId:job.id,reportIndex},onQueued:()=>send({reportId:r.id,status:'queued'}),onAdmission:()=>send({reportId:r.id,status:'processing'}),onRetry:()=>send({reportId:r.id,status:'retrying'})});
       result={reportId:r.id,status:'completed',decisions:parseEducationOutput(raw,mode).decisions};
-     }catch{failed=true;result={reportId:r.id,status:'failed',error:abort.signal.aborted?'Run interrupted.':'Provider unavailable or output invalid; this report was not scored.'};}
-     await appendSandboxResult(db,job.id,result);send(result);
+     }catch(error){failed=true;result={reportId:r.id,status:'failed',error:abort.signal.aborted?'Run interrupted.':evaluationFailureMessage(error instanceof ProviderOutputError?'output_format':'evaluation_failed','sandbox')};}
+     await appendSandboxResult(db,job.id,result);finishReport(job.id,reportIndex,(result as {status:string}).status==='completed'?'processed':'failed');send(result);
     }));if(settled.some(r=>r.status==='rejected'))failed=true;}catch{failed=true;}
     finally{
-     clearTimeout(deadline);request.signal.removeEventListener('abort',onAbort);
+     clearInterval(heartbeat);clearTimeout(deadline);request.signal.removeEventListener('abort',onAbort);
      const status=abort.signal.aborted?'cancelled':failed?'failed':'completed';
-     try{await finishSandbox(db,job.id,status);send({status,cooldownSeconds:60});}finally{if(!closed){closed=true;controller.close();}}
+     finishMetrics(status);
+     try{await finishSandbox(db,job.id,status);send({status,cooldownSeconds:SANDBOX_COOLDOWN_SECONDS});}finally{if(!closed){closed=true;controller.close();}}
     }
    },cancel(){closed=true;abort.abort();}
   });

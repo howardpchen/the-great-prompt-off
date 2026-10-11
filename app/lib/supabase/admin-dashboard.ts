@@ -1,4 +1,3 @@
-import { isEducationContest } from "../education-policy";
 import "server-only";
 
 import { safeCsvCell, toCsv } from "@/app/lib/csv";
@@ -275,7 +274,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       testAttemptsUsed: testSubmissions.length,
     });
     const extraPublicAttempts =
-      isEducationContest(challengeResult.data.contest_schema) ? 0 : extraAttemptsByParticipantCode.get(participant.participant_code) ?? 0;
+      extraAttemptsByParticipantCode.get(participant.participant_code) ?? 0;
     const effectivePublicSubmissionLimit =
       challengeResult.data.public_submission_limit + extraPublicAttempts;
 
@@ -490,7 +489,7 @@ export async function updateActiveChallengePhase(phase: EventPhase) {
   }
 
   const supabase = createDatabase();
-  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "challenges", values: { event_phase: phase }, operation: "update", where: [["is_active", "eq", true]] });
+  const { error } = await supabase.execute<Record<string, unknown>[]>({ table: "challenges", values: { event_phase: phase, ...(phase === "sandbox_open" ? {sandbox_enabled:true} : {}) }, operation: "update", where: [["is_active", "eq", true]] });
 
   if (error) {
     throw new Error(`Failed to update event phase: ${error.message}`);
@@ -618,8 +617,10 @@ export async function clearParticipantRunData(participantCode: string) {
 
 export async function grantExtraPublicAttempt(participantCode: string) {
   const supabase = createDatabase();
-  const [education] = await supabase.sql<{id:string;educational:boolean}>("SELECT id,contest_schema #>> '{education,version}' = '1' AS educational FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1");
-  if (education?.educational) throw new Error('Team Challenge practice budgets are equal across teams. Recover failed infrastructure attempts instead.');
+  const [challenge] = await supabase.sql<{ id: string }>(
+    "SELECT id FROM challenges WHERE is_active ORDER BY created_at DESC LIMIT 1",
+  );
+  if (!challenge) throw new Error("No active contest. Activate a contest before granting an extra Test Attempt.");
   const normalizedParticipantCode = participantCode.trim().toUpperCase();
   const { data: participant, error: participantError } = await supabase.execute<{ participant_code: string; is_active: boolean }>({ table: "participants", columns: "participant_code, is_active", single: "maybeSingle", operation: "select", where: [["participant_code", "eq", normalizedParticipantCode]] });
 
@@ -646,7 +647,7 @@ export async function grantExtraPublicAttempt(participantCode: string) {
          SET extra_public_attempts = participant_attempt_overrides.extra_public_attempts + 1,
              updated_at = now()
        RETURNING extra_public_attempts`,
-      [normalizedParticipantCode,education?.id],
+      [normalizedParticipantCode, challenge.id],
     );
 
     return override.extra_public_attempts;

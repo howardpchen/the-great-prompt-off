@@ -8,12 +8,15 @@ export type ContestLibraryRow={id:string;title:string;is_active:boolean;event_ph
 export function ContestLibrary({initialContests}:{initialContests:ContestLibraryRow[]}) {
   const router=useRouter();const writing=useRef(false);
   const [creating,setCreating]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+  const [showArchived,setShowArchived]=useState(false);
   const [title,setTitle]=useState(''),[template,setTemplate]=useState('binary'),[model,setModel]=useState<string>(evaluationModelOptions[0].id),[budget,setBudget]=useState(5);
+  const archivedCount=initialContests.filter(contest=>contest.archived_at).length;
+  const visibleContests=showArchived?initialContests:initialContests.filter(contest=>!contest.archived_at);
   async function create() {
     if(writing.current)return;writing.current=true;setBusy(true);setMessage('');
     try {
       const source=template==='mixed'?mixedTemplate:twelveBinaryTemplate;
-      const schema={...source,education:{version:1,pipeline:'structured-v1',evaluationMode:'simulation',systemPromptVersion:'clinical-extraction-v1',baselineInstructions:'Read the report and extract the requested findings.'}};
+      const schema={...source,education:{version:1,pipeline:'structured-v1',evaluationMode:'simulation',systemPromptVersion:'clinical-extraction-v1',baselineInstructions:'Read the radiology report.'}};
       const r=await fetch('/api/admin/contests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create',title,schema,evaluationModel:model,practiceBudget:budget})});
       const b=await r.json();if(!r.ok)throw new Error(b.error||'Could not create draft.');
       router.push(`/admin/contests/${b.contestId}`);
@@ -28,10 +31,11 @@ export function ContestLibrary({initialContests}:{initialContests:ContestLibrary
       <p className="text-sm text-slate-600 dark:text-slate-300 sm:col-span-2">New drafts are inactive and start in simulation. Choose their clinical fields, dataset, and evaluation settings in the Builder.</p><button disabled={busy} className="rounded bg-teal-800 px-4 py-2 font-semibold text-white disabled:opacity-50">{busy?'Creating…':'Create inactive draft'}</button></form>}
       <p role="status" className="mt-3 text-sm">{message}</p>
     </section>
-    <section aria-label="Stored contests" className="grid gap-4 lg:grid-cols-2">{initialContests.map(c=>{const frozen=Boolean(c.configuration_frozen_at||c.schema_locked||c.is_active);return <article key={c.id} className="min-w-0 rounded-xl border bg-white dark:bg-slate-900 p-5 shadow-sm">
+    {archivedCount>0&&<div className="flex justify-end"><button type="button" aria-pressed={showArchived} onClick={()=>setShowArchived(value=>!value)} className="rounded border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-semibold text-teal-800 dark:text-teal-300">{showArchived?'Hide archived challenges':`Show ${archivedCount} archived challenge${archivedCount===1?'':'s'}`}</button></div>}
+    <section aria-label="Stored contests" className="grid gap-4 lg:grid-cols-2">{visibleContests.map(c=>{const frozen=Boolean(c.configuration_frozen_at||c.schema_locked||c.is_active);return <article key={c.id} className="min-w-0 rounded-xl border bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded bg-slate-100 dark:bg-slate-800 px-2 py-1">{frozen?'Frozen':'Draft'}</span><span className={`rounded px-2 py-1 ${c.is_active?'bg-teal-100 text-teal-900 dark:text-teal-300':'bg-slate-100 dark:bg-slate-800'}`}>{c.is_active?'Active':'Inactive'}</span>{c.archived_at&&<span>Archived</span>}</div>
       <h2 className="mt-3 break-words text-lg font-semibold">{c.title}</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Version {c.schema_version} · {c.report_count} reports · {c.submission_count} submissions · {c.event_phase.replaceAll('_',' ')}</p>
       <div className="mt-4 flex flex-wrap gap-3"><Link className="rounded border px-3 py-2 font-semibold text-teal-800 dark:text-teal-300" href={`/admin/contests/${c.id}`}>{frozen||c.archived_at?'Inspect contest':'Continue setup'}</Link>{c.is_active&&<Link href="/admin" className="rounded bg-teal-800 px-3 py-2 font-semibold text-white">Run contest</Link>}</div>
-    </article>;})}{!initialContests.length&&<p>No contests yet. Create an inactive draft to begin.</p>}</section>
+    </article>;})}{!visibleContests.length&&<p>{archivedCount?'No current contests. Show archived challenges or create a new draft.':'No contests yet. Create an inactive draft to begin.'}</p>}</section>
   </div>;
 }

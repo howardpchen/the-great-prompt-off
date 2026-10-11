@@ -31,7 +31,10 @@ App rollback alone does not roll schema backward. Take database snapshots/backup
 ## Educational workflow fairness
 
 Opt-in `contest_schema.education.version=1` contests share one participant/team
-budget across browsers; individual extra-attempt overrides do not apply. The
+budget across browsers. The contest defines the common base budget; organizer
+`Grant +1 test` adds one public Test Attempt only for the selected participant
+in the active contest. These grants do not change other participants, other
+contests, or final-submission limits. Concurrent grants accumulate atomically. The
 first final admission locks its instruction hash, even if infrastructure fails.
 Only the same final instructions can be retried. Final scores and aggregates are
 projected away from participant responses and idempotency replay until `ended`;

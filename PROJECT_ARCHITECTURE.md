@@ -399,3 +399,17 @@ Main code paths:
 - OpenRouter helper: `app/lib/openrouter.ts`
 - scoring: `app/lib/scoring.ts`
 - scoring tests: `app/lib/scoring.test.ts`
+
+### Sandbox-only phase
+
+`Run → Set Sandbox Open` sets `sandbox_open` and enables the configured sandbox.
+The active contest must be ready, educational, and contain exactly three sandbox
+samples; otherwise the action is rejected without changing phase or enablement.
+Participants can edit prompts and run the unscored sandbox. Public report content,
+practice baselines, Public Test Attempts, and Final Submission remain closed.
+Practice still permits Sandbox when enabled. Final/Ended close new sandbox runs.
+The separate Sandbox enablement setting remains a pause switch in either eligible
+phase. Existing results, attempt budgets, cooldowns and final-result privacy remain
+unchanged. Migration `032_sandbox_open_phase.sql` adds the phase without activating
+it for existing contests. Before rolling back to older application code, move any
+active `sandbox_open` contest to `not_started`; the additive migration may remain.
