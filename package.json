@@ -23,7 +23,7 @@
     "test:activation-freeze": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-activation-freeze.ts"
   },
   "dependencies": {
-    "next": "^16.3.4",
+    "next": "16.3.8",
     "pg": "^8.23.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
