@@ -12,6 +12,7 @@ test("complete matrix, latest/history synchronization, focus, and narrow screens
     if(route.request().method()!=="GET" && url.pathname!=="/api/participants/validate") submitRequests++;
     let data:unknown;
     switch(url.pathname) {
+      case "/api/participants/profile": data={displayName:"Synthetic participant"};break;
       case "/api/participants/validate": data={valid:true,participantCode:"DEMO01",participantToken:"fixture-token",source:"supabase"};break;
       case "/api/challenge-data": data={source:"supabase",challenge:{id:"matrix-demo",title:"Synthetic feedback preview",eventPhase:"practice_open",leaderboardVisibility:"practice",eventAnnouncement:"",eventTimerEndsAt:null,eventTimerLabel:"",publicSubmissionLimit:5,finalSubmissionLimit:1},mode:{id:"demo",version:1,title:"Demo",fields,education:{version:1,pipeline:"structured-v1",systemPromptVersion:"clinical-extraction-v1",baselineInstructions:"Use explicit evidence.",evaluationMode:"simulation"}},reportCounts:{sample:0,public:20,private:77},participantCount:2};break;
       case "/api/challenge-reports": data={reports};break;

@@ -12,7 +12,7 @@ for(const outcome of ['completed','failed'])test(`queued/retrying notification, 
    case '/api/participants/validate':data={valid:true,participantCode:'DEMO01',participantToken:'synthetic-ui-session',source:'supabase'};break;
    case '/api/participants/profile':data={participantCode:'DEMO01',displayName:'Synthetic participant'};break;
    case '/api/challenge-data':data={source:'supabase',challenge:{id:contestId,title:'Synthetic queue test',eventPhase:'practice_open',leaderboardVisibility:'practice',eventAnnouncement:'',eventTimerEndsAt:null,eventTimerLabel:'',publicSubmissionLimit:5,finalSubmissionLimit:1},mode:{id:'synthetic',version:1,title:'Synthetic',fields,education:{version:1,pipeline:'structured-v1',systemPromptVersion:'clinical-extraction-v1',baselineInstructions:'Use explicit findings.',evaluationMode:'simulation'}},reportCounts:{sample:0,public:2,private:2}};break;
-   case '/api/challenge-reports':data={reports:[{id:'synthetic-report',filename:'synthetic.txt',text:'Fictional findings.'}]};break;
+   case '/api/challenge-reports':data={reports:[{id:'synthetic-report',filename:'synthetic.txt',text:'Fictional findings.'},{id:'synthetic-report-2',filename:'synthetic-2.txt',text:'Fictional findings two.'}]};break;
    case '/api/sandbox':data={enabled:false,reports:[],job:null,inFlight:false,cooldownUntil:null,serverTime:new Date().toISOString()};break;
    case '/api/education-summary':data={simulated:true,baseline:null,hiddenBaseline:null};break;
    case '/api/team-history':data={practice:[],final:null};break;

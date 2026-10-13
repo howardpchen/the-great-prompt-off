@@ -178,6 +178,9 @@ export function ChallengeWorkspace({
   const router = useRouter();
   const [definitionsExpanded, setDefinitionsExpanded] = useState(false);
   const [reports, setReports] = useState(initialReports);
+  const [loadedReportsKey, setLoadedReportsKey] = useState("");
+  const [reportsError, setReportsError] = useState("");
+  const [reportsRetry, setReportsRetry] = useState(0);
   const [participantId, setParticipantId] = useState(
     normalizeParticipantCode(initialParticipantId),
   );
@@ -290,6 +293,8 @@ export function ChallengeWorkspace({
   });
   const phaseMessage = eventPhaseMessage(eventPhase);
   const canViewPublicReports = canViewPracticeReports(eventPhase);
+  const reportsKey = `${challengeId}:${eventPhase}:${activeParticipantToken}:${publicReportCount}`;
+  const reportsReady = canViewPublicReports && loadedReportsKey === reportsKey;
   const canSubmitPublic = eventPhase === "practice_open";
   const canSubmitFinal = eventPhase === "final_open";
 
@@ -361,27 +366,36 @@ export function ChallengeWorkspace({
   }, [activeParticipantId, activeParticipantToken]);
 
   useEffect(() => {
-    if (!activeParticipantToken || !participantValidation?.valid) return;
-    let ignore = false;
+    // Invalidate even while closed, so reopening cannot reuse a pre-close catalog.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadedReportsKey(""); setReportsError("");
+    if (!activeParticipantToken || !participantValidation?.valid ||
+        challengeId === "pending-challenge" || !canViewPublicReports) return;
+    const controller = new AbortController();
     async function loadReports() {
       try {
         const response = await fetch("/api/challenge-reports", {
           headers: { Authorization: `Bearer ${activeParticipantToken}` },
           cache: "no-store",
+          signal: controller.signal,
         });
-        if (!response.ok) throw new Error("Could not load practice reports. Return home and sign in again.");
+        if (!response.ok) throw new Error("Could not load public reports. Retry below; your saved result is safe.");
         const data = await response.json() as { reports: PublicChallengeReport[] };
-        if (!ignore) {
+        if (!Array.isArray(data.reports) || data.reports.length !== publicReportCount) {
+          throw new Error("Public reports are not ready yet. Retry below; your saved result is safe.");
+        }
+        if (!controller.signal.aborted) {
           setReports(data.reports);
-          setActiveReportId(data.reports[0]?.id ?? "");
+          setActiveReportId(current => data.reports.some(report => report.id === current) ? current : data.reports[0]?.id ?? "");
+          setLoadedReportsKey(reportsKey);
         }
       } catch (error) {
-        if (!ignore) setParticipantValidationError(error instanceof Error ? error.message : "Could not load practice reports.");
+        if (!controller.signal.aborted) setReportsError(error instanceof Error ? error.message : "Could not load public reports. Please retry.");
       }
     }
     void loadReports();
-    return () => { ignore = true; };
-  }, [activeParticipantToken, participantValidation?.valid]);
+    return () => { controller.abort(); };
+  }, [activeParticipantToken, participantValidation?.valid, challengeId, canViewPublicReports, publicReportCount, reportsKey, reportsRetry]);
 
   useEffect(() => {
     let ignore = false;
@@ -1056,6 +1070,7 @@ export function ChallengeWorkspace({
             !activeParticipantId ||
             !clinicalInstructions.trim() ||
             !canSubmitPublic ||
+            !reportsReady ||
             remainingPublicSubmissions === 0 ||
             promptOverLimit ||
             pendingAction !== null
@@ -1070,14 +1085,18 @@ export function ChallengeWorkspace({
               {pendingAction === "public" ? <span aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700 motion-reduce:animate-none"/> : null}
               <p>{submissionMessage}</p>
             </div> : null}
+            {canViewPublicReports && !reportsReady ? <div className="my-3" role="status">
+              <p>{reportsError || "Loading public reports for feedback…"}</p>
+              {reportsError ? <button type="button" className="mt-2 font-semibold underline" onClick={() => setReportsRetry(value => value + 1)}>Retry loading reports</button> : null}
+            </div> : null}
             {feedbackError ? <p role="alert" className="my-3 text-red-700 dark:text-red-300">{feedbackError}</p> : null}
             {feedbackLoading ? <p role="status">Loading saved public result…</p> : null}
-            {lastSubmissionFeedback?.kind === "public" ? <div className="min-w-0 rounded-xl bg-white p-4 dark:bg-slate-900">
+            {reportsReady && lastSubmissionFeedback?.kind === "public" ? <div className="min-w-0 rounded-xl bg-white p-4 dark:bg-slate-900">
               <p className="font-semibold">{feedbackAttempt ? `Viewing public attempt ${feedbackAttempt}` : "Viewing completed public result"} · {Math.round(lastSubmissionFeedback.score)}%</p>
               <PublicFeedbackMatrix reports={reports} fields={activeMode.fields} comparisons={lastSubmissionFeedback.clinicalComparisons ?? []} selected={selectedFeedbackCell} onSelect={(report, field) => { setActiveReportId(report); setSelectedFeedbackCell({report, field}); }} />
             </div> : null}
             <div id="public-report-details" className="grid min-w-0 scroll-mt-48 items-start gap-4 lg:grid-cols-2">
-            {activeReport ? (
+            {reportsReady && activeReport ? (
               <ReportViewer
                 activeReport={activeReport}
                 canViewReports={canViewPublicReports}
@@ -1097,7 +1116,7 @@ export function ChallengeWorkspace({
               latestPublicScore={latestPublicScore}
               message={submissionMessageKind === "final" ? "" : submissionMessage}
               promptDebug={lastSubmissionPromptDebug?.kind === "public" ? lastSubmissionPromptDebug : null}
-              feedback={lastSubmissionFeedback?.kind === "public" ? lastSubmissionFeedback : null}
+              feedback={reportsReady && lastSubmissionFeedback?.kind === "public" ? lastSubmissionFeedback : null}
               pendingAction={pendingAction}
               publicReportDescription={publicReportDescription}
               publicSubmissionLimit={publicSubmissionLimit}
