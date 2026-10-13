@@ -973,7 +973,7 @@ export function ChallengeWorkspace({
             <button
               type="button"
               onClick={saveAndExit}
-              className="h-10 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
+              className="h-10 shrink-0 whitespace-nowrap rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
             >
               Exit challenge
             </button>
@@ -1321,7 +1321,6 @@ function DataSourceStatus({
           Reports: {status.reportCounts.public} public test /{" "}
           {status.reportCounts.private} hidden final
         </span>
-        <span>Participants: {status.participantCount}</span>
       </div>
     </div>
   );
