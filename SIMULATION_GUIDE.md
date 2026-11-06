@@ -1,3 +1,5 @@
+> Current storage is direct PostgreSQL. Apply only ordered `db/migrations` with `npm run db:migrate`; historical `supabase/*.sql` references below identify provenance, not commands to run. See [database setup](db/README.md).
+
 # Simulation Rehearsal
 
 ## Phase 9B: Deterministic Dry-Run

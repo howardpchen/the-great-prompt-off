@@ -1,3 +1,4 @@
+import { isLocalFallbackEnabled } from "./request-security";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -82,7 +83,7 @@ export async function getSampleReports(): Promise<SampleReport[]> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    if (process.env.ALLOW_LOCAL_FALLBACK !== "true") {
+    if (!isLocalFallbackEnabled()) {
       console.error(
         "[challenge-data] Database public reports unavailable and local fallback is disabled",
         message,

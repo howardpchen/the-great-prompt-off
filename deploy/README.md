@@ -4,13 +4,7 @@
 
 This packaging is for a **private synthetic rehearsal** only. No DNS, Caddy,
 public ports, paid evaluation, persistent restart policies or backup schedules
-are activated here. Server changes are coordinator-only. Build on a sufficiently
-sized machine rather than on the resource-constrained target. Latest coordinator
-inventory verifies 1967 MiB RAM, x86_64 and approximately 6.8 GiB free disk. Minimum practical
-starting point is 1 GiB RAM for a small rehearsal; 2 GiB gives useful headroom.
-The current 2 GiB host meets that starting recommendation, but this is not a
-measured 50-user capacity guarantee. Current Compose caps total
-app/database memory at 640 MiB before host/daemon overhead.
+are activated here. Server changes are operator-only. This is the baseline rehearsal packaging, not an inventory of a current deployment. Inspect actual CPU, architecture, available memory/disk and operator overrides before releasing. A small rehearsal can start around 1–2 GiB RAM, but capacity must be measured for the intended workload. Baseline Compose caps app/database memory at 640 MiB before host/daemon overhead.
 
 Use maintained Docker Compose v2, PostgreSQL 17 and Node 22. Next standalone
 follows the installed Next output/deploying documentation. Before deployment,
@@ -22,8 +16,8 @@ overrides must also be pinned and verified. Never build with secrets as Docker a
 
 ## Disk and off-host release transfer
 
-The 6.8 GiB available target disk is plausible for a small synthetic rehearsal
-ONLY with off-host builds and bounded retention. Exact integrated images must
+Measure actual available disk; small synthetic rehearsals still require off-host
+builds and bounded retention. Exact integrated images must
 still be measured. Retrieved compressed image sizes are about 149 MiB PostgreSQL
 and 76 MiB Node; expanded snapshots, tooling dependencies and previous images
 consume additional space. Do not treat compressed sizes as installed usage.
