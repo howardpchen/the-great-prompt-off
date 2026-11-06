@@ -1,7 +1,7 @@
 # Knee MRI 12-Field Staging Package
 
 `knee-mri-12-answer-keys.demo.json` is synthetic demo data for rehearsing the
-admin answer-key import pipeline in a staging Supabase project.
+admin answer-key import pipeline in a disposable PostgreSQL database.
 
 The file covers the 50 filenames currently present in
 `seed-data/mock-reports/`. Its labels are deterministic placeholders created
@@ -19,5 +19,5 @@ Safety properties:
   secrets.
 
 Follow the staging rehearsal sequence in `REPORT_IMPORT_GUIDE.md`. Use a
-disposable or staging Supabase project, validate first, and never reuse these
+disposable or disposable PostgreSQL database, validate first, and never reuse these
 placeholder labels as real answer keys.

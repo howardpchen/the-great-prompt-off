@@ -1,3 +1,5 @@
+> **Historical document — not current setup instructions.** This records the earlier Supabase/Vercel design. Current runtime uses direct PostgreSQL; use [README.md](README.md), [db/README.md](db/README.md), and [deploy/README.md](deploy/README.md). Do not execute legacy SQL or seeding commands from this document.
+
 # Prompt Engineering Challenge Platform
 
 ## Project Summary

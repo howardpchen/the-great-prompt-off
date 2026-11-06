@@ -1,3 +1,4 @@
+import { isLocalFallbackEnabled } from "../request-security";
 import { createSubmissionProgress, type SubmissionProgressObserver } from "../submission-progress";
 import { evaluationFailureMessage, type EvaluationFailureCode } from "../evaluation-errors";
 import { beginBatch, finishReport, providerMetric, elapsedMs } from "../provider-telemetry";
@@ -230,7 +231,7 @@ export function fallbackLeaderboard(reason: string): LeaderboardResponse {
   return {
     source: "mock-file-fallback",
     fallbackReason: reason,
-    visible: process.env.ALLOW_LOCAL_FALLBACK === "true",
+    visible: isLocalFallbackEnabled(),
     rows: [],
   };
 }

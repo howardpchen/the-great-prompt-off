@@ -1,3 +1,4 @@
+import { isLocalFallbackEnabled, readSubmissionBody, RequestBodyError } from "@/app/lib/request-security";
 import { isContestId } from "@/app/lib/contest-context";
 import { finalFeedback } from "@/app/lib/final-feedback";
 import {
@@ -19,7 +20,12 @@ export async function POST(request: Request) {
   if (idempotencyKey && (idempotencyKey.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(idempotencyKey))) {
     return Response.json({ error: "Invalid idempotency key." }, { status: 400 });
   }
-  const body = await request.json().catch(() => null);
+  let body: unknown;
+  try { body = await readSubmissionBody(request); }
+  catch (error) {
+    if (error instanceof RequestBodyError) return Response.json({ error: error.message }, { status: error.status });
+    throw error;
+  }
 
   if (!isSubmissionRequest(body)) {
     return Response.json(
@@ -76,7 +82,7 @@ export async function POST(request: Request) {
 
     const message = error instanceof Error ? error.message : String(error);
 
-    if (process.env.ALLOW_LOCAL_FALLBACK !== "true") {
+    if (!isLocalFallbackEnabled()) {
       console.error("[submit-final] Database submission unavailable", message);
 
       return Response.json(

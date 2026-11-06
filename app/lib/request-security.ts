@@ -39,3 +39,38 @@ export async function readLoginBody(request: Request): Promise<Record<string, un
     return value && typeof value === "object" && !Array.isArray(value) ? value : null;
   } catch { return null; }
 }
+
+// Fallback is a development aid, never a production success response.
+export function isLocalFallbackEnabled() {
+  return process.env.ALLOW_LOCAL_FALLBACK === "true" && process.env.NODE_ENV !== "production";
+}
+
+export class RequestBodyError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
+// Enforce a byte limit while streaming, not after request.json() allocates it.
+// 80 KB accommodates a 12,000-character prompt even with JSON Unicode escapes.
+export async function readSubmissionBody(request: Request): Promise<unknown> {
+  const limit = 80_000;
+  const reader = request.body?.getReader();
+  if (!reader) throw new RequestBodyError("JSON body required.", 400);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        throw new RequestBodyError("Request too large.", 413);
+      }
+      chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (error) {
+    if (error instanceof RequestBodyError) throw error;
+    throw new RequestBodyError("Invalid JSON body.", 400);
+  } finally { reader.releaseLock(); }
+}

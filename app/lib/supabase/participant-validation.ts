@@ -1,3 +1,4 @@
+import { isLocalFallbackEnabled } from "../request-security";
 import "server-only";
 
 import {
@@ -46,7 +47,7 @@ type ParticipantRow = {
 };
 
 function allowLocalFallback() {
-  return process.env.ALLOW_LOCAL_FALLBACK === "true" && process.env.NODE_ENV !== "production";
+  return isLocalFallbackEnabled();
 }
 
 export async function validateParticipantAccessCode(
